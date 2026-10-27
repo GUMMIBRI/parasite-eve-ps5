@@ -52,3 +52,22 @@ library tests and game regression tests. Pin an explicitly verified commit in
 the parent project; do not consume a moving branch implicitly. Fetch upstream
 from `Xeeynamo/psyz`, integrate deliberately, and send reusable fixes upstream
 as patches or through a fork-network PR branch when appropriate.
+
+
+## PS5 fork contributions and review
+
+This repository targets an experimental retail/homebrew PS5 port. Preserve the
+upstream desktop build and keep platform changes isolated. Fetch
+khasinski/parasite-eve-pc before integration batches and record the upstream
+revision; do not consume a moving PsyZ revision implicitly. No console success
+may be inferred from desktop compilation.
+
+Use a feature branch and PR. Explain behavior, source provenance, build evidence,
+console limitations and any new tools/downloads/network access. Review the latest
+revision with Codex, resolve findings and obtain the required maintainer approval
+before merging. Treat inability to obtain a review as pending, never approval.
+See SECURITY.md for the settings that must be enforced independently in GitHub.
+
+Do not include retail game data, HD packs, saves or proprietary SDKs. Local legacy
+Windows work may supply useful fixes or assets with provenance retained; preserve
+recoverable originals and compare asset quality/compatibility before selection.

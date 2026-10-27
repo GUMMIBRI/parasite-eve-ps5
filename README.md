@@ -1,4 +1,39 @@
-# Parasite Eve
+# Parasite Eve — PS5 homebrew port
+
+Experimental retail/homebrew PS5 adaptation of the native
+[Parasite Eve PC port](https://github.com/khasinski/parasite-eve-pc), using its
+[PsyZ fork](https://github.com/khasinski/parasite-eve-psyz). This project preserves
+upstream game logic and keeps PS5-specific work isolated.
+
+**Status: no playable PS5 release.** The first [draft implementation](https://github.com/GUMMIBRI/parasite-eve-ps5/pull/1)
+contains host-only logging/file probes and a platform audit. It does not yet
+produce a PS5 payload or implement console controller, graphics or audio support.
+The target test setup is retail firmware 13.60 with kstuff-lite / ShadowMount+;
+compatibility is still being established. Console playtesting is performed by
+the project owner.
+
+## Project direction
+
+- Build with a public, legally available homebrew toolchain; no leaked Sony SDK.
+- Bring up boot/logging, scratch filesystem access, controller and graphics clear
+  before integrating game systems.
+- Preserve desktop behavior and deliberately integrate updates from upstream.
+  Keep PsyZ pinned to a reviewed revision.
+- Compare available original and HD assets for quality and compatibility.
+  Game images, HD packs and saves remain user-supplied local data.
+- Submit useful portable fixes upstream with their provenance and notices intact.
+
+See [contribution and review policy](CONTRIBUTING.md), [security policy](SECURITY.md),
+and the [PS5 groundwork PR](https://github.com/GUMMIBRI/parasite-eve-ps5/pull/1).
+There are no PS5 download/install instructions until a console build is verified.
+Upstream desktop releases below are PC releases, not PS5 packages.
+
+---
+
+## Upstream PC documentation
+
+The following upstream documentation is retained for desktop usage and builds.
+
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/bQkCVvrkem)
 

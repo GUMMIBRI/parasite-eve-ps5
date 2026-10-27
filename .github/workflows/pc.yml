@@ -18,9 +18,10 @@ jobs:
   macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: false
+          persist-credentials: false
       - name: Fetch PsyZ and SDL
         run: |
           git submodule update --init third_party/psyz
@@ -38,9 +39,10 @@ jobs:
       PSYZ_HEADLESS: '1'
       SDL_AUDIODRIVER: dummy
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: false
+          persist-credentials: false
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
@@ -101,9 +103,10 @@ jobs:
       PSYZ_HEADLESS: '1'
       SDL_AUDIODRIVER: dummy
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: false
+          persist-credentials: false
       - uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
         with:
           msystem: UCRT64
