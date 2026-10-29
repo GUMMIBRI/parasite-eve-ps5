@@ -1,6 +1,6 @@
 # Export and three-way reconcile a candidate without changing the checkout/index.
 [CmdletBinding()]
-param([string]$Revision='da1f775e686ebe47fa5848c723f7efba73d59211', [switch]$AcceptVersionResolution)
+param([string]$Revision='da1f775e686ebe47fa5848c723f7efba73d59211', [switch]$AcceptVersionResolution, [string]$PsyZRevision)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=(Resolve-Path "$PSScriptRoot/../..").Path
@@ -90,6 +90,7 @@ if($bootText.Contains('    int widescreen;')){
  $changes+=@{Path='src/main/boot/main.c'; Resolution='PE_PS5-only widescreen option normalization; CPU renderer has no extended widescreen surface'}
 }
 $pin=(GitText @('-C',"$root/third_party/psyz",'rev-parse','HEAD')).Trim()
+if($PsyZRevision){$pin=(GitText @('-C',"$root/third_party/psyz",'rev-parse',"$PsyZRevision^{commit}")).Trim()}
 $upstreamPin=(GitText @('ls-tree',$theirs,'third_party/psyz')).Trim()
 if((GitText @('rev-parse','HEAD')).Trim() -ne $ours){throw 'Checkout HEAD changed during preparation; candidate not marked ready'}
 foreach($change in $changes){

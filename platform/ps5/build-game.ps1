@@ -3,17 +3,22 @@
 param(
  [string]$Sdk='',
  [string]$LlvmBin='',
- [string]$SDL3Prefix='C:/.pe/tools/pe-ps5-sdl3/20261029T010754Z-68fad8/install',
+ [string]$SDL3Prefix='C:/.pe/tools/pe-ps5-sdl3/20261029T010754Z-68fad8/install-reviewfix',
  [string]$SDL3Source,
  [string]$SDL3Build,
  [string]$CMake='C:/.pe/tools/cmake/cmake-4.4.4-windows-x86_64/bin/cmake.exe',
  [string]$Ninja='C:/.pe/tools/ninja/ninja.exe',
  [string]$Resume,
- [string]$SourceRoot
+ [string]$SourceRoot,
+ [string]$PsyZRevision,
+ [switch]$StartupLog,
+ [string]$ApplicationTooling
 )
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=(Resolve-Path "$PSScriptRoot/../..").Path
+if($ApplicationTooling -and $StartupLog -and $Resume){throw 'Application diagnostics require a fresh output to preserve CRT instrumentation provenance'}
+if($ApplicationTooling){$ApplicationTooling=(Resolve-Path -LiteralPath $ApplicationTooling).Path}
 $gameSource=if($SourceRoot){(Resolve-Path $SourceRoot).Path}else{$root}
 $candidate=$null
 if($SourceRoot){
@@ -30,6 +35,11 @@ if(!$Sdk){$Sdk="$PSScriptRoot/tools/v0.45/ps5-payload-sdk"}
 if(!$LlvmBin){$LlvmBin="$PSScriptRoot/tools/llvm-18.1.8/bin"}
 $Sdk=(Resolve-Path $Sdk).Path
 $LlvmBin=(Resolve-Path $LlvmBin).Path
+if($ApplicationTooling){
+ $applicationInputs=& "$PSScriptRoot/validate-application-inputs.ps1" -NativeSource $ApplicationTooling -Sdk $Sdk
+ # Application generation changes CRT/backend inputs; never reuse another ABI tree.
+ if($Resume){throw 'Application builds require a fresh output; resume could mix CRT, SDK or SDL inputs'}
+}
 $SDL3Prefix=(Resolve-Path $SDL3Prefix).Path
 if(!$SDL3Source){$SDL3Source=Join-Path (Split-Path $SDL3Prefix) 'src'}
 if(!$SDL3Build){$SDL3Build=Join-Path (Split-Path $SDL3Prefix) 'b'}
@@ -39,9 +49,18 @@ $CMake=(Get-Command $CMake -ErrorAction Stop).Source
 $Ninja=(Get-Command $Ninja -ErrorAction Stop).Source
 $pin=& git -C "$root/third_party/psyz" rev-parse HEAD
 if($LASTEXITCODE -ne 0){throw 'Cannot identify PsyZ revision'}
+if($PsyZRevision){
+ $pin=& git -C "$root/third_party/psyz" rev-parse "$PsyZRevision^{commit}"
+ if($LASTEXITCODE -ne 0){throw 'Selected PsyZ revision is not available locally'}
+}
 $dirty=& git -C "$root/third_party/psyz" status --porcelain --untracked-files=no
 if($LASTEXITCODE -ne 0 -or $dirty){throw 'PsyZ tracked sources must be clean for generated patches'}
 $out=if($Resume){(Resolve-Path $Resume).Path}else{Join-Path $root ('outputs/ps5/game-'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')+'-'+[Guid]::NewGuid().ToString('N').Substring(0,6))}
+if($Resume -and (Test-Path "$out/application-project.cmake") -and !$ApplicationTooling){throw 'Application build resume requires ApplicationTooling; use a fresh output for payload ABI'}
+if($Resume -and !$StartupLog -and ((Test-Path "$out/startup-project.cmake") -or (Test-Path "$out/STARTUP-LOG.json"))){
+ throw 'Cannot disable startup diagnostics when resuming an instrumented build; retain StartupLog or use a fresh output'
+}
+if($ApplicationTooling -and $Resume -and (Test-Path "$out/startup-project.cmake")){throw 'Cannot reuse payload diagnostics build for application ABI'}
 New-Item -ItemType Directory -Force $out | Out-Null
 if($Resume -and (Test-Path "$out/INPUTS.json")){
  $previous=Get-Content "$out/INPUTS.json" -Raw | ConvertFrom-Json
@@ -50,7 +69,7 @@ if($Resume -and (Test-Path "$out/INPUTS.json")){
   if($previous.SourceRoot -ne $gameSource){throw 'Resume SourceRoot changed; use a new isolated build'}
  }elseif($SourceRoot){throw 'Cannot resume a baseline build with isolated sources'}
 }
-if($candidate -and $candidate.PsyZRevision -ne $pin){throw 'Candidate PsyZ revision differs from preserved checkout'}
+if($candidate -and $candidate.PsyZRevision -ne $pin){throw 'Candidate PsyZ revision differs from selected build revision'}
 # Invalidate success before stage/INPUTS mutation; retain prior provenance.
 $attempt=[Guid]::NewGuid().ToString('N')
 foreach($name in @('RESULT.json','INPUTS.json')){
@@ -77,7 +96,7 @@ try{
  $stage="$out/psyz-src"
  if(!$Resume){
   New-Item -ItemType Directory $stage | Out-Null
-  Run git @('-C',"$root/third_party/psyz",'archive','--format=zip',"--output=$out/psyz.zip",'HEAD')
+  Run git @('-C',"$root/third_party/psyz",'archive','--format=zip',"--output=$out/psyz.zip",$pin)
   Expand-Archive "$out/psyz.zip" $stage
   Patch "$stage/psyz/CMakeLists.txt" 'if(NOT PSP)' 'if(NOT PSP AND NOT TARGET SDL3::SDL3)'
   Patch "$stage/psyz/CMakeLists.txt" '    list(APPEND PSYZ_SOURCES src/dbgserver/dbgserver.c)' '# Console build: debug HTTP server excluded.'
@@ -85,7 +104,12 @@ try{
   New-Item -ItemType Directory -Force "$stage/external/SDL/src/video" | Out-Null
   Copy-Item -Recurse "$root/third_party/psyz/external/SDL/src/video/khronos" "$stage/external/SDL/src/video/"
  }
- & "$PSScriptRoot/patch-game.ps1" -Stage $stage
+ # Always regenerate from the selected archive, including on resume.
+ $gpuOriginal="$out/sdl3_gpu.original.c"
+ $gpuText=& git -C "$root/third_party/psyz" show "${pin}:psyz/src/platform/sdl3_gpu.c"
+ if($LASTEXITCODE -ne 0){throw 'Cannot read selected PsyZ GPU source'}
+ [IO.File]::WriteAllText($gpuOriginal,($gpuText -join "`n")+"`n")
+ & "$PSScriptRoot/patch-game.ps1" -Stage $stage -OriginalSource $gpuOriginal
  $inputs=@('CMakeLists.txt','cmake/ps5/game.cmake','platform/ps5/build-game.ps1','platform/ps5/patch-game.ps1','src/main/boot/main.c') | ForEach-Object {
   $inputRoot=if($_ -like 'platform/*'){$root}else{$gameSource}
   @{File=$_; SHA256=(Get-FileHash "$inputRoot/$_").Hash}
@@ -98,9 +122,94 @@ try{
  }
  @{PsyZRevision=$pin; GameRevision=(& git -C $root rev-parse HEAD); SourceRoot=$gameSource; UpstreamCandidate=$candidate; SDL3Prefix=$SDL3Prefix; SDL3Source=$SDL3Source; SDL3Build=$SDL3Build; SDL3CoreSHA256=(Get-FileHash "$SDL3Source/src/SDL.c").Hash; SDL3ConfigSHA256=(Get-FileHash "$SDL3Build/include-config-release/build_config/SDL_build_config.h").Hash; SDL3LibrarySHA256=(Get-FileHash "$SDL3Prefix/lib/libSDL3.a").Hash; Files=@($inputs)} | ConvertTo-Json -Depth 8 | Set-Content "$out/INPUTS.json"
  Run $CMake @('-S',$gameSource,'-B',"$out/b",'-G','Ninja',"-DCMAKE_MAKE_PROGRAM=$Ninja", "-DCMAKE_TOOLCHAIN_FILE=$Sdk/toolchain/prospero.cmake", "-DPS5_PAYLOAD_SDK=$Sdk", "-DCMAKE_AR=$LlvmBin/llvm-ar.exe", "-DCMAKE_RANLIB=$LlvmBin/llvm-ranlib.exe", "-DSDL3_DIR=$SDL3Prefix/lib/cmake/SDL3", "-DPE_PS5_SDL3_SOURCE=$SDL3Source", "-DPE_PS5_SDL3_BUILD=$SDL3Build", "-DPSYZ_DIR=$stage", "-DPE_PS5_LLVM_BIN=$LlvmBin", '-DCMAKE_VERBOSE_MAKEFILE=OFF', '-DPE_PS5_GAME=ON','-DBUILD_TESTING=OFF','-DCMAKE_BUILD_TYPE=Release','-DCMAKE_C_FLAGS=-std=gnu11')
+ if($ApplicationTooling){
+  $native=(Resolve-Path -LiteralPath $ApplicationTooling).Path.Replace('\','/')
+  foreach($file in @('app_crt.cpp','ps5-pie.ld','app-symbols.map')){
+   if(!(Test-Path "$native/$file")){throw "Missing public application input: $file"}
+  }
+  if($StartupLog){
+   # Instrument a private copy; retain upstream licensing and original source.
+   $instrumented="$out/native-debug"
+   New-Item -ItemType Directory $instrumented | Out-Null
+   foreach($file in @('app_crt.cpp','ps5-pie.ld','app-symbols.map')){Copy-Item "$native/$file" $instrumented}
+   $native=$instrumented.Replace('\','/')
+   Patch "$native/app_crt.cpp" '    void _init_env(void *process_parameters);' '    void pe_application_stage(const char *message);
+    void _init_env(void *process_parameters);'
+   Patch "$native/app_crt.cpp" '    const int argc = *static_cast<const int *>(process_parameters);' '    pe_application_stage("\n=== PE application: entered _start ===\n");
+    const int argc = *static_cast<const int *>(process_parameters);'
+   Patch "$native/app_crt.cpp" '    _init_env(process_parameters);' '    pe_application_stage("before _init_env\n");
+    _init_env(process_parameters);
+    pe_application_stage("after _init_env\n");'
+   Patch "$native/app_crt.cpp" '    _init();' '    pe_application_stage("before constructors\n");
+    _init();
+    pe_application_stage("after constructors; before main\n");'
+   Patch "$native/app_crt.cpp" '    catchReturnFromMain(status);' '    pe_application_stage("main returned\n");
+    catchReturnFromMain(status);
+    pe_application_stage("before exit\n");'
+  }
+  # Compile the real public application entry point; never include payload crt1.o.
+  # Application mount layout supplies the executable location. Do not probe
+  # /proc through the SDK's raw inline-syscall readlink adapter. Preserve the
+  # public SDL source and license in a private generated copy.
+  $appFilesystem="$out/SDL-application-filesystem.c"
+  Copy-Item "$SDL3Source/src/filesystem/unix/SDL_sysfilesystem.c" $appFilesystem
+  Patch $appFilesystem 'static char *GetExePath(void)
+{' '/* Altered for PS5 application mount layout; payload builds use upstream. */
+static char *GetExePath(void)
+{
+    return SDL_strdup("/app0/eboot.bin");'
+  Run "$LlvmBin/clang++.exe" @('-target','x86_64-sie-ps5','-isysroot',$Sdk,'-isystem',"$Sdk/target/include/c++/v1",'-isystem',"$Sdk/target/include",'-fno-stack-protector','-fno-plt','-femulated-tls','-std=c++20','-O2','-fno-exceptions','-fno-rtti','-ffunction-sections','-fdata-sections','-c',"$native/app_crt.cpp",'-o',"$out/app_crt.o")
+  $app=@"
+target_sources(parasite-eve-pc PRIVATE "$($out.Replace('\','/'))/app_crt.o")
+target_sources(parasite-eve-pc PRIVATE "$($PSScriptRoot.Replace('\','/'))/application-static-dlfcn.c")
+# This static software-rendered application has no plugin loader. Use SDL's
+# explicit unsupported backend rather than payload CRT dlsym callbacks.
+target_sources(pe-ps5-sdl-core PRIVATE "$($SDL3Source.Replace('\','/'))/src/loadso/dummy/SDL_sysloadso.c")
+target_compile_definitions(pe-ps5-sdl-core PRIVATE SDL_LOADSO_DUMMY=1)
+# Process creation is unsupported for this application. The real SDL dummy
+# backend avoids pulling raw inline vfork/setsid syscalls from SDK libc.a.
+target_sources(pe-ps5-sdl-core PRIVATE "$($SDL3Source.Replace('\','/'))/src/process/dummy/SDL_dummyprocess.c" "$($appFilesystem.Replace('\','/'))")
+target_compile_definitions(pe-ps5-sdl-core PRIVATE SDL_PROCESS_DUMMY=1)
+# Generated filesystem source retains upstream relative include paths.
+target_include_directories(pe-ps5-sdl-core PRIVATE "$($SDL3Source.Replace('\','/'))/src/filesystem/unix")
+set(CMAKE_C_LINK_EXECUTABLE "${LlvmBin}/ld.lld.exe -m elf_x86_64 -pie --eh-frame-hdr -z max-page-size=0x4000 -T $native/ps5-pie.ld --version-script=$native/app-symbols.map -e _start --gc-sections -L$($Sdk.Replace('\','/'))/target/lib <OBJECTS> -o <TARGET> <LINK_LIBRARIES> -lc_stub_weak -lkernel -lSceLibcInternal -lSceNet")
+"@
+  # Public SDK libc supplies real POSIX adapters absent from the import stubs.
+  # Audit extracted members/imports before converting or delivering this ELF.
+  if($StartupLog){$app+="`ntarget_sources(parasite-eve-pc PRIVATE `"$($PSScriptRoot.Replace('\','/'))/application-startup-log.c`")"}
+  $app=$app.Replace('-lc_stub_weak -lkernel','-lc -lc_stub_weak -lkernel')
+  [IO.File]::WriteAllText("$out/application.cmake",$app.Replace('\','/'))
+  [IO.File]::WriteAllText("$out/application-project.cmake", "cmake_language(DEFER CALL include `"$($out.Replace('\','/'))/application.cmake`")")
+  Run $CMake @('-S',$gameSource,'-B',"$out/b", "-DCMAKE_PROJECT_parasite-eve-pc_INCLUDE=$out/application-project.cmake")
+  @{ABI='native-application'; PublicTooling=$native; EntryPoint='_start(process_parameters, loader_teardown)'; PayloadCRT=$false; Kernel='libkernel'; DynamicPlugins='unsupported with explicit ENOSYS'; Inputs=@(@('app_crt.cpp','ps5-pie.ld','app-symbols.map') | ForEach-Object {@{File=$_; SHA256=(Get-FileHash "$native/$_").Hash}}); ConsoleTested=$false} | ConvertTo-Json -Depth 5 | Set-Content "$out/APPLICATION-ABI.json"
+ }
+ if($StartupLog){
+  # Separate opt-in instrumentation; do not mutate game sources or baseline SDK.
+  $diagSource=(Join-Path $PSScriptRoot 'startup-log.c').Replace('\','/')
+  $diag=@"
+add_library(pe-startup-log OBJECT "$diagSource")
+target_link_libraries(pe-startup-log PRIVATE SDL3::SDL3)
+target_sources(parasite-eve-pc PRIVATE `$<TARGET_OBJECTS:pe-startup-log>)
+"@
+  $wraps=@('main','SDL_Init','SDL_InitSubSystem','SDL_CreateWindow','SDL_GetWindowSurface','SDL_UpdateWindowSurface','SDL_OpenAudioDevice','SDL_OpenAudioDeviceStream','SDL_ResumeAudioStreamDevice','SDL_OpenGamepad','Boot_InitSystem','Boot_InitGameState','Boot_InitSubsystems','Asset_OpenPeImage','Scene_LoadSceneData')
+  foreach($symbol in $wraps){$diag+="`ntarget_link_libraries(parasite-eve-pc PRIVATE -Wl,--wrap=$symbol)"}
+  # Windows direct ld invocation does not accept the compiler-driver -Wl prefix.
+  $diag=$diag.Replace('-Wl,--wrap=','--wrap=')
+  if($ApplicationTooling){$diag="include(`"$($out.Replace('\','/'))/application.cmake`")`n"+$diag}
+  [IO.File]::WriteAllText("$out/startup-log.cmake",$diag)
+  # Deferred include runs after the game target has been declared.
+  [IO.File]::WriteAllText("$out/startup-project.cmake", "cmake_language(DEFER CALL include `"$($out.Replace('\','/'))/startup-log.cmake`")")
+  Run $CMake @('-S',$gameSource,'-B',"$out/b", "-DCMAKE_PROJECT_parasite-eve-pc_INCLUDE=$out/startup-project.cmake")
+ }
  Run $CMake @('--build',"$out/b",'--target','parasite-eve-pc','--parallel','4')
  $elf="$out/b/parasite-eve-ps5.elf"
  if(!(Test-Path $elf)){throw 'Game target did not produce its ELF'}
+ if($StartupLog){
+  Copy-Item -LiteralPath $elf -Destination "$out/b/parasite-eve-ps5-startup-debug.elf"
+  Copy-Item -LiteralPath "$PSScriptRoot/startup-log.c" -Destination "$out/startup-log.c"
+  if($ApplicationTooling){Copy-Item "$PSScriptRoot/application-startup-log.c" "$out/application-startup-log.c"}
+  @{Enabled=$true; ApplicationABI=[bool]$ApplicationTooling; SourceSHA256=(Get-FileHash "$out/startup-log.c").Hash; EarlyApplicationSourceSHA256=$(if($ApplicationTooling){(Get-FileHash "$out/application-startup-log.c").Hash}else{$null}); DebugELF="$out/b/parasite-eve-ps5-startup-debug.elf"; SHA256=(Get-FileHash $elf).Hash; PrimaryLog='/data/parasite-eve/startup.log'; FallbackLog='/data/parasite-eve-startup.log'; ConsoleTested=$false} | ConvertTo-Json | Set-Content "$out/STARTUP-LOG.json"
+ }
  Run "$LlvmBin/llvm-readelf.exe" @('-h','-d',$elf)
  Get-FileHash $elf | Format-List | Out-File "$out/ELF-SHA256.txt"
  @{Schema=2; State='succeeded'; Attempt=$attempt; InputsSHA256=(Get-FileHash "$out/INPUTS.json").Hash; ELF=$elf; SHA256=(Get-FileHash $elf).Hash; Bytes=(Get-Item $elf).Length; ConsoleTested=$false} | ConvertTo-Json | Set-Content "$out/RESULT.json"
