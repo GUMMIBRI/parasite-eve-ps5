@@ -51,4 +51,10 @@ jobs:
             -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/sdl"
           cmake --build "$RUNNER_TEMP/hd-e2e" --target check-end-to-end --parallel 2
           ctest --test-dir "$RUNNER_TEMP/hd-e2e" -R '^hd-end-to-end$' --output-on-failure
+      - name: Check constructor failure ownership
+        run: |
+          cmake -S platform/ps5/hd/tests/adoption-faults -B "$RUNNER_TEMP/hd-faults" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/sdl"
+          cmake --build "$RUNNER_TEMP/hd-faults" --parallel 2
+          ctest --test-dir "$RUNNER_TEMP/hd-faults" --output-on-failure
 
