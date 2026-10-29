@@ -60,18 +60,28 @@ pe_hd_pipeline_result pe_hd_pipeline_create(const pe_hd_pipeline_config *cfg,
     const pe_hd_index_record *records,size_t count,pe_hd_index_read read,void *user,
     pe_hd_pipeline **out)
 {
-    pe_hd_pipeline *p;
+    pe_hd_index *index=NULL;
     pe_hd_index_result indexed;
+    pe_hd_pipeline_result result;
     if(!cfg || !out || !read) return PE_HD_PIPELINE_INVALID;
-    p=calloc(1,sizeof(*p));
-    if(!p) return PE_HD_PIPELINE_FULL;
-    indexed=pe_hd_index_create(&cfg->index,records,count,read,user,&p->index);
+    indexed=pe_hd_index_create(&cfg->index,records,count,read,user,&index);
     if(indexed!=PE_HD_INDEX_OK) {
-        free(p);
         return indexed==PE_HD_INDEX_LIMIT || indexed==PE_HD_INDEX_MEMORY?
             PE_HD_PIPELINE_FULL:PE_HD_PIPELINE_INVALID;
     }
-    p->cache=pe_hd_cache_create(&cfg->cache);
+    result=pe_hd_pipeline_adopt(&cfg->cache,&index,out);
+    if(index) (void)pe_hd_index_destroy(index);
+    return result;
+}
+pe_hd_pipeline_result pe_hd_pipeline_adopt(const pe_hd_cache_config *cfg,
+    pe_hd_index **index,pe_hd_pipeline **out)
+{
+    pe_hd_pipeline *p;
+    if(!cfg || !index || !*index || !out) return PE_HD_PIPELINE_INVALID;
+    p=calloc(1,sizeof(*p));
+    if(!p) return PE_HD_PIPELINE_FULL;
+    p->index=*index;
+    p->cache=pe_hd_cache_create(cfg);
     p->mutex=SDL_CreateMutex(); p->wake=SDL_CreateCondition(); p->generation=1;
     if(p->cache && p->mutex && p->wake)
         p->worker=SDL_CreateThread(read_worker,"pe-hd-provider",p);
@@ -79,8 +89,9 @@ pe_hd_pipeline_result pe_hd_pipeline_create(const pe_hd_pipeline_config *cfg,
         if(p->cache) (void)pe_hd_cache_close(p->cache);
         if(p->wake) SDL_DestroyCondition(p->wake);
         if(p->mutex) SDL_DestroyMutex(p->mutex);
-        (void)pe_hd_index_destroy(p->index); free(p); return PE_HD_PIPELINE_FULL;
+        free(p); return PE_HD_PIPELINE_FULL;
     }
+    *index=NULL;
     *out=p; return PE_HD_PIPELINE_READY;
 }
 pe_hd_pipeline_result pe_hd_pipeline_request(pe_hd_pipeline *p,uint64_t generation,
@@ -170,10 +181,14 @@ pe_hd_pipeline_result pe_hd_pipeline_close(pe_hd_pipeline *p)
     SDL_LockMutex(p->mutex); p->closing=1;
     SDL_SignalCondition(p->wake); SDL_UnlockMutex(p->mutex);
     if(p->worker) { SDL_WaitThread(p->worker,NULL); p->worker=NULL; }
-    result=pe_hd_cache_close(p->cache);
-    if(result!=PE_HD_CACHE_CLOSED) return mapped(result);
+    if(p->cache) {
+        result=pe_hd_cache_close(p->cache);
+        if(result!=PE_HD_CACHE_CLOSED) return mapped(result);
+        p->cache=NULL;
+    }
     /* Cache joined its worker, so every transferred pin is now released. */
-    (void)pe_hd_index_destroy(p->index);
+    if(pe_hd_index_destroy(p->index)!=PE_HD_INDEX_OK)
+        return PE_HD_PIPELINE_BUSY;
     SDL_DestroyCondition(p->wake); SDL_DestroyMutex(p->mutex); free(p);
     return PE_HD_PIPELINE_CLOSED;
 }

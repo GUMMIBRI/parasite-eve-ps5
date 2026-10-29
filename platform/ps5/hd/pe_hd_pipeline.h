@@ -26,6 +26,17 @@ typedef struct pe_hd_pipeline_config {
 size_t pe_hd_pipeline_metadata_bytes(void);
 pe_hd_pipeline_result pe_hd_pipeline_create(const pe_hd_pipeline_config *,
     const pe_hd_index_record *, size_t, pe_hd_index_read, void *, pe_hd_pipeline **out);
+/* Adopts a fresh exclusively owned index, including manifest-created indices.
+ * READY sets *index=NULL and publishes *out; EVERY failure preserves both.
+ * cfg controls only cache budgets; index budgets remain as constructed.
+ * Provider must outlive successful close. Index must have no pins/callbacks or
+ * prior use. After transfer, ALL direct index access is forbidden. No shared
+ * index or external cache/generation administration. Opaque index API cannot
+ * detect aliases/past use: these are caller preconditions. NULL/consumed inputs
+ * are rejected. Never copy owning pointers. New cache generation starts at 1.
+ */
+pe_hd_pipeline_result pe_hd_pipeline_adopt(const pe_hd_cache_config *,
+    pe_hd_index **index, pe_hd_pipeline **out);
 /* Single staging owner serializes request/forget/generation/close. Initial
  * generation=1, strictly increasing, no wrap. request copies the opaque key,
  * never reads/decodes; no deduplication. FULL requires forget or generation.

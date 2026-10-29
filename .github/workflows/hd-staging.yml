@@ -44,4 +44,11 @@ jobs:
             -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/sdl"
           cmake --build "$RUNNER_TEMP/hd" --parallel 2
           ctest --test-dir "$RUNNER_TEMP/hd" --output-on-failure
+      - name: Check manifest adoption and provider cleanup
+        run: |
+          cmake -S platform/ps5/hd/tests/end-to-end -B "$RUNNER_TEMP/hd-e2e" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DPE_HD_CHECKS=ON -DPE_PS5_HD_STAGING=ON \
+            -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/sdl"
+          cmake --build "$RUNNER_TEMP/hd-e2e" --target check-end-to-end --parallel 2
+          ctest --test-dir "$RUNNER_TEMP/hd-e2e" -R '^hd-end-to-end$' --output-on-failure
 
