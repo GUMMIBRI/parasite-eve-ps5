@@ -541,6 +541,10 @@ static void Host_InitOptions(int enabled) {
     host_options.speed_factor = 2;
     host_options.analog_run_threshold = 85;
     Boot_InitHostBindings();
+#ifdef PE_PS5
+    /* Public ScePad mapping exposes touchpad; there is no physical Back. */
+    Psyz_SetGamepadBinding_SDL3(8, SDL_GAMEPAD_BUTTON_TOUCHPAD);
+#endif
     for (unsigned i = 0; i < 16; ++i) {
         host_options.keys[i] = Psyz_GetKeyboardBinding_SDL3(i);
         host_options.buttons[i] = Psyz_GetGamepadBinding_SDL3(i);
@@ -607,6 +611,13 @@ static void Host_InitOptions(int enabled) {
 }
 
 static void Host_ApplyOptions(SDL_Window *window) {
+#ifdef PE_PS5
+    host_options.scale = 1;
+    host_options.geometry_correction = 0;
+    host_options.antialiasing = 0;
+    host_options.model_filtering = 0;
+    host_options.fullscreen = 0;
+#endif
     g_FieldAnalogRunThreshold = host_options.analog_run_threshold;
     Psyz_VideoSetInternalResolution(host_options.scale);
     Psyz_VideoSetAspectMode((PsyzAspectMode)host_options.aspect);
@@ -655,6 +666,11 @@ static void SDLCALL Host_DiscChosen(void *userdata, const char *const *files, in
 }
 
 static int Host_ChooseDiscs(const char **paths) {
+#ifdef PE_PS5
+    (void)paths;
+    fprintf(stderr, "Configure disc paths in parasite-eve.toml or pass --disc/--disc2.\n");
+    return -1;
+#endif
     static const SDL_DialogFileFilter filters[] = {
         {"Parasite Eve - select both Disc 1 and Disc 2 CUE images", "cue;bin"}
     };
@@ -691,6 +707,11 @@ static int Host_ChooseDiscs(const char **paths) {
 static PeDisc *host_images;
 
 static int Host_SelectImage(unsigned identity, char *path, size_t size) {
+#ifdef PE_PS5
+    (void)identity; (void)path; (void)size;
+    fprintf(stderr, "Disc image missing; configure both disc paths before startup.\n");
+    return -1;
+#endif
     static const SDL_DialogFileFilter filters[] = {
         {"Parasite Eve USA CUE/BIN image", "cue;bin"}
     };
@@ -764,6 +785,11 @@ static int Host_AddImage(unsigned identity, int required) {
     if (g_CdImageVolumes[identity - 1]) {
         return 1;
     }
+#ifdef PE_PS5
+    (void)required;
+    fprintf(stderr, "Disc %u is unavailable; configure both disc images before console startup.\n", identity);
+    return 0;
+#endif
 
     Psyz_PauseHostClock_SDL3(true);
     int paused = Psyz_AudioIsPaused();
@@ -891,6 +917,9 @@ static void Host_OverlayRenderFallback(
         SDL_RenderTexture(renderer, *texture, NULL, &dst);
     }
     SDL_RenderPresent(renderer);
+#ifdef PE_PS5
+    SDL_UpdateWindowSurface(window);
+#endif
 }
 
 static void Host_SwitchSettingsPage(HostOverlayState *state, int nextPage) {
@@ -1353,6 +1382,15 @@ static void Host_Settings(SDL_Window *game) {
     int fallbackTexW = 0, fallbackTexH = 0;
 
     if (!useGpuOverlay) {
+#ifdef PE_PS5
+        fallbackWindow = game;
+        SDL_Surface *surface = game ? SDL_GetWindowSurface(game) : NULL;
+        fallbackRenderer = surface ? SDL_CreateSoftwareRenderer(surface) : NULL;
+        if (!fallbackRenderer) {
+            fprintf(stderr, "Cannot open console settings: %s\n", SDL_GetError());
+            return;
+        }
+#else
         fallbackWindow = SDL_CreateWindow(
             "Parasite Eve - Settings", 640, 600, SDL_WINDOW_HIGH_PIXEL_DENSITY
         );
@@ -1364,6 +1402,7 @@ static void Host_Settings(SDL_Window *game) {
             SDL_DestroyWindow(fallbackWindow);
             return;
         }
+#endif
         SDL_PumpEvents();
         SDL_FlushEvents(SDL_EVENT_WINDOW_FIRST, SDL_EVENT_WINDOW_LAST);
     }
@@ -1409,12 +1448,16 @@ static void Host_Settings(SDL_Window *game) {
     s_overlayState.open = 0;
 
     if (!Host_SaveOptions()) {
+#ifdef PE_PS5
+        fprintf(stderr, "Could not save preferences; changes apply for this session.\n");
+#else
         SDL_ShowSimpleMessageBox(
             SDL_MESSAGEBOX_ERROR,
             "Parasite Eve",
             "Could not save preferences. Changes apply for this session.",
             fallbackWindow ? fallbackWindow : game
         );
+#endif
     }
     if (fallbackTexture != NULL) {
         SDL_DestroyTexture(fallbackTexture);
@@ -1423,7 +1466,9 @@ static void Host_Settings(SDL_Window *game) {
         SDL_DestroyRenderer(fallbackRenderer);
     }
     if (fallbackWindow != NULL) {
+#ifndef PE_PS5
         SDL_DestroyWindow(fallbackWindow);
+#endif
     }
 
     /* Avoid a held menu key leaking into the resumed original pad poll. */
@@ -1466,6 +1511,26 @@ static int Host_ConfirmMovieSkip(void) {
         quit = s_overlayState.quit;
         s_overlayState = (HostOverlayState){0};
     } else {
+#ifdef PE_PS5
+        SDL_Surface *surface = game ? SDL_GetWindowSurface(game) : NULL;
+        SDL_Renderer *renderer = surface ? SDL_CreateSoftwareRenderer(surface) : NULL;
+        SDL_Texture *texture = NULL;
+        int texW = 0, texH = 0;
+        if (renderer) {
+            s_overlayState = (HostOverlayState){.open = 1, .row = 1, .dirty = 1, .prompt = 1};
+            while (s_overlayState.open) {
+                Host_OverlayRenderFallback(renderer, game, &s_overlayState, &texture, &texW, &texH);
+                SDL_Event event;
+                if (SDL_WaitEventTimeout(&event, 20))
+                    Host_ProcessSettingsEvent(&s_overlayState, &event, game, NULL);
+            }
+            skip = s_overlayState.skip;
+            quit = s_overlayState.quit;
+            s_overlayState = (HostOverlayState){0};
+            SDL_DestroyTexture(texture);
+            SDL_DestroyRenderer(renderer);
+        }
+#else
         SDL_MessageBoxButtonData buttons[] = {
             {0, 1, "Yes"},
             {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT | SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "No"}
@@ -1480,6 +1545,7 @@ static int Host_ConfirmMovieSkip(void) {
         };
         int choice = 0;
         skip = SDL_ShowMessageBox(&box, &choice) && choice == 1;
+#endif
     }
 
     /* Avoid the answering key leaking into the resumed original pad poll. */
@@ -1592,6 +1658,18 @@ static bool Host_SettingsEvent(const SDL_Event *event) {
         Host_PauseForFocus(game);
         return true;
     }
+#ifdef PE_PS5
+    if (event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN &&
+        (event->gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_STICK ||
+         event->gbutton.button == SDL_GAMEPAD_BUTTON_RIGHT_STICK)) {
+        SDL_Gamepad *pad = SDL_GetGamepadFromID(event->gbutton.which);
+        if (pad && SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_LEFT_STICK) &&
+            SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_RIGHT_STICK)) {
+            Host_Settings(game);
+            return true;
+        }
+    }
+#endif
     if (event->type == SDL_EVENT_KEY_DOWN && event->key.scancode == SDL_SCANCODE_ESCAPE) {
         if (!event->key.repeat) {
             Host_Settings(game);
@@ -1693,7 +1771,24 @@ static int Host_ParseHealthEventArg(const char *cursor, int argc) {
     return 1;
 }
 
+#ifdef PE_PS5
+#include <unistd.h>
+#ifndef PE_PS5_DATA_ROOT
+#define PE_PS5_DATA_ROOT "/data/parasite-eve"
+#endif
+#endif
+
 int main(int argc, char **argv) {
+#ifdef PE_PS5
+    const char *data_root = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "PE_DATA_HOME");
+    if (!data_root || !*data_root) data_root = PE_PS5_DATA_ROOT;
+    if (chdir(data_root) != 0) {
+        fprintf(stderr, "Cannot open PS5 data root %s: %s\n", data_root, strerror(errno));
+        return EXIT_FAILURE;
+    }
+    if (!SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "PE_CONFIG_HOME"))
+        SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "PE_CONFIG_HOME", data_root, false);
+#endif
     int mode;
     u32 token;
     Pe1GameState *state;
@@ -1714,6 +1809,10 @@ int main(int argc, char **argv) {
     }
 
     Host_InitOptions(interactive);
+#ifdef PE_PS5
+    host_options.scale = 1;
+    host_options.geometry_correction = host_options.antialiasing = host_options.model_filtering = 0;
+#endif
     unsigned internal_resolution = host_options.scale;
     int resolution_argument = 0;
     int headless_argument = 0;
@@ -1933,6 +2032,9 @@ image_error:
     g_CdImageVolumes[0] = g_CdImageVolumes[1] = NULL;
     pe_disc_close(&images[0]);
     pe_disc_close(&images[1]);
+#ifdef PE_PS5
+    goto shutdown;
+#endif
     if (!interactive) {
         goto shutdown;
     }

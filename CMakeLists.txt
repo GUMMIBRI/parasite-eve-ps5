@@ -16,7 +16,11 @@ if(CMAKE_HOST_APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET
    AND (NOT DEFINED CMAKE_SYSTEM_NAME OR CMAKE_SYSTEM_NAME STREQUAL "Darwin"))
     set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum supported macOS version")
 endif()
+option(PE_PS5_GAME "Build the native game with the public PS5 SDK" OFF)
 project(parasite-eve-pc VERSION 0.5.0 LANGUAGES C)
+if(PE_PS5_GAME)
+    include(cmake/ps5/game.cmake)
+endif()
 option(PE_MACOS_BUNDLE "Package the macOS application bundle" OFF)
 
 set(CMAKE_C_STANDARD 11)
@@ -43,7 +47,9 @@ if(PE_MODS)
 endif()
 
 # PsyZ belongs to the original game build, independently of the abandoned frontend.
-set(PSYZ_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/psyz)
+if(NOT PE_PS5_GAME)
+    set(PSYZ_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/psyz)
+endif()
 add_subdirectory(${PSYZ_DIR}/psyz ${CMAKE_CURRENT_BINARY_DIR}/psyz)
 target_compile_definitions(psyz PRIVATE __psyz)
 
@@ -803,4 +809,9 @@ if(BUILD_TESTING)
             endif()
         endforeach()
     endif()
+endif()
+
+if(PE_PS5_GAME)
+    target_sources(parasite-eve-pc PRIVATE $<TARGET_OBJECTS:pe-ps5-sdl-core>)
+    set_target_properties(parasite-eve-pc PROPERTIES OUTPUT_NAME parasite-eve-ps5 SUFFIX ".elf")
 endif()
