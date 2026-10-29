@@ -10,6 +10,13 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $BuildOutput=(Resolve-Path $BuildOutput).Path
 $result=Get-Content "$BuildOutput/RESULT.json" -Raw | ConvertFrom-Json
+if(!($result.PSObject.Properties.Name -contains 'State') -or $result.State -ne 'succeeded' -or
+   !($result.PSObject.Properties.Name -contains 'InputsSHA256')){
+ throw 'No current schema2 successful build; complete the build before packaging'
+}
+if((Get-FileHash -LiteralPath "$BuildOutput/INPUTS.json").Hash -ne $result.InputsSHA256){
+ throw 'Input provenance differs from the successful build; refusing stale packaging'
+}
 $elf=Join-Path $BuildOutput 'b/parasite-eve-ps5.elf'
 if(!(Test-Path $elf) -or (Get-FileHash $elf).Hash -ne $result.SHA256){throw 'Missing or changed successfully linked game ELF'}
 $root=(Resolve-Path "$PSScriptRoot/../..").Path

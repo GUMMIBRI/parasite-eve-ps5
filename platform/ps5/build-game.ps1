@@ -51,6 +51,15 @@ if($Resume -and (Test-Path "$out/INPUTS.json")){
  }elseif($SourceRoot){throw 'Cannot resume a baseline build with isolated sources'}
 }
 if($candidate -and $candidate.PsyZRevision -ne $pin){throw 'Candidate PsyZ revision differs from preserved checkout'}
+# Invalidate success before stage/INPUTS mutation; retain prior provenance.
+$attempt=[Guid]::NewGuid().ToString('N')
+foreach($name in @('RESULT.json','INPUTS.json')){
+ if(Test-Path -LiteralPath "$out/$name"){
+  Copy-Item -LiteralPath "$out/$name" -Destination "$out/$name.before-$attempt"
+ }
+}
+@{Schema=2; State='building'; Attempt=$attempt; StartedUtc=[DateTime]::UtcNow.ToString('o')} |
+ ConvertTo-Json | Set-Content "$out/RESULT.json"
 function Run([string]$Program,[string[]]$Arguments){
  & $Program @Arguments 2>&1 | Tee-Object "$out/build.log" -Append
  if($LASTEXITCODE -ne 0){throw "Build failed ($LASTEXITCODE): $out/build.log"}
@@ -94,6 +103,6 @@ try{
  if(!(Test-Path $elf)){throw 'Game target did not produce its ELF'}
  Run "$LlvmBin/llvm-readelf.exe" @('-h','-d',$elf)
  Get-FileHash $elf | Format-List | Out-File "$out/ELF-SHA256.txt"
- @{ELF=$elf; SHA256=(Get-FileHash $elf).Hash; Bytes=(Get-Item $elf).Length; ConsoleTested=$false} | ConvertTo-Json | Set-Content "$out/RESULT.json"
+ @{Schema=2; State='succeeded'; Attempt=$attempt; InputsSHA256=(Get-FileHash "$out/INPUTS.json").Hash; ELF=$elf; SHA256=(Get-FileHash $elf).Hash; Bytes=(Get-Item $elf).Length; ConsoleTested=$false} | ConvertTo-Json | Set-Content "$out/RESULT.json"
  Write-Output "Linked native game ELF (UNTESTED ON CONSOLE): $elf"
 }finally{$env:PATH=$oldPath; $env:PS5_PAYLOAD_SDK=$oldSdk}
