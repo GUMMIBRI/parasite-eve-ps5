@@ -26,3 +26,4 @@ typedef struct PeHdFilename {
  */
 bool PeHd_ParseFilename(const char *name, size_t length, PeHdFilename *out);
 #endif
+

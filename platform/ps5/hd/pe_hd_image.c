@@ -125,3 +125,4 @@ void pe_hd_image_release(pe_hd_image *image)
     hd_free((void *)image->rgba);
     memset(image, 0, sizeof(*image));
 }
+

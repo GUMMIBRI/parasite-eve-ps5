@@ -1,0 +1,12 @@
+option(PE_PS5_HD_MANIFEST "Build bounded read-only TSV manifest ingestion" OFF)
+if(PE_PS5_HD_MANIFEST AND NOT TARGET pe-hd-manifest)
+    if(NOT TARGET pe-hd-index)
+        set(PE_PS5_HD_INDEX ON)
+        include("${CMAKE_CURRENT_LIST_DIR}/index.cmake")
+    endif()
+    add_library(pe-hd-manifest STATIC "${CMAKE_CURRENT_LIST_DIR}/pe_hd_manifest.c")
+    target_include_directories(pe-hd-manifest PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
+    target_link_libraries(pe-hd-manifest PUBLIC pe-hd-index)
+    set_target_properties(pe-hd-manifest PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES C_EXTENSIONS NO)
+endif()
+
