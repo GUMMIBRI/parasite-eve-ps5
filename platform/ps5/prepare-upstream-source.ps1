@@ -1,6 +1,6 @@
 # Export and three-way reconcile a candidate without changing the checkout/index.
 [CmdletBinding()]
-param([string]$Revision='da1f775e686ebe47fa5848c723f7efba73d59211', [switch]$AcceptVersionResolution, [string]$PsyZRevision)
+param([string]$Revision='da1f775e686ebe47fa5848c723f7efba73d59211', [switch]$AcceptVersionResolution, [string]$PsyZRevision, [string]$OutputRoot)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=(Resolve-Path "$PSScriptRoot/../..").Path
@@ -12,7 +12,13 @@ function GitText([string[]]$Arguments) {
 $theirs=(GitText @('rev-parse',"$Revision^{commit}")).Trim()
 $ours=(GitText @('rev-parse','HEAD')).Trim()
 $base=(GitText @('merge-base',$ours,$theirs)).Trim()
-$out=Join-Path $root ('outputs/ps5/upstream-'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')+'-'+[Guid]::NewGuid().ToString('N').Substring(0,6))
+if(!$OutputRoot){$OutputRoot=$env:PE_PS5_OUTPUT_ROOT}
+if(!$OutputRoot){$OutputRoot=Join-Path $root 'outputs/ps5'}
+$OutputRoot=$ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputRoot)
+if(Test-Path -LiteralPath $OutputRoot -PathType Leaf){throw 'OutputRoot must be a directory, not a file'}
+New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
+$OutputRoot=(Resolve-Path -LiteralPath $OutputRoot).Path
+$out=Join-Path $OutputRoot ('upstream-'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')+'-'+[Guid]::NewGuid().ToString('N'))
 $source=Join-Path $out 'src'
 New-Item -ItemType Directory $source | Out-Null
 [IO.File]::WriteAllText("$out/.gitignore","*`n")
@@ -101,3 +107,4 @@ foreach($change in $changes){
 @{Base=$base; Ours=$ours; Theirs=$theirs; SourceRoot=$source; PsyZRevision=$pin; SDLHeaderRevision=$sdlPin; UpstreamPsyZ=$upstreamPin; Changes=$changes; Conflicts=$conflicts; Ready=($conflicts.Count -eq 0)} | ConvertTo-Json -Depth 6 | Set-Content "$out/CANDIDATE.json"
 Write-Output "Candidate: $out"
 if($conflicts.Count){throw "Resolve recorded conflicts in candidate only: $($conflicts -join ', ')"}
+

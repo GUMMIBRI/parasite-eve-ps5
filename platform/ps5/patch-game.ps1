@@ -83,3 +83,19 @@ foreach($anchor in $guards.Keys){
  $s=$s.Replace($anchor,$anchor+"`n#ifdef PE_PS5`n    "+$guards[$anchor]+"`n#endif")
 }
 [IO.File]::WriteAllText($p,$s)
+# Card initialization must use the same absolute mapping as all card I/O.
+# Patch only the exported revision; never mutate the pinned PsyZ checkout.
+$card=Join-Path $Stage 'psyz/src/psyz/libcard.c'
+$cardText=[IO.File]::ReadAllText($card).Replace("`r`n","`n")
+$cardAnchor="void _bu_init(void) {`n#ifdef _MSC_VER"
+$cardReplacement=@'
+void _bu_init(void) {
+#ifdef PE_PS5
+    char path[4096];
+    Psyz_AdjustPath(path, "bu00:*", sizeof(path));
+    Psyz_AdjustPath(path, "bu10:*", sizeof(path));
+#elif defined(_MSC_VER)
+'@
+if(!$cardText.Contains($cardAnchor)){throw 'Missing card initialization anchor'}
+[IO.File]::WriteAllText($card,$cardText.Replace($cardAnchor,$cardReplacement))
+
