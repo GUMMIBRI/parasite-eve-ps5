@@ -11,12 +11,55 @@ typedef enum PeHookId {
     PE_HOOK_INIT,        /* PeHookInit: once, before the first scene */
     PE_HOOK_SCENE_START, /* NULL: a field scene finished loading, before its first frame */
     PE_HOOK_FRAME,       /* NULL: every field frame, after pad input is read */
+    PE_HOOK_BATTLE_UPDATE, /* NULL: Battle_Update entry, every battle frame */
+    PE_HOOK_ENEMY_HIT,   /* BattleEntity *: Battle_StepEnemyMovement entry, before an enemy's damage */
+    PE_HOOK_SPELL,       /* PeHookSpell: Battle_ApplySpellEffect entry (battle and menu) */
+    PE_HOOK_HELP_TEXT,   /* u8 **: the menu title-bar line, before it is printed; may be replaced */
     PE_HOOK_INV_COMMAND, /* PeHookInvCommand: Inv_DispatchCommand entry; replaceable */
+    PE_HOOK_ITEM_ADD,    /* s32 *: Inv_AddItem entry; change id, or return nonzero for handled/success */
+    PE_HOOK_SAVE_WRITE,  /* u8 *: the 8 KB card block, before its CRC (free tail from 0x1C90) */
     PE_HOOK_SAVE_READ,   /* u8 *: the 8 KB card block of a save being loaded */
+    PE_HOOK_ITEM_COUNT,  /* int **: Script_CountItemsByValue ({&item, &result}); nonzero uses supplied result */
     PE_HOOK_PAD_READ,    /* NULL: Field_HandleStateTransition, before it reads g_PadPackets */
+    PE_HOOK_LIST_ROWS,   /* PeHookListRows: Draw_SetPrimCallback entry; the row count may change */
+    PE_HOOK_MAIN_MENU_ACTION, /* PeHookMenuAction: Aya's main menu confirm; replaceable */
     PE_HOOK_SCRIPT_RANDOM, /* PeHookScriptRandom: local RNG bounds, before a script roll */
+    PE_HOOK_PLAYER_MOVE, /* PeHookPlayerMove: local multiplier for a player-input movement step */
+    PE_HOOK_PAD_MAP,     /* PeHookPadMap: local run-button mapping for this poll */
+    PE_HOOK_ACTOR_STEP,  /* PeHookActorStep: local scripted speed or animation increment */
+    PE_HOOK_ITEM_USE,    /* int *: Battle_ApplyDamage item id before its effects */
+    PE_HOOK_TEXT_LOOKUP, /* PeHookTextLookup: item name/description lookup result */
+    PE_HOOK_INVENTORY_SORTED, /* NULL: Aya's native bag sort completed */
+    PE_HOOK_ITEM_ACTIONS, /* PeHookItemActions: an item's action list (Use / Move / Discard ...) just opened */
+    PE_HOOK_MAIN_MENU_ICON, /* PeHookMainMenuIcon: a main menu row's icon, before it is drawn */
+    PE_HOOK_ENEMY_HIT_END, /* BattleEntity *: original damage applied; restore temporary hit inputs */
+    PE_HOOK_INVENTORY_ROW, /* PeHookInventoryRow: inventory row dimming, presentation only */
+    PE_HOOK_POWER_AVAILABLE, /* PeHookPowerAvailable: Menu_CheckItemAffordable, can this PE power be picked now */
+    PE_HOOK_POWER_COST, /* PeHookPowerCost: raw PE cost before the native armor discount */
+    PE_HOOK_NEW_GAME,    /* PeHookNewGame: a new game starts; the host has reset every save record */
     PE_HOOK_COUNT
 } PeHookId;
+
+/* The factor belongs to the current calculation, not the actor. A handler
+ * may change it for this input step only and must not retain its address. */
+typedef struct PeHookPlayerMove {
+    const void *actor;
+    int *factor;
+    int running;
+    int combat;
+} PeHookPlayerMove;
+
+typedef struct PeHookPadMap {
+    unsigned buttons;
+    int *run_mask;
+} PeHookPadMap;
+
+/* Stack-local values only; never retain these pointers or alter actor state. */
+typedef struct PeHookActorStep {
+    const void *actor;
+    int *speed;    /* scripted movement speed, NULL for animation */
+    int *anim;     /* animation increment, NULL for motion */
+} PeHookActorStep;
 
 /* next points just past the current instruction in native loaded bytecode. */
 typedef struct PeHookScriptRandom {
@@ -24,19 +67,90 @@ typedef struct PeHookScriptRandom {
     const unsigned int *next;
 } PeHookScriptRandom;
 
+typedef struct PeHookTextLookup {
+    unsigned table, index; /* table 8 = item names, 12 = item descriptions */
+    void **text;
+} PeHookTextLookup;
+
 typedef struct PeHookInvCommand {
     int command, value;
     int result; /* a handler returning nonzero replaces the command with this result */
 } PeHookInvCommand;
+
+typedef struct PeHookSpell {
+    unsigned spell;           /* Parasite Energy power index */
+    struct BattleEntity *target;
+} PeHookSpell;
+
+/* A new game, of any kind: the title's New Game or Tutorial (the title's choice, in the boot loop),
+ * or the EX Game (Inv_DispatchCommand INV_CMD_START_NEW_GAME, which the host sends on as this). */
+typedef enum PeNewGameKind {
+    PE_NEW_GAME_TITLE = 1,     /* the title's New Game (MenuCard_RunListScreen result 1) */
+    PE_NEW_GAME_EX = 2,        /* the EX Game, from a Clear Data save */
+    PE_NEW_GAME_TUTORIAL = 3,  /* MenuCard_RunListScreen result 3 */
+} PeNewGameKind;
+
+typedef struct PeHookNewGame {
+    int kind; /* PeNewGameKind */
+} PeHookNewGame;
 
 typedef struct PeHookInit {
     int interactive;        /* 0 for headless runs: no window, no menus */
     const char *prefs_file; /* per-user preferences file; mods keep their files beside it */
 } PeHookInit;
 
+typedef struct PeHookInventoryRow {
+    struct MenuWidgetNode *node;
+    int slot;
+    int *dimmed;
+} PeHookInventoryRow;
+
+typedef struct PeHookPowerCost {
+    int power;
+    int *cost; /* integer PE points before the native armor discount */
+} PeHookPowerCost;
+
+typedef struct PeHookPowerAvailable {
+    int power;    /* Parasite Energy power index (0 Heal 1 .. 19 Liberate) */
+    int *enabled; /* the game's answer (PE, HP, ammo); a mod may clear it */
+} PeHookPowerAvailable;
+
+typedef struct PeHookListRows {
+    struct MenuWidgetNode *node;
+    int *count;
+} PeHookListRows;
+
+typedef struct PeHookMenuAction {
+    int action;                   /* 0-8 the game's rows; 9 = a row past the last one */
+    struct MenuWidgetNode *list;  /* the main list node */
+} PeHookMenuAction;
+
+/* The panel's update and the list's draw and rows may be replaced; g_MenuItemActionStateTable
+ * [context] gives the game's action of each row. */
+typedef struct PeHookItemActions {
+    struct MenuWidgetNode *panel; /* update = Menu_StepEquipScreen */
+    struct MenuWidgetNode *list;  /* draw = Menu_DrawContextActionList, 3 rows */
+    int context;                  /* g_MenuItemActionContext: 0 consumables, 1 and 2 others */
+    int list_id, slot;            /* g_MenuActiveItemList (0 = Aya's bag), g_MenuActiveItemSlot */
+} PeHookItemActions;
+
+typedef struct PeHookMainMenuIcon {
+    int row;     /* the list row */
+    int action;  /* 0-8 the game's rows; 9 = a row past the last one */
+    int sprite;  /* action + 0x56; may be changed */
+} PeHookMainMenuIcon;
+
 #ifdef PE_MODS
+#include <stddef.h>
 int pe_host_init(const PeHookInit *init);
 int pe_hook_dispatch(int id, void *ctx);
+/* Crash report Mods section: the mods and their state, and the mod code that was running.
+ * Runs inside the crash handler, so it only reads values. */
+void pe_mod_crash_describe(char *out, size_t size, int on_game_thread);
+/* Crash report room snapshot: runs the save write hook into block (a zeroed
+ * 8 KB card block) as a real save would, when a room starts. -1 while mod code
+ * is running; the block stays zeroed. */
+int pe_mod_snapshot_save_tail(unsigned char *block);
 #define PE_HOOK(id, ctx) \
     ((id) == PE_HOOK_INIT ? pe_host_init((const PeHookInit *)(const void *)(ctx)) : pe_hook_dispatch((id), (ctx)))
 #else

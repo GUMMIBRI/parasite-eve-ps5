@@ -1,3 +1,90 @@
+#if defined(PE_CRASH_REPORT_TEST)
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+#include <SDL3/SDL.h>
+#include <assert.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "pe1/crash_report.h"
+#ifndef _WIN32
+#include <sys/stat.h>
+#else
+#include <windows.h>
+#endif
+static int blocked_report;
+static void crash_test_describe(char *out,size_t size) {
+    if(blocked_report)for(;;)SDL_Delay(100);
+    snprintf(out,size,"Test room snapshot marker\n");
+}
+static SDL_EnumerationResult crash_test_file(void *user,const char *directory,const char *name) {
+    if(strncmp(name,"crash-",6) || !strstr(name,".txt") || strstr(name,".tmp"))return SDL_ENUM_CONTINUE;
+    char path[4096];snprintf(path,sizeof(path),"%s/%s",directory,name);
+    size_t size=0;char *data=SDL_LoadFile(path,&size);
+    if(data && size) {
+        int *counts=user;++counts[0];
+        if(strstr(data,"Test room snapshot marker"))++counts[1];
+        if(strstr(data,"emergency crash report") && strstr(data,"PC: 0x"))++counts[2];
+    }
+    fprintf(stderr,"Crash test file: %s (%zu bytes, readable=%d)\n",path,size,data!=NULL);
+    SDL_free(data);return SDL_ENUM_CONTINUE;
+}
+int main(int argc,char **argv) {
+    if(argc==3 && !strcmp(argv[1],"--child")) {
+        blocked_report=!strcmp(argv[2],"blocked");
+        CrashReport_Install(0,crash_test_describe);
+        if(!strcmp(argv[2],"normal"))return 0;
+        if(!strcmp(argv[2],"stdio")) {
+#ifdef _WIN32
+            _lock_file(stderr);
+#else
+            flockfile(stderr);
+#endif
+        }
+#ifdef _WIN32
+        if(!strcmp(argv[2],"segv")) {
+            volatile int *bad=(volatile int *)(uintptr_t)1;*bad=1;
+        }
+#endif
+        raise(!strcmp(argv[2],"segv")?SIGSEGV:SIGABRT);
+        return 90;
+    }
+    assert(SDL_Init(0));
+    const char *modes[]={"normal","abort","segv","stdio","blocked"};
+    for(unsigned i=0;i<5;++i) {
+        char directory[4096],logs[4096];
+        snprintf(directory,sizeof(directory),"%spe-crash-test-%llu-%u",SDL_GetBasePath(),(unsigned long long)SDL_GetTicksNS(),i);
+        assert(SDL_CreateDirectory(directory));
+        char executable[4096];snprintf(executable,sizeof(executable),"%s/crash-test.exe",directory);
+        assert(SDL_CopyFile(argv[0],executable));
+#ifndef _WIN32
+        assert(!chmod(executable,0700));
+#endif
+        const char *args[]={executable,"--child",modes[i],NULL};
+        SDL_PropertiesID props=SDL_CreateProperties();
+        SDL_SetPointerProperty(props,SDL_PROP_PROCESS_CREATE_ARGS_POINTER,(void *)args);
+        SDL_SetStringProperty(props,SDL_PROP_PROCESS_CREATE_WORKING_DIRECTORY_STRING,directory);
+        SDL_Process *child=SDL_CreateProcessWithProperties(props);SDL_DestroyProperties(props);assert(child);
+        int code=0;Uint64 started=SDL_GetTicks();
+        while(!SDL_WaitProcess(child,false,&code)) {
+            if(SDL_GetTicks()-started>20000){SDL_KillProcess(child,true);assert(!"Crash reporter exceeded its deadline");}
+            SDL_Delay(10);
+        }
+        SDL_DestroyProcess(child);
+        assert(i?code!=0:code==0);
+        int counts[3]={0};snprintf(logs,sizeof(logs),"%s/logs",directory);
+        assert(SDL_EnumerateDirectory(logs,crash_test_file,counts));
+        fprintf(stderr,"Crash test %s: exit=%d files=%d full=%d emergency=%d\n",modes[i],code,counts[0],counts[1],counts[2]);
+        assert(counts[0]==(i?1:0));
+        if(i && i!=4)assert(counts[1]==1);
+        if(i==4)assert(counts[2]==1);
+    }
+    puts("Crash reporting: normal cleanup, abort, SIGSEGV, held stdio lock and blocked reporter fallback passed headlessly");
+    return 0;
+}
+#else
 #if defined(PE_MOD_SETTINGS_TEST)
 #undef NDEBUG
 #include <SDL3/SDL.h>
@@ -45,6 +132,10 @@ void pe_mod_log(const char *id, const char *format, ...) {
 void pe_toast(const char *text) { (void)text; }
 int pe_mod_active(const char *id) { (void)id; return 1; }
 const char *pe_mod_current(void) { return NULL; }
+void pe_mod_call_begin(const char *mod_id, const char *what, const char *detail) {
+    (void)mod_id; (void)what; (void)detail;
+}
+void pe_mod_call_end(void) {}
 int pe_hook_add(int id, PeHookFn fn, void *user, int priority, const char *mod) {
     (void)id; (void)fn; (void)user; (void)priority; (void)mod; return 0;
 }
@@ -634,6 +725,24 @@ int main(int argc, char **argv) {
     assert(!Host_ParseOptionValue("graphics", "model_filtering", invalid_effect));
     assert(host_options.antialiasing == 1 && host_options.model_filtering == 1);
     host_options.antialiasing = host_options.model_filtering = 0;
+
+    assert(!host_options.widescreen);
+    assert(Host_ParseOptionValue("graphics", "widescreen", enabled_effect));
+    assert(Host_SaveOptions());
+    host_options.widescreen = 0;
+    Host_LoadOptions(host_options.user_file);
+    assert(host_options.widescreen == 1);
+    assert(!Host_ParseOptionValue("graphics", "widescreen", invalid_effect));
+    assert(host_options.widescreen == 1);
+    /* Widescreen is the third Aspect ratio choice. */
+    assert(kGraphics[2].get == GetAspect && kGraphics[2].count == 3 && kGraphics[2].get() == 2);
+    kGraphics[2].set(1);
+    assert(!host_options.widescreen && host_options.aspect == 1 && kGraphics[2].get() == 1);
+    kGraphics[2].set(2);
+    assert(host_options.widescreen && !host_options.aspect && kGraphics[2].get() == 2);
+    kGraphics[2].set(0);
+    assert(!host_options.widescreen && !host_options.aspect && kGraphics[2].get() == 0);
+    assert(COUNT_OF(kGraphics) <= OVERLAY_VISIBLE_CONTROLS);
 
     char invalid[4096];
     snprintf(invalid, sizeof(invalid), "%s/invalid.toml", test_directory);
@@ -1244,3 +1353,5 @@ int main(void) {
 }
 
 #endif
+
+#endif /* PE_CRASH_REPORT_TEST */

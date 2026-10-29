@@ -25,6 +25,17 @@ int pe_room_number(void);            /* the room's map number ("M374..." -> 374)
 unsigned pe_wayne_count(void);
 void pe_set_wayne_count(unsigned count);
 
+/* The game's own gun / armor mod effects (effect = low 5 bits of a mod byte): names in title case
+ * ("Rate of Fire 2", "Bag +4"), NULL for armor effects 16-20 (unused by the game; the economy uses
+ * 17-20), and the exclusivity group (high 3 bits of a mod byte; one mod per non-zero group). */
+#define PE_GUN_EFFECTS_GAME   20
+#define PE_ARMOR_EFFECTS_GAME 15
+const char *pe_mod_effect_name(int armor, int effect);
+int pe_mod_effect_group(int armor, int effect);
+
+/* Parasite Energy powers by index (0 Heal 1 .. 19 Liberate): a compact tag for logs ("EnergyShot"). */
+const char *pe_power_tag(int power);
+
 /* Equipped weapon (armor = 0) or armor (armor = 1) record, or NULL. */
 ItemDataRecord *pe_equipped(int armor);
 /* Base item data for item id (1-based), or NULL. */

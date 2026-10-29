@@ -4,6 +4,7 @@
 #include "pe1/entity_animation.h"
 #include "pe1/gte.h"
 #include "pe1/random.h"
+#include "pe_hooks.h"
 
 /* Legacy name: this computes enemy damage, applies attack/status resistances,
  * subtracts HP, and starts the hit reaction. */
@@ -29,6 +30,7 @@ void Battle_StepEnemyMovement(BattleEntity *entity)
     u32 *statusFlags;
     u32 flags;
     u32 *turnFlags;
+    PE_HOOK(PE_HOOK_ENEMY_HIT, entity);
     enemy = entity->core;
     statusFlags = &enemy->statusFlags2;
     activeState = g_ActiveActor->stateFlags;
@@ -194,6 +196,7 @@ void Battle_StepEnemyMovement(BattleEntity *entity)
         Battle_UpdateEntityFacing(entity);
     }
     flagCore->coreFlags = (flagCore->coreFlags & ~0x6000) | 0x4000;
+    PE_HOOK(PE_HOOK_ENEMY_HIT_END, entity);
 }
 
 int Battle_CalcRelativeAngle(BattleEntity *, BattleEntity *);

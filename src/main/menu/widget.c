@@ -1,4 +1,5 @@
 #include "common.h"
+#include "pe_hooks.h"
 #include <string.h>
 #include "pe1/bounds_check.h"
 #include "pe1/draw_area.h"
@@ -1358,6 +1359,7 @@ void Draw_SetPrimCallback(MenuWidgetNode *arg0, s32 arg1) {
     s32 var_a2;
     MenuWidgetNode *temp_a1;
 
+    PE_HOOK(PE_HOOK_LIST_ROWS, (&(PeHookListRows){arg0, &arg1}));
     temp_v1 = arg0->grid_width;
     arg0->y_limit = (((arg1 + temp_v1) - 1) / temp_v1);
     var_a2 = 0;

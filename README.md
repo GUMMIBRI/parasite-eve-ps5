@@ -1,3 +1,42 @@
+# Parasite Eve — PS5 homebrew port
+
+Experimental retail/homebrew PS5 adaptation of the native
+[Parasite Eve PC port](https://github.com/khasinski/parasite-eve-pc), using its
+[PsyZ fork](https://github.com/khasinski/parasite-eve-psyz). This project preserves
+upstream game logic and keeps PS5-specific work isolated.
+
+**Status: native PS5 game test build compiled and linked; console behavior unverified.**
+The current integration candidate is derived from upstream0.7 and uses public
+SDL3 software video, AudioOut and DualSense backends. There is no validated
+playable PS5 release. Firmware13.60 with kstuff-lite / ShadowMount+ is the owner’s
+stated test environment; actual loader/service compatibility remains to be tested.
+Console and gameplay validation belong to the project owner.
+
+Original textures load from user-owned discs. External HD PNG replacement packs
+are not yet supported. No retail game files, texture packs or personal saves are
+distributed in this repository. See [native build notes](docs/PS5_GAME_BUILD.md)
+and [upstream integration](docs/PS5_UPSTREAM_SYNC.md).
+
+## Project direction
+
+- Build with a public, legally available homebrew toolchain; no leaked Sony SDK.
+- Bring up boot/logging, scratch filesystem access, controller and graphics clear
+  before integrating game systems.
+- Preserve desktop behavior and deliberately integrate updates from upstream.
+  Keep PsyZ pinned to a reviewed revision.
+- Compare available original and HD assets for quality and compatibility.
+  Game images, HD packs and saves remain user-supplied local data.
+- Submit useful portable fixes upstream with their provenance and notices intact.
+
+See [contribution and review policy](CONTRIBUTING.md), [security policy](SECURITY.md),
+and the [PS5 groundwork PR](https://github.com/GUMMIBRI/parasite-eve-ps5/pull/1).
+There are no PS5 download/install instructions until a console build is verified.
+Upstream desktop releases below are PC releases, not PS5 packages.
+
+---
+
+## Upstream PC documentation
+
 # Parasite Eve
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/bQkCVvrkem)
@@ -23,11 +62,13 @@ Keep each CUE file next to its BIN file.
 **Enter** is START and skips movies; in a story movie, START pauses it and asks whether to skip. View or change all bindings in **Escape → Controls**. A **speed** button can be bound there too: the game runs at 2x while it is held, or 3x or 4x with the arrows either side of the number (Left/Right on that row). It is unbound until you choose a key or button, and keeps your VSync setting.
 The left stick provides analog movement. **Escape → Controls → Field run threshold** sets how far to push it before Aya runs (85% by default).
 Settings and selected disc paths are saved automatically. Memory cards are kept in `memory-cards` beside your user preferences. Older `bu00`/`bu10` cards from the launch or executable folder are imported once, keeping the original files.
-Optional geometry correction, antialiasing and model texture filtering are in **Escape → Graphics**.
+**Escape → Graphics** includes geometry correction, antialiasing, model texture filtering and an optional **Widescreen** aspect ratio. Widescreen shows more of the original background where available; narrow scenes and movies stay in 4:3.
+
+If the game crashes, it saves a report and shows where to find it. Attach that file when reporting the problem on Discord.
 
 ## Mods
 
-Downloads include an optional mod host. When building from source, enable it with `-DPE_MODS=ON`: the
+Downloads include an optional mod host. When building from source, enable it with `-DPE_MODS=ON`. Without it, the
 `PE_HOOK(...)` lines in the game compile to nothing. In a mod build, **F1** opens the Mods panel;
 mods start only after **F1 → Manage mods → All mods** is turned on and the game restarted.
 Settings are saved in `pe_mods.ini`. See [the mod guide](mods/README.md) for writing a mod.
@@ -40,6 +81,17 @@ Open **F1 → PE Enhancements** to configure them.
   (walking and running default to 1.75×).
 - **Encounters** (`pe_qol`): no random battles, or Normal, 2×, 4× or Every Check frequency. Story
   and room rules still apply; this changes how often fights happen, not their size.
+- **Key-item pocket** (`pe_qol`): story keys and Chrysler elevator keys stay out of the bag but
+  still count for story checks; browse them through **Key Items** in Aya's main menu.
+- **Remembered sorting** (`pe_qol`): Auto keeps the game's own sort settings; moving items by hand
+  switches back to Manual. Square in the Use Item list opens sorting.
+- **Combat rules** (`pe_rebalance`): Vanilla, Rebalanced and Custom rules for gun and armor
+  effects: Heat/Frost, Rate of Fire, gun progression bonuses, Attack All crowd damage, status
+  chances, Critical Up, Quickdraw and armor tradeoffs; weapon DPS in the help text.
+- **Parasite Energy rules** (`pe_rebalance`): Vanilla, Rebalanced and Custom healing amounts and
+  power costs.
+- **Half-bar turns** (`pe_rebalance`): items, Quick PE powers and weapon changes on half a bar,
+  with a gauge indicator; attacks and other powers still need a full bar.
 
 Mod builds are experimental; a passing build or test does not establish full in-game compatibility.
 
@@ -65,6 +117,6 @@ cmake --build build-mods --parallel
 ./build-mods/parasite-eve-pc
 ```
 
-`PE_MOD_LIST` picks the mods by folder name (default: `pe_qol`).
+`PE_MOD_LIST` picks the mods by folder name (default: `pe_qol;pe_rebalance`).
 
 For development details, see [code organization](docs/CODE_ORGANIZATION.md).

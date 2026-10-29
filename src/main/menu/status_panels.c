@@ -1,4 +1,5 @@
 #include "pe1/geom_state.h"
+#include "pe_hooks.h"
 #include "common.h"
 #include "pe1/aya.h"
 #include "pe1/battle_cmd.h"
@@ -341,6 +342,7 @@ int Menu_CheckItemAffordable(int actionId)
     if (action < 3 || action == 18) {
         if (g_AyaHpCurrent[0] >= g_AyaHpMax[0]) enabled = 0;
     }
+    PE_HOOK(PE_HOOK_POWER_AVAILABLE, (&(PeHookPowerAvailable){action, &enabled}));
     return enabled;
 }
 
@@ -689,6 +691,7 @@ int Menu_StepItemSelectScreen(MenuWidgetNode *node, unsigned int buttons)
         check:
             if (action >= 9) break;
         }
+        if (PE_HOOK(PE_HOOK_MAIN_MENU_ACTION, (&(PeHookMenuAction){action, child}))) { Menu_PlayConfirmSound(); return 1; }
         switch (action) {
         case 0:
             CLOSE_SELECT_VIEWS();

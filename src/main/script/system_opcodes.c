@@ -1,4 +1,5 @@
 #include <string.h>
+#include "pe_hooks.h"
 #include "common.h"
 #include "pe1/battle_context.h"
 #include "pe1/battle_entity_anim.h"
@@ -1008,7 +1009,7 @@ int Script_GiveItem(int **arg0) {
 }
 
 int Script_CountItemsByValue(int **arg0) {
-    *arg0[1] = Inv_CountByValue(*arg0[0]);
+    if (!PE_HOOK(PE_HOOK_ITEM_COUNT, arg0)) *arg0[1] = Inv_CountByValue(*arg0[0]);
     return 1;
 }
 

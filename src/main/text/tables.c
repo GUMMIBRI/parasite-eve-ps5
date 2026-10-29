@@ -1,4 +1,5 @@
 #include "common.h"
+#include "pe_hooks.h"
 #include "pe1/aya.h"
 #include "pe1/draw_state.h"
 #include "pe1/inventory.h"
@@ -83,7 +84,9 @@ void *Text_LookupTable8(unsigned int index) {
     }
 
     offset = table->header.offsets[index];
-    return &table->bytes[offset];
+    void *text = &table->bytes[offset];
+    PE_HOOK(PE_HOOK_TEXT_LOOKUP, (&(PeHookTextLookup){8, index, &text}));
+    return text;
 }
 
 void *Text_LookupTableC(unsigned int index) {
@@ -99,7 +102,9 @@ void *Text_LookupTableC(unsigned int index) {
     }
 
     offset = table->header.offsets[index];
-    return &table->bytes[offset];
+    void *text = &table->bytes[offset];
+    PE_HOOK(PE_HOOK_TEXT_LOOKUP, (&(PeHookTextLookup){12, index, &text}));
+    return text;
 }
 
 void *Text_LookupTable10(unsigned int index) {
