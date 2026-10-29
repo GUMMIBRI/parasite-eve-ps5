@@ -318,6 +318,7 @@ void Inv_TransferItemBetweenLists(unsigned selection, int modifier, int flags, i
     ItemDataRecord *source, *dest, *ammo;
     int reserve;
     int slot, i, j, value, group, move;
+    PE_HOOK(PE_HOOK_TOOL_TRANSFER, (&(PeHookToolTransfer){selection, modifier, flags, cost}));
     {
         int index = RestoreSelection(selection);
         source = 0;

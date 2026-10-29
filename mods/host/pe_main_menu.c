@@ -6,6 +6,10 @@
 #include "pe_main_menu.h"
 #include "pe_mod_host.h"
 #include "pe1/inventory_slots.h"
+#include "pe1/draw_state.h"
+#include "pe1/menu_dialog.h"
+#include "pe1/render_prim.h"
+#include "pe1/text.h"
 #include "pe1/menu_scroll_cursor.h"
 #include "pe1/menu_state.h"
 #include "pe1/menu_widget.h"
@@ -82,6 +86,42 @@ static int pe_on_icon(void *ctx, void *user) {
     return 0;
 }
 
+void pe_icon_sprite(int sprite, int dx, int dy) {
+    Draw_OffsetCursor(dx, dy);
+    Draw_AllocSprite(sprite);
+    Draw_OffsetCursor(-dx, -dy);
+}
+
+/* A textured quad the way the game's glyphs are drawn (Draw_EmitGlyph), from a sprite's page and CLUT. */
+void pe_icon_part(int sprite, int u, int v, int w, int h, int dx, int dy, int dw, int dh) {
+    const DrawGlyphDescriptor *g = Draw_LookupGlyphDescriptor(sprite);
+    const size_t used = (size_t)(g_DrawPacketCursor - g_DrawPacketArenaBase);
+    RenderTexturedQuad *q;
+    RenderNativeTag *ot;
+    int x0, y0;
+    if (!g || used >= 0x4000 || sizeof *q >= 0x4000 - used) return;
+    q = (RenderTexturedQuad *)g_DrawPacketCursor;
+    g_DrawPacketCursor += sizeof *q;
+    q->color.word = g_DrawTextDimmed ? g_DrawColorShaded : g_DrawPrimColor;
+    q->tag.length = 9;
+    q->color.bytes.code = 0x2C;                          /* textured four-point polygon */
+    x0 = g_TextCursorX + dx;
+    y0 = g_TextCursorY + dy;
+    q->x0 = q->x2 = (u16)x0;
+    q->x1 = q->x3 = (u16)(x0 + dw);
+    q->y0 = q->y1 = (u16)y0;
+    q->y2 = q->y3 = (u16)(y0 + dh);
+    q->u0 = q->u2 = (u8)(g->u + u);
+    q->u1 = q->u3 = (u8)(g->u + u + w);
+    q->v0 = q->v1 = (u8)(g->v + v);
+    q->v2 = q->v3 = (u8)(g->v + v + h);
+    q->clut = g->clut;
+    q->tpage = (u16)(((g->mode & 3) << 7) | 7);          /* the page Draw_AllocSprite sets */
+    ot = (RenderNativeTag *)g_DrawOrderingTableEntry;
+    q->tag.address = ot->address;
+    ot->address = (uintptr_t)q;
+}
+
 static int pe_on_row_title(void *ctx, void *user) {
     u8 **text = (u8 **)ctx;
     MenuWidgetNode *current = MenuWidget_GetCurrentNode();
@@ -155,6 +195,7 @@ void pe_screen_open(PeScreen *s, MenuWidgetNode *from, int x, int y, int width, 
                     void (*draw)(MenuWidgetNode *), int (*input)(MenuWidgetNode *, unsigned int)) {
     pe_hide_panels();
     s->from = from;
+    s->extras = 0;
     s->panel = MenuWidget_CreateSimpleNode(PE_DESC_PANEL, from, 0, 0);
     s->list = MenuWidget_CreateNode(PE_DESC_PANEL, s->panel, s->panel);
     s->panel->update = input;
@@ -182,10 +223,44 @@ void pe_screen_open_game(PeScreen *s, MenuWidgetNode *from, int rows_visible,
 }
 
 void pe_screen_close(PeScreen *s) {
+    /* Extra panels hang off the screen's panel without a child slot (CreateSimpleNode's slot
+     * parent is 0), so destroying the panel doesn't reach them. */
+    while (s->extras > 0) MenuWidget_DestroyNode(s->extra[--s->extras]);
     if (s->panel) MenuWidget_DestroyNode(s->panel);
     s->panel = s->list = NULL;
     pe_show_panels();
     if (s->from) MenuWidget_SetCurrentNode(s->from);
+}
+
+static void pe_draw_nothing(MenuWidgetNode *node) { (void)node; }
+
+MenuWidgetNode *pe_screen_panel(PeScreen *s, int x, int y, int width, int rows, void (*draw)(MenuWidgetNode *)) {
+    MenuWidgetNode *panel, *list;
+    if (!s->panel || s->extras == PE_SCREEN_EXTRA) return NULL;
+    panel = MenuWidget_CreateSimpleNode(PE_DESC_PANEL, s->panel, 0, 0);
+    if (!panel) return NULL;
+    s->extra[s->extras++] = panel;
+    list = MenuWidget_CreateNode(PE_DESC_PANEL, panel, panel);
+    if (!list) return NULL;
+    panel->update = NULL;
+    panel->x = x;
+    panel->y = y;
+    panel->grid_width = width;
+    list->draw_state = width - 2 * list->x;
+    list->draw = (void (*)())(draw ? draw : pe_draw_nothing);
+    list->update = NULL;
+    list->selected_base = PE_TITLE_BASE;
+    list->visible_rows_mirror = rows;
+    Draw_SetPrimCallback(list, rows);
+    return list;
+}
+
+void pe_screen_inside(const MenuWidgetNode *list, int *x, int *y, int *w, int *h) {
+    const MenuWidgetNode *panel = list ? list->parent : NULL;
+    *x = (panel ? panel->x : 0) + (list ? list->x : 0);
+    *y = (panel ? panel->y : 0) + (list ? list->y : 0);
+    *w = list ? list->draw_state : 0;
+    *h = list ? list->disabled * list->visible_rows_mirror : 0;   /* row height x rows */
 }
 
 void pe_screen_rows(PeScreen *s, int rows, int cursor) {
@@ -198,6 +273,47 @@ void pe_screen_rows(PeScreen *s, int rows, int cursor) {
 }
 
 int pe_screen_title_base(void) { return PE_TITLE_BASE; }
+
+/* ---- Yes / No: the game's item-detail confirmation (Menu_StepItemDetailPanel), our question ---- */
+static MenuWidgetNode *s_confirm_from, *s_confirm_choice;
+static void (*s_confirm_answer)(int yes);
+
+static void pe_confirm_done(MenuWidgetNode *dialog, int yes) {
+    void (*answer)(int) = s_confirm_answer;
+    (void)dialog;
+    s_confirm_answer = NULL;
+    s_confirm_choice = NULL;
+    if (s_confirm_from) MenuWidget_SetCurrentNode(s_confirm_from);
+    if (answer) answer(yes);
+}
+
+void pe_confirm(const char *question, int default_yes, void (*answer)(int yes)) {
+    MenuWidgetNode *panel, *choice;
+    int width;
+    s_confirm_from = MenuWidget_GetCurrentNode();
+    panel = MenuWidget_CreateSimpleNode(0x29, s_confirm_from, 0, 1);
+    choice = MenuWidget_CreateNode(0x29, panel, panel);
+    panel->draw = Menu_DrawItemLabel;                    /* prints g_MenuItemLabelBuffer */
+    panel->update = Menu_ConfirmDialogHandler;
+    choice->draw = Menu_DrawActionOptionList;
+    g_MenuActionTextBase = 5;                            /* Yes / No */
+    MenuWidget_SetCurrentNode(choice);
+    choice->cursor_x = default_yes ? 0 : 1;
+    pe_text_from_ascii(g_MenuItemLabelBuffer, sizeof g_MenuItemLabelBuffer, question);
+    g_MenuItemPrimListHandles[0] = 0;
+    width = Draw_MeasureTextWidth(g_MenuItemLabelBuffer);
+    if (width < 120) width = 120;                        /* the game's layout */
+    panel->grid_width = width + 20;
+    panel->visible_rows = 50;
+    panel->x = (300 - width) >> 1;
+    choice->x = (panel->grid_width - 128) >> 1;
+    choice->y = panel->visible_rows - 20;
+    s_confirm_choice = choice;
+    s_confirm_answer = answer;
+    g_MenuConfirmCallback = pe_confirm_done;
+}
+
+int pe_confirm_open(void) { return s_confirm_choice && MenuWidget_GetCurrentNode() == s_confirm_choice; }
 
 void pe_main_menu_init(void) {
     pe_hook_add(PE_HOOK_LIST_ROWS, pe_on_list_rows, NULL, PE_PRIORITY_NORMAL, PE_HOST_ID);

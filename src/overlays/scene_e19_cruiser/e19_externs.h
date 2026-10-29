@@ -13,8 +13,7 @@ extern GteRotation g_SceneE19ZeroSpin;
 extern int g_SceneE19BlastGlow;
 extern GteRotation g_SceneE19RollTilt;
 extern RenderColor g_SceneE19HomingParticleColor;
-extern void FieldFx_DrawPulledSprite(GteShortVector *, int, int, int,
-                         int, int, int, int, int);
+#include "pe1/field_pulled_sprite.h"
 extern RenderColor g_SceneE19EmberParticleColor;
 extern GteShortVector g_SceneE19OrbitTrailCenter;
 extern u8 g_SceneE19OrbitTrailColorTrack[];

@@ -52,8 +52,7 @@ extern u8 *g_RoomM123BeaconModel0;
 extern u8 *g_RoomM123BeaconModel1;
 extern u8 g_RoomM123BeaconColorTrack[];
 
-void FieldFx_DrawPulledSprite(GteShortVector *position, int scale_x, int scale_y, int texture,
-                   int clut, int page, int intensity, int unused, int angle);
+#include "pe1/field_pulled_sprite.h"
 int FieldFx_IsPlayerInSegmentBand(void *position, GteShortVector *target, int radius);
 GteMatrix *MulMatrix0(GteMatrix *first, GteMatrix *second, GteMatrix *out);
 

@@ -50,6 +50,8 @@ const PeMod *const g_pe_mods[] = {&test_mod, NULL};
 
 /* The host's menu and panel, not under test: every toggle on. */
 void pe_main_menu_init(void) {}
+void pe_equip_sync_init(void) {}
+void pe_present_install(void) {}
 void pe_menu_begin(const char *page) { (void)page; }
 void pe_menu_load_settings(void) {}
 int pe_menu_register_toggle(const char *sub, const char *label, const char *description, int *flag,

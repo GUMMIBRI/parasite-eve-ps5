@@ -30,7 +30,8 @@ static inline unsigned char pe_glyph(char c) {
     if (c >= '0' && c <= '9') return (unsigned char)(c - '0');
     switch (c) {                          /* from the game's own dialogue */
     case '.': return 0x2F; case ',': return 0x4B; case ':': return 0x4A;
-    case '!': return 0x2B; case '\'': return 0x2E; case '/': return 0x4C;
+    case '!': return 0x2B; case '?': return 0x2C; case '\'': return 0x2E; case '/': return 0x4C;
+    case '+': return 0x0A; case '-': return 0x0B; case '%': return 0x0E;   /* pe1/pe_charset.h */
     default: return 0x0F;                 /* space */
     }
 }
@@ -56,6 +57,8 @@ static inline char *pe_text_to_ascii(char *out, unsigned size, const unsigned ch
         case 0x2F: out[n++] = '.'; break; case 0x4B: out[n++] = ','; break;
         case 0x4A: out[n++] = ':'; break; case 0x2B: out[n++] = '!'; break;
         case 0x2E: out[n++] = '\''; break; case 0x4C: out[n++] = '/'; break;
+        case 0x2C: out[n++] = '?'; break;
+        case 0x0A: out[n++] = '+'; break; case 0x0B: out[n++] = '-'; break; case 0x0E: out[n++] = '%'; break;
         case G_NEWLINE: n += (unsigned)snprintf(out + n, size - n, " / "); break;
         default: n += (unsigned)snprintf(out + n, size - n, "{%02X}", c); break;
         }

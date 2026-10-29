@@ -267,6 +267,7 @@ void Menu_DrawAmmoTypeHeader(MenuWidgetNode *node) {
     Draw_AllocSprite(0x4C);
     Draw_OffsetCursor(5, 0);
     Draw_PrintNumberWidth2Unk(Inv_GetAyaSlotLimit());
+    PE_HOOK(PE_HOOK_INVENTORY_HEADER, node);
 }
 
 void Menu_OpenItemActionSubmenu(MenuWidgetNode *arg0, s32 arg1, s32 arg2) {

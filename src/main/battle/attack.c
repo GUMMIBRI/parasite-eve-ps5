@@ -326,6 +326,7 @@ void Battle_ResolveHitOnTimer(void)
                     if (!(rand() & 1))
                     {
                     case 2:
+                        PE_HOOK(PE_HOOK_STEAL, NULL);
                         if (Inv_AddItem(((EnemyCombatant *)selectedSlot->actor->core)->stealItemId) != 0)
                         {
                             EnemyCombatant *enemy = selectedSlot->actor->core;

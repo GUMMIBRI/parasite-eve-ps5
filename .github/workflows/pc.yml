@@ -57,14 +57,20 @@ jobs:
           cmake --build build --parallel 4
           ./build/parasite-eve-pc --help
           ctest --test-dir build --output-on-failure --no-tests=error --output-junit linux-source-only.xml -R '^(original-game-(akao-layout|math|gte|animation|transforms|projection|hierarchy|input-rules|pools|nodes|queue|expression|contact|movement|movie-audio-lock-order|spu-(mix-headroom|pitch-modulation|noise|live-adsr|register-serialization|hardware-reference))|host-settings|original-game-save-safety|mod-settings-save-safety|pe-mod-frequency)$'
-          ctest --test-dir build --output-on-failure --no-tests=error -R "^(host-crash-report|mod-crash-save-tail|mod-preserve-save-tail|mod-save-records|mod-save-registration-bounds|mod-rebalance-(vanilla|saved-vanilla|scoped|poison)|mod-atb|mod-combine|mod-panacea-off|mod-pe-(vanilla|saved-vanilla|cost|actor)|mod-inventory|mod-inventory-menu)$"
+          ctest --test-dir build --output-on-failure --no-tests=error -R "^(original-game-pulled-sprite|host-crash-report|mod-crash-save-tail|mod-preserve-save-tail|mod-save-records|mod-save-registration-bounds|mod-rebalance-(vanilla|saved-vanilla|scoped|poison)|mod-atb|mod-combine|mod-panacea-off|mod-pe-(vanilla|saved-vanilla|cost|actor)|mod-inventory|mod-inventory-menu)$"
+          ctest --test-dir build --output-on-failure --no-tests=error --output-junit mod-features.xml -R "^mod-(loot|junk-counter|armor-effect-display|catalog-rules|catalog-menu|requisition|smoke|skin-bounds|collection|model|present|stage)$"
           python3 - <<'PYTEST'
           import xml.etree.ElementTree as E
           r = E.parse('build/linux-source-only.xml')
           assert len(r.findall('.//testcase')) == 25
           assert not any(r.findall('.//' + tag) for tag in ['skipped', 'failure', 'error'])
+          r = E.parse('build/mod-features.xml')
+          assert len(r.findall('.//testcase')) == 12
+          assert not any(r.findall('.//' + tag) for tag in ['skipped', 'failure', 'error'])
           PYTEST
       - name: Verify and build save editor
+        env:
+          PE_MOD_SAVE_ORACLE: ${{ github.workspace }}/build/mods/test-editor-mod-save
         run: |
           cargo test --manifest-path save-editor/Cargo.toml --locked
           cargo build --manifest-path save-editor/Cargo.toml --locked --release
@@ -155,7 +161,8 @@ jobs:
         run: |
           ./build/parasite-eve-pc.exe --help
           ctest --test-dir build --output-on-failure --no-tests=error --output-junit windows-source-only.xml -R '^(original-game-(akao-layout|math|gte|animation|transforms|projection|hierarchy|input-rules|pools|nodes|queue|expression|contact|movement|movie-audio-lock-order|spu-(mix-headroom|pitch-modulation|noise|live-adsr|register-serialization|hardware-reference))|host-settings|original-game-save-safety|mod-settings-save-safety|pe-mod-frequency)$'
-          ctest --test-dir build --output-on-failure --no-tests=error -R "^(host-crash-report|mod-crash-save-tail|mod-preserve-save-tail|mod-save-records|mod-save-registration-bounds|mod-rebalance-(vanilla|saved-vanilla|scoped|poison)|mod-atb|mod-combine|mod-panacea-off|mod-pe-(vanilla|saved-vanilla|cost|actor)|mod-inventory|mod-inventory-menu)$"
+          ctest --test-dir build --output-on-failure --no-tests=error -R "^(original-game-pulled-sprite|host-crash-report|mod-crash-save-tail|mod-preserve-save-tail|mod-save-records|mod-save-registration-bounds|mod-rebalance-(vanilla|saved-vanilla|scoped|poison)|mod-atb|mod-combine|mod-panacea-off|mod-pe-(vanilla|saved-vanilla|cost|actor)|mod-inventory|mod-inventory-menu)$"
+          ctest --test-dir build --output-on-failure --no-tests=error --output-junit mod-features.xml -R "^mod-(loot|junk-counter|armor-effect-display|catalog-rules|catalog-menu|requisition|smoke|skin-bounds|collection|model|present|stage)$"
       - name: Stress D3D12 descriptor batches without a visible window
         env:
           SDL_GPU_DRIVER: direct3d12
@@ -167,8 +174,12 @@ jobs:
           $cases = $report.SelectNodes('//testcase')
           $incomplete = $report.SelectNodes('//testcase/skipped | //testcase/failure | //testcase/error')
           if ($cases.Count -ne 25 -or $incomplete.Count -ne 0) { throw 'Expected 25 executed source-only cases without failures or skips' }
+          [xml]$features = Get-Content build/mod-features.xml
+          if ($features.SelectNodes('//testcase').Count -ne 12 -or $features.SelectNodes('//testcase/skipped | //testcase/failure | //testcase/error').Count -ne 0) { throw 'Expected all 12 mod feature regressions without failures or skips' }
       - name: Build and test Windows save editor
         shell: pwsh
+        env:
+          PE_MOD_SAVE_ORACLE: ${{ github.workspace }}/build/mods/test-editor-mod-save.exe
         run: |
           cargo test --manifest-path save-editor/Cargo.toml --locked
           if ($LASTEXITCODE -ne 0) { throw 'Save editor regressions failed' }

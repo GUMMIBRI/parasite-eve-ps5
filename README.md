@@ -92,6 +92,20 @@ Open **F1 → PE Enhancements** to configure them.
   power costs.
 - **Half-bar turns** (`pe_rebalance`): items, Quick PE powers and weapon changes on half a bar,
   with a gauge indicator; attacks and other powers still need a full bar.
+- **Medicine combining and Panacea** (`pe_rebalance`): two Medicine 1/2/3 become the next tier;
+  Medicine 4 and Full Cure become Panacea (400 HP and cures ailments).
+- **Junk economy** (`pe_economy`): a shared Junk counter, battle and steal rewards, Super/Duper
+  Junk conversion, difficulty presets, rare drops with soft pity, a Junk counter beside the
+  bag's Quantity, and four economy armor effects (Bargain, Scavenger, Lucky Find, Salvager).
+- **Mod Catalog** (`pe_economy`): dismantle equipment to unlock effects, then install, remove or
+  replace them on equipped gear, from Aya's main menu or F1; Rebuild buys dismantled gear back.
+- **Requisition and Wayne's Workshop** (`pe_economy`): buy medicine, ammo, Smoke Grenades,
+  Revive and Tools with Junk, from F1 or Wayne's own menu (also Mod Permit Cards); Warner offers
+  storage and the Workshop where he stands guard on Day 4. Smoke Grenades escape ordinary battles.
+- **Bestiary and Wardrobe** (`pe_collection`): 75 creatures revealed by kills, Scan or Junk;
+  Aya's outfits and character skins to unlock and wear. Skins are built from your own disc with
+  the decomp bridge tools and stay hidden until present. Unlocks are kept across games in
+  `pe_collection.ini`; other mods can register their own creatures and costumes.
 
 Mod builds are experimental; a passing build or test does not establish full in-game compatibility.
 
@@ -117,6 +131,6 @@ cmake --build build-mods --parallel
 ./build-mods/parasite-eve-pc
 ```
 
-`PE_MOD_LIST` picks the mods by folder name (default: `pe_qol;pe_rebalance`).
+`PE_MOD_LIST` picks the mods by folder name (default: `pe_qol;pe_rebalance;pe_economy;pe_collection`).
 
 For development details, see [code organization](docs/CODE_ORGANIZATION.md).
