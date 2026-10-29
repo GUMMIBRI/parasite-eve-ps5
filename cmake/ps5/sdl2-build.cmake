@@ -1,0 +1,28 @@
+# Standalone dependency/diagnostic project, included by a generated CMakeLists.txt.
+cmake_minimum_required(VERSION 3.16)
+project(pe_ps5_sdl2_dependencies C)
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(LIBSAMPLERATE_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(LIBSAMPLERATE_INSTALL OFF CACHE BOOL "" FORCE)
+add_subdirectory("${SAMPLERATE_SOURCE}" samplerate)
+# libsamplerate only generates its package config when installation is enabled.
+# Supply a local config referring to its existing, real CMake alias target.
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/samplerate-package")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/samplerate-package/SampleRateConfig.cmake"
+  "if(NOT TARGET SampleRate::samplerate)\n  message(FATAL_ERROR \"Missing libsamplerate target\")\nendif()\nset(SampleRate_FOUND TRUE)\n")
+set(SampleRate_DIR "${CMAKE_CURRENT_BINARY_DIR}/samplerate-package" CACHE PATH "" FORCE)
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
+set(SDL_TEST OFF CACHE BOOL "" FORCE)
+set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+set(SDL_OPENGL OFF CACHE BOOL "" FORCE)
+set(SDL_OPENGLES OFF CACHE BOOL "" FORCE)
+set(SDL_VULKAN OFF CACHE BOOL "" FORCE)
+set(SDL_LIBSAMPLERATE ON CACHE BOOL "" FORCE)
+set(SDL_LIBSAMPLERATE_SHARED OFF CACHE BOOL "" FORCE)
+add_subdirectory("${SDL_SOURCE}" sdl2)
+add_executable(sdl2_bringup "${BRINGUP_SOURCE}")
+set_target_properties(sdl2_bringup PROPERTIES SUFFIX ".elf")
+target_compile_features(sdl2_bringup PRIVATE c_std_11)
+target_compile_options(sdl2_bringup PRIVATE -Wall -Wextra -Werror)
+target_link_libraries(sdl2_bringup PRIVATE SDL2-static samplerate)

@@ -1,0 +1,17 @@
+--- a/src/audio/SDL_audio.c
++++ b/src/audio/SDL_audio.c
+@@ -68,1 +68,4 @@
++#ifdef SDL_AUDIO_DRIVER_PS5
++    &PS5AUDIO_bootstrap,
++#endif
+ #ifdef SDL_AUDIO_DRIVER_PS2
+--- a/src/audio/SDL_sysaudio.h
++++ b/src/audio/SDL_sysaudio.h
+@@ -386,1 +386,2 @@
++extern AudioBootStrap PS5AUDIO_bootstrap;
+ extern AudioBootStrap PS2AUDIO_bootstrap;
+--- a/include/build_config/SDL_build_config.h.cmake
++++ b/include/build_config/SDL_build_config.h.cmake
+@@ -290,1 +290,2 @@
++#cmakedefine SDL_AUDIO_DRIVER_PS5 1
+ #cmakedefine SDL_AUDIO_DRIVER_PS2 1
