@@ -192,6 +192,10 @@ target_link_libraries(pe-startup-log PRIVATE SDL3::SDL3)
 target_sources(parasite-eve-pc PRIVATE `$<TARGET_OBJECTS:pe-startup-log>)
 "@
   $wraps=@('main','SDL_Init','SDL_InitSubSystem','SDL_CreateWindow','SDL_GetWindowSurface','SDL_UpdateWindowSurface','SDL_OpenAudioDevice','SDL_OpenAudioDeviceStream','SDL_ResumeAudioStreamDevice','SDL_OpenGamepad','Boot_InitSystem','Boot_InitGameState','Boot_InitSubsystems','Asset_OpenPeImage','Scene_LoadSceneData')
+  if($ApplicationTooling){
+   $diag+="`ntarget_compile_definitions(pe-startup-log PRIVATE PE_APPLICATION_SERVICE_DIAGNOSTICS=1)"
+   $wraps+=@('sceUserServiceInitialize','scePadInit','sceSystemServiceHideSplashScreen','sceVideoOutOpen')
+  }
   foreach($symbol in $wraps){$diag+="`ntarget_link_libraries(parasite-eve-pc PRIVATE -Wl,--wrap=$symbol)"}
   # Windows direct ld invocation does not accept the compiler-driver -Wl prefix.
   $diag=$diag.Replace('-Wl,--wrap=','--wrap=')
@@ -215,3 +219,4 @@ target_sources(parasite-eve-pc PRIVATE `$<TARGET_OBJECTS:pe-startup-log>)
  @{Schema=2; State='succeeded'; Attempt=$attempt; InputsSHA256=(Get-FileHash "$out/INPUTS.json").Hash; ELF=$elf; SHA256=(Get-FileHash $elf).Hash; Bytes=(Get-Item $elf).Length; ConsoleTested=$false} | ConvertTo-Json | Set-Content "$out/RESULT.json"
  Write-Output "Linked native game ELF (UNTESTED ON CONSOLE): $elf"
 }finally{$env:PATH=$oldPath; $env:PS5_PAYLOAD_SDK=$oldSdk}
+
