@@ -8,10 +8,13 @@ contacts a console, changes a source card, repairs a save, or changes game code.
 .\pe-card-import.exe --help
 .\pe-card-import.exe --card 'D:\backups\my-card.mcr'
 .\pe-card-import.exe --card 'D:\backups\my-card.gme' --extract --port 1 --output 'D:\transfer\new-card-export'
+.\pe-card-import.exe --save 'D:\backups\single.mcs'
+.\pe-card-import.exe --save 'D:\backups\single.mcs' --extract --output 'D:\transfer\new-single-export'
+.\pe-card-import.exe --save 'D:\backups\raw.bin' --name BASLUS-006620000000A --extract --output 'D:\transfer\new-raw-export'
 ```
 
 `--list` is the default. `--port 0` is the default target (bu00); port 1 means
-bu10. The output root must not exist, including an empty directory, and its
+bu10. Select exactly one `--card` or `--save`. The output root must not exist, including an empty directory, and its
 parent must already exist. All selected saves are read and validated into
 memory before any output is created. Files are opened exclusively. Failed
 writes can leave a partial new root; retain it for diagnosis or remove it
@@ -55,11 +58,27 @@ valid multiblock chains, but are never extracted.
 
 This is structural compatibility validation, not PE payload/CRC validation,
 gameplay qualification, bad-sector remapping/recovery, or authenticity checking.
-Unsupported formats include individual native saves, VMP/VGS/PSV and other
+Unsupported formats include multiblock individual saves, VMP/VGS/PSV and other
 wrapped/encrypted cards. Only the Windows host build has been executed; the C
 source also provides POSIX directory and exclusive-completion publication.
 Do not run an extraction in a directory concurrently controlled by another
 writer. Completion flushes C streams; it does not guarantee power-loss durability.
+
+`--save` supports exactly two individual-save layouts:
+
+- **8320-byte MCS:** 128-byte directory frame followed by one 8192-byte data
+  block. Requires directory size 8192, valid directory XOR, the embedded safe
+  terminated USA filename and the SC/icon/block-count checks above. Identity
+  is retained; `--name` is rejected. Original on-card state and chain-location
+  fields are ignored because this file is off-card. A stale directory XOR is
+  rejected even if another MCS importer tolerates it.
+- **8192-byte raw native block:** requires explicit `--name` with the same safe
+  USA filename/slot policy and SC/icon/block-count checks. No filename guessing.
+
+Truncation, trailing bytes and other sizes reject. This is a strict supported
+subset, with no repair, multiblock import, payload CRC or authenticity checking.
+Both layouts use the existing preflight and exclusive fresh staging workflow;
+the source is read-only, and `COMPLETE.txt` is still published last.
 
 Build independently of the game (no SDK or game assets needed):
 
@@ -83,6 +102,12 @@ explicit fresh temporary directory, never real cards or game assets:
   -Executable C:\.pe\ps5-native\tools\pe-card-import\pe-card-import.exe `
   -WorkDirectory "$env:TEMP\pe-card-synthetic-$([guid]::NewGuid().ToString('N'))"
 ```
+
+`verify-mcs.ps1` accepts the same two parameters for synthetic individual-save
+checks. The isolated candidate previously passed 36 new MCS/raw checks and 96
+existing card assertions. Integration kept that candidate source byte-for-byte;
+those checks were not rerun during publication. No real saves or generated
+fixtures are included in the published tool directory.
 
 See PROVENANCE.md and LICENSE for reuse and exact source identity. Integration
 and Git operations belong to the root manager; this tool is not added to the

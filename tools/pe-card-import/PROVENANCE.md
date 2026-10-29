@@ -61,7 +61,41 @@ In that exact snapshot:
   This tool accepts valid SC display values 0x11..0x13, without interpreting
   or modifying title, icons, PE payload or gameplay state.
 
-The current delivered `C:\.pe\PS5 Current\eboot.bin` was read-only hashed as
+The then-delivered `C:\.pe\PS5 Current\eboot.bin` was read-only hashed as
 `F4944A0E20634F3B38D5EA3B61E07724CA0D55E9327A4BACBDAC1D3DF9E90F87`.
 Its startup/crash investigation remains independently owned and unresolved.
+
+## Individual MCS/raw extension, 2026-10-29
+
+Independently authored Apache-2.0 CLI extension and `verify-mcs.ps1`, reviewed
+from `C:\.pe\ps5-native\mcs-import`. The adapter files and original licensing
+notices above remain byte-for-byte unchanged. No Rust code was copied.
+
+Format evidence: [psx-spx MCS layout](https://psx-spx.consoledev.net/controllersandmemorycards/#mcs-files-single-save-format)
+describes the directory frame plus data blocks and embedded filename/size;
+[directory frames](https://psx-spx.consoledev.net/controllersandmemorycards/#directory-frames-block-0-frame-115)
+documents the offsets and XOR. The inspected native upstream
+`save-editor/src/memcard.rs` at
+`b1c225aec3065b932b1a35229502c7666c38685c` distinguishes 0x2080-byte MCS and
+0x2000-byte raw slots. It was read as format evidence only.
+
+The extension accepts only one-block USA PE: strict 8320-byte MCS with valid
+directory XOR and embedded safe name, or 8192-byte raw with explicit safe name.
+Off-card directory state/chain fields are ignored. SC/icon/count checks and
+the original no-overwrite staging policy remain. This is not all-format MCS,
+multiblock, repair, payload checksum, authenticity or gameplay validation.
+
+Reviewed main.c SHA256:
+`94A934319B1C0BB9740E453E363FECF56BE263C7E547B0185BD7BB7DC92579EE`.
+The isolated handoff reports Zig0.15.2 strict compilation and 36 new plus 96
+existing synthetic assertions passed. Those are prior candidate results,
+not a new integration test run. Publication rebuilds the same reviewed source.
+Baseline source and prior published tool are preserved in
+`C:\.pe\ps5-native\mcs-import\integration-20261029`; publication hashes and
+build invocation are recorded there. No fixtures or owner saves are published.
+
+The historical F494 contract above remains diagnostic context. The later
+startup absolute-path adaptation is documented separately in
+`C:\.pe\ps5-native\startup-paths-20261029\REPORT.md`; this tool does not change
+that application or its paths. No PS5 Current files are changed here.
 

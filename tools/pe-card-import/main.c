@@ -17,7 +17,10 @@ typedef struct { char name[21]; unsigned block; unsigned char data[8192]; } Save
 static Save saves[15];
 static int fail(const char *why) { fprintf(stderr,"ERROR: %s\n",why); return 1; }
 static void help(void) {
-    puts("pe-card-import --card IMAGE [--list | --extract --output NEW_DIRECTORY] [--port 0|1]\n"
+    puts("pe-card-import (--card IMAGE | --save FILE [--name CARD_NAME])\n"
+         "  [--list | --extract --output NEW_DIRECTORY] [--port 0|1]\n"
+         "--save accepts strict 8320-byte MCS or 8192-byte raw native save.\n"
+         "Raw saves require explicit --name; MCS retains its embedded name.\n"
          "Default --list is read-only. Exactly one explicitly selected raw MCR/SRM\n"
          "(131072 bytes) or DexDrive GME (134976 bytes) is read; no scanning.\n"
          "Extracts all active compatible single-block USA PE saves after preflight.\n"
@@ -29,7 +32,7 @@ static void help(void) {
          "Back up console saves first; skip existing names and newer saves. Never\n"
          "replace the whole console directory. This tool never contacts a console.\n"
          "Original cards are retained unchanged. No game payload/checksum validation,\n"
-         "repair, multiblock PE, native individual saves, VMP/VGS/PSV or other regions.");
+         "repair, multiblock PE, VMP/VGS/PSV or other regions.");
 }
 static int safe_name(const unsigned char *p) {
     /* Host importer: 20 bytes + USA prefix. Menu: slot at byte19 in A..O.
@@ -52,11 +55,38 @@ static int write_new(const char *name,const void *data,size_t size) {
     if (fclose(f)) ok=0;
     return ok;
 }
+static int read_single(FILE *f, const char *name, const char **format) {
+    /* One byte beyond the largest supported layout detects trailing data.
+     * MCS's original chain pointer is deliberately not interpreted off-card. */
+    unsigned char bytes[8321];
+    size_t size=fread(bytes,1,sizeof(bytes),f);
+    if (ferror(f)) return 0;
+    if (size==8320) {
+        unsigned sum=0;
+        if (name) return 0; /* embedded identity cannot be renamed */
+        for (unsigned i=0;i<128;i++) sum^=bytes[i];
+        if (sum || bytes[4]!=0 || bytes[5]!=0x20 || bytes[6] || bytes[7]) return 0;
+        memcpy(saves[0].name,bytes+10,21);
+        memcpy(saves[0].data,bytes+128,8192);
+        *format="MCS single save (strict directory checksum)";
+    } else if (size==8192) {
+        if (!name || strlen(name)!=20) return 0;
+        memcpy(saves[0].name,name,21);
+        memcpy(saves[0].data,bytes,8192);
+        *format="raw individual save (explicit name)";
+    } else return 0;
+    unsigned char *data=saves[0].data;
+    return safe_name((const unsigned char *)saves[0].name) &&
+        data[0]=='S' && data[1]=='C' && data[2]>=0x11 && data[2]<=0x13 && data[3]==1;
+}
 int main(int argc,char **argv) {
-    const char *cardpath=NULL,*out=NULL; int extract=0,mode=0,port=0,port_set=0;
+    const char *cardpath=NULL,*savepath=NULL,*name=NULL,*out=NULL,*source_format=NULL;
+    int extract=0,mode=0,port=0,port_set=0;
     for (int i=1;i<argc;i++) {
         if (!strcmp(argv[i],"--help")) { help(); return 0; }
         if (!strcmp(argv[i],"--card") && i+1<argc && !cardpath) cardpath=argv[++i];
+        else if (!strcmp(argv[i],"--save") && i+1<argc && !savepath) savepath=argv[++i];
+        else if (!strcmp(argv[i],"--name") && i+1<argc && !name) name=argv[++i];
         else if (!strcmp(argv[i],"--output") && i+1<argc && !out) out=argv[++i];
         else if (!strcmp(argv[i],"--port") && i+1<argc && !port_set) {
             const char *p=argv[++i]; if (strcmp(p,"0")&&strcmp(p,"1")) return fail("port must be 0 or 1");
@@ -65,11 +95,24 @@ int main(int argc,char **argv) {
             extract=!strcmp(argv[i],"--extract"); mode=1;
         } else return fail("invalid/duplicate argument; use --help");
     }
-    if (!cardpath || (extract ? !out || !*out : out!=NULL)) return fail("select --card; --extract requires --output (list forbids output)");
+    if ((!cardpath==!savepath) || (name && !savepath) ||
+        (extract ? !out || !*out : out!=NULL))
+        return fail("select exactly one --card or --save; --name is raw-save only; extract requires output");
+    unsigned n=0;
+    if (savepath) {
+        FILE *single=fopen(savepath,"rb");
+        if (!single) return fail("cannot open selected save read-only");
+        int valid=read_single(single,name,&source_format);
+        if (fclose(single)) valid=0;
+        if (!valid) return fail("invalid/unsupported single save or name; no output created");
+        n=1;
+        printf("Format: %s; compatible %s (8192 bytes); target bu%d0\n",source_format,saves[0].name,port);
+    } else {
     FILE *f=fopen(cardpath,"rb"); PeMemCard card;
     if (!f) return fail("cannot open selected card read-only");
     if (!PeMemCard_Attach(&card,f)) { fclose(f); return fail("unsupported size/signature or damaged MC header"); }
-    PeMemCardEntry entries[16]; unsigned owned=0,active=0,n=0; int bad=0;
+    source_format=card.format==PE_MEMCARD_GME?"GME":"raw MCR/SRM";
+    PeMemCardEntry entries[16]; unsigned owned=0,active=0; int bad=0;
     printf("Format: %s; target bu%d0\n",card.format==PE_MEMCARD_GME?"DexDrive GME":"raw MCR/SRM",port);
     for (unsigned b=1;b<=15;b++) {
         unsigned char directory[128];
@@ -106,6 +149,7 @@ int main(int argc,char **argv) {
     if (owned!=active) bad=1;
     if (fclose(f)) bad=1;
     if (bad) return fail("invalid/overlapping/orphan/unsupported directory or save; no output created");
+    }
     printf("Preflight complete: %u compatible saves\n",n);
     if (!extract) return 0;
     if (!n) return fail("no compatible saves; no output created");
@@ -128,7 +172,7 @@ int main(int argc,char **argv) {
         "Original card retained unchanged. Files below are exact block bytes, not repaired.\n"
         "Back up console saves; manually copy missing files only. Never overwrite newer saves.\n"
         "No payload/checksum/gameplay validation. Source format: %s.\n",port,port,port,
-        card.format==PE_MEMCARD_GME?"GME":"raw")>0;
+        source_format)>0;
     for (unsigned j=0;j<n;j++) if (fprintf(m,"block=%u bytes=8192 path=memory-cards/bu%d0/%s\n",saves[j].block,port,saves[j].name)<0) ok=0;
     if (fflush(m)) ok=0;
     if (fclose(m)) ok=0;
