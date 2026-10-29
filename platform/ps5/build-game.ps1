@@ -57,6 +57,9 @@ $dirty=& git -C "$root/third_party/psyz" status --porcelain --untracked-files=no
 if($LASTEXITCODE -ne 0 -or $dirty){throw 'PsyZ tracked sources must be clean for generated patches'}
 $out=if($Resume){(Resolve-Path $Resume).Path}else{Join-Path $root ('outputs/ps5/game-'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')+'-'+[Guid]::NewGuid().ToString('N').Substring(0,6))}
 if($Resume -and (Test-Path "$out/application-project.cmake") -and !$ApplicationTooling){throw 'Application build resume requires ApplicationTooling; use a fresh output for payload ABI'}
+if($Resume -and !$StartupLog -and ((Test-Path "$out/startup-project.cmake") -or (Test-Path "$out/STARTUP-LOG.json"))){
+ throw 'Cannot disable startup diagnostics when resuming an instrumented build; retain StartupLog or use a fresh output'
+}
 if($ApplicationTooling -and $Resume -and (Test-Path "$out/startup-project.cmake")){throw 'Cannot reuse payload diagnostics build for application ABI'}
 New-Item -ItemType Directory -Force $out | Out-Null
 if($Resume -and (Test-Path "$out/INPUTS.json")){
