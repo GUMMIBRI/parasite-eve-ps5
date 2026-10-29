@@ -1,0 +1,149 @@
+{
+  "SourcePin": "5c17ea31aec5791c12451e915386fa98d670adb4",
+  "PublicSource": "https://github.com/SynoPiia/PSXS5",
+  "SdkRelease": "ps5-payload-dev/sdk v0.45 (installed build fingerprints, not source-rebuild equivalence)",
+  "Native": [
+    {
+      "Path": "app_cpp_runtime.cpp",
+      "SHA256": "7379CD8DF8F41AF0E1A178C9300992F2235F3A3F8B910171CAF91608568DAC67",
+      "Application": false
+    },
+    {
+      "Path": "app_crt.cpp",
+      "SHA256": "A99FE406E36D8CE82E68E0245898BA064E28A56A9853F746E9CF13D23CC17A00",
+      "Application": true
+    },
+    {
+      "Path": "app-symbols.map",
+      "SHA256": "6082D777A2AC571BB80BFDB3BCE2C5E567D67D3F6915A08A38B7D15DF56A4876",
+      "Application": true
+    },
+    {
+      "Path": "elf_object.cpp",
+      "SHA256": "2FC0F25FB67E1DD1B1A7C91E78E7AE191A1D08F95B9AC4047C6A252606077AE9",
+      "Application": false
+    },
+    {
+      "Path": "elf_object.hpp",
+      "SHA256": "FC12DD8F98CFB282CAD5B0A541338E49B8CCBB87006A89CC5FFF05EA4FE3AACB",
+      "Application": false
+    },
+    {
+      "Path": "hash.hpp",
+      "SHA256": "F76621A0D649F0920DEBBE813CC562498AA478D5C503DE73B66E7CF4DB9D4E5D",
+      "Application": false
+    },
+    {
+      "Path": "libc_builder.cpp",
+      "SHA256": "FB9E4EB66EF6C1D9E9BCFD059A3A3AAF86156FE065838303A0C3FBD789786A1A",
+      "Application": false
+    },
+    {
+      "Path": "native_app_builder.cpp",
+      "SHA256": "B975E8AD177F0F1E039F70EF4E055BF71040CB26A6469307AF392BE1693ACB18",
+      "Application": false
+    },
+    {
+      "Path": "ps5-pie.ld",
+      "SHA256": "FBC52518761B58B703A2225C847C5F44A81523CD0E751755ADF890AE0F0DD74C",
+      "Application": true
+    },
+    {
+      "Path": "runtime/api-surface.txt",
+      "SHA256": "233E6E1178F0D9A17A2515D11CCEDA503819557F6EF9DF4A375CDFC40ADAE642",
+      "Application": false
+    },
+    {
+      "Path": "runtime/imports.txt",
+      "SHA256": "31AB1AEFF796DBBFFF8652B6CCA753E7617C2B5507631AAAC133578B5094E4A8",
+      "Application": false
+    },
+    {
+      "Path": "sce_module_writer.cpp",
+      "SHA256": "C919D29EF08DC4A93F57CE32D44B386C94F91D7D24533829A7F27295A0A75C8E",
+      "Application": false
+    },
+    {
+      "Path": "sce_module_writer.hpp",
+      "SHA256": "B80586C50B72B7FF4160C0944903390299F723AD7629B4CCB162275D1023761D",
+      "Application": false
+    },
+    {
+      "Path": "self_container.cpp",
+      "SHA256": "3C028F6523B4C169E8B909CB2722187F13EEA1487A5848C1D191693A854BB695",
+      "Application": false
+    },
+    {
+      "Path": "self_container.hpp",
+      "SHA256": "C06A754FB6897B816154A598CDC7413DCBB2260BAED54E00D8E854BBED9B7100",
+      "Application": false
+    },
+    {
+      "Path": "LICENSE",
+      "SHA256": "230184F60BAE2FEAF244F10A8BAC053C8FF33A183BCC365B4D8B876D2B7F4809",
+      "Application": true
+    }
+  ],
+  "Sdk": [
+    {
+      "Path": "toolchain/prospero.cmake",
+      "SHA256": "1854059FB62E05E8482FF49756D15A8992DC0CC994816A729E37E72CED58503C"
+    },
+    {
+      "Path": "target/lib/libc.a",
+      "SHA256": "DA521A59F3E40686F33EE423ED0F960A2785A14DC7D71F8A61DFE7FBBD583856"
+    },
+    {
+      "Path": "target/lib/libc_stub_weak.so",
+      "SHA256": "584BFABBB1B2D81322A93C3EB98DBF37B515A58BA66CC1E5F6FB93165D5BF544"
+    },
+    {
+      "Path": "target/lib/libkernel.so",
+      "SHA256": "3BC1A6679E06F935787AEC50C7F91D5AA51CD9C833503A07FB4F60130D056DC9"
+    },
+    {
+      "Path": "target/lib/libSceLibcInternal.so",
+      "SHA256": "584BFABBB1B2D81322A93C3EB98DBF37B515A58BA66CC1E5F6FB93165D5BF544"
+    },
+    {
+      "Path": "target/lib/libSceNet.so",
+      "SHA256": "0465429119AE0D48D3A462AB3442E480B161235518FD4868C432D15C9583E271"
+    },
+    {
+      "Path": "target/include/pthread.h",
+      "SHA256": "B8C84AF542D20ED52124D7AA7DF65A3B0C50CE8030DC5F54AF0465115750FA18"
+    },
+    {
+      "Path": "target/include/errno.h",
+      "SHA256": "1FEFA8EBA3A0EAEC642E0FCA02F9A7E0535CC44B0B389FB90FD84E6E41AC3BB1"
+    },
+    {
+      "Path": "target/include/stdio.h",
+      "SHA256": "1E0B639EB07C7098F6618B782DF76CEF37356F1D8D3E1FB7FDEEBAE9F36B6618"
+    },
+    {
+      "Path": "target/lib/libSceVideoOut.so",
+      "SHA256": "5A6EA69630DD290E9C5973D53DD665B62AA07E4C7CFFB17B8B73715C0D5A9470"
+    },
+    {
+      "Path": "target/lib/libScePad.so",
+      "SHA256": "E737BF3588D02757A2A5D86755583222E701EC54FBBDA143481C509505457549"
+    },
+    {
+      "Path": "target/lib/libSceAudioOut.so",
+      "SHA256": "85C83136DC22B4D610791D0716B3B9DD3BF043C28F8399E29338C9C5D1D4F7F4"
+    },
+    {
+      "Path": "target/lib/libSceUserService.so",
+      "SHA256": "272D2397228F0B65D9BF25E42B16B43417312632E9038FAE714BE19789612A1B"
+    },
+    {
+      "Path": "target/lib/libSceSystemService.so",
+      "SHA256": "2F0EF160E33B5810760A06CB9E7CC079D8B925019C451A011AE7CCBFC84E32BE"
+    },
+    {
+      "Path": "target/include/sys/_pthreadtypes.h",
+      "SHA256": "116216248126E80B1B727666C3A63FF76DC25DF52482053516AF7753BEB73D3F"
+    }
+  ]
+}

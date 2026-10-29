@@ -1,8 +1,8 @@
 # Apply only to exported PsyZ sources; preserve the pinned checkout and notices.
-param([Parameter(Mandatory=$true)][string]$Stage)
+param([Parameter(Mandatory=$true)][string]$Stage, [string]$OriginalSource)
 $ErrorActionPreference='Stop'
 $p=Join-Path $Stage 'psyz/src/platform/sdl3_gpu.c'
-$original=Join-Path $PSScriptRoot '../../third_party/psyz/psyz/src/platform/sdl3_gpu.c'
+$original=if($OriginalSource){$OriginalSource}else{Join-Path $PSScriptRoot '../../third_party/psyz/psyz/src/platform/sdl3_gpu.c'}
 $s=[IO.File]::ReadAllText($original).Replace("`r`n","`n")
 $state='static bool hidden_gpu_renderer;'
 if(!$s.Contains($state)){throw 'Missing renderer state anchor'}
