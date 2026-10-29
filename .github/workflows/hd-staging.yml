@@ -1,0 +1,47 @@
+name: hd-staging
+
+on:
+  pull_request:
+    paths:
+      - 'platform/ps5/hd/**'
+      - 'cmake/ps5/hd.cmake'
+      - 'cmake/ps5/cache.cmake'
+      - '.github/workflows/hd-staging.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check default-off configuration
+        run: cmake -S platform/ps5/hd/tests -B "$RUNNER_TEMP/hd-off" -G Ninja
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: libsdl-org/SDL
+          ref: fa2c02bb6e21974a89ea9824bc53c9932abe5f9c
+          path: .ci/SDL
+          persist-credentials: false
+      - name: Build pinned host SDL worker dependency
+        run: |
+          cmake -S .ci/SDL -B "$RUNNER_TEMP/sdl-build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/sdl" \
+            -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST_LIBRARY=OFF \
+            -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF -DSDL_AUDIO=OFF -DSDL_VIDEO=OFF \
+            -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF
+          cmake --build "$RUNNER_TEMP/sdl-build" --parallel 2
+          cmake --install "$RUNNER_TEMP/sdl-build"
+      - name: Build and run synthetic HD checks
+        run: |
+          cmake -S platform/ps5/hd/tests/lookup-snapshot -B "$RUNNER_TEMP/hd" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DPE_HD_CHECKS=ON -DPE_PS5_HD_STAGING=ON \
+            -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/sdl"
+          cmake --build "$RUNNER_TEMP/hd" --parallel 2
+          ctest --test-dir "$RUNNER_TEMP/hd" --output-on-failure
+
