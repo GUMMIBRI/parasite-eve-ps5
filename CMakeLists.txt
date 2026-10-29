@@ -1,4 +1,16 @@
 cmake_minimum_required(VERSION 3.21..3.31)
+option(PE_PS5_PAYLOAD "Build only the public SDK logging/filesystem payload" OFF)
+if(PE_PS5_PAYLOAD)
+    project(pe-ps5-payload LANGUAGES C)
+    include(cmake/ps5/payload.cmake)
+    return()
+endif()
+option(PE_PS5_BOOTSTRAP "Build only the isolated PS5 bootstrap milestone" OFF)
+if(PE_PS5_BOOTSTRAP)
+    project(pe-ps5-bootstrap LANGUAGES NONE)
+    include(cmake/ps5/bootstrap.cmake)
+    return()
+endif()
 # Explicit deployment target avoids inheriting the build host's macOS version.
 if(CMAKE_HOST_APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET
    AND (NOT DEFINED CMAKE_SYSTEM_NAME OR CMAKE_SYSTEM_NAME STREQUAL "Darwin"))
