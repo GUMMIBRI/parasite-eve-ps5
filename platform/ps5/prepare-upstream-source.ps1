@@ -1,6 +1,6 @@
 # Export and three-way reconcile a candidate without changing the checkout/index.
 [CmdletBinding()]
-param([string]$Revision='da1f775e686ebe47fa5848c723f7efba73d59211', [switch]$AcceptVersionResolution, [string]$PsyZRevision, [string]$OutputRoot)
+param([string]$Revision='da1f775e686ebe47fa5848c723f7efba73d59211', [switch]$AcceptVersionResolution, [string]$PsyZRevision, [string]$OutputRoot, [switch]$IncludePS5Plugins)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=(Resolve-Path "$PSScriptRoot/../..").Path
@@ -64,6 +64,12 @@ foreach($path in $paths) {
     if($merged -notmatch '(?m)^<<<<<<< '){$mergeCode=0; $resolution='Accepted upstream project version plus local PS5 opt-in/include (-AcceptVersionResolution)'}
    }
   }
+  if($mergeCode -and $IncludePS5Plugins -and $path -eq 'mods/CMakeLists.txt'){
+   # Preserve the selected upstream host/list. The checked plugin recipe below
+   # adds the CPU adapter and the opt-in CMake forces only pe_assists.
+   Copy-Item -LiteralPath "$mergeDir/theirs" -Destination "$mergeDir/ours"
+   $mergeCode=0; $resolution='Selected upstream mods build glue plus checked PS5 plugin integration'
+  }
   if($mergeCode -ne 0){$conflicts+=$path}
  } else {
   if(Test-Path -LiteralPath $dest){throw "Add/add needs explicit resolution: $path"}
@@ -94,6 +100,10 @@ if($bootText.Contains('    int widescreen;')){
  $bootText=$bootText.Replace("    host_options.geometry_correction = host_options.antialiasing = host_options.model_filtering = 0;`n#endif", "    host_options.geometry_correction = host_options.antialiasing = host_options.model_filtering = 0;`n    host_options.widescreen = 0;`n#endif")
  [IO.File]::WriteAllText($boot,$bootText)
  $changes+=@{Path='src/main/boot/main.c'; Resolution='PE_PS5-only widescreen option normalization; CPU renderer has no extended widescreen surface'}
+}
+if($IncludePS5Plugins){
+ & "$PSScriptRoot/integrate-plugins.ps1" -Root $source -Tree Game | Out-Null
+ $changes+=@{Path='platform/ps5/plugin-source.json'; Resolution='Checked built-in source integration; PE_PS5_PLUGINS defaults OFF'; SHA256=(Get-FileHash "$PSScriptRoot/plugin-source.json").Hash}
 }
 $pin=(GitText @('-C',"$root/third_party/psyz",'rev-parse','HEAD')).Trim()
 if($PsyZRevision){$pin=(GitText @('-C',"$root/third_party/psyz",'rev-parse',"$PsyZRevision^{commit}")).Trim()}
