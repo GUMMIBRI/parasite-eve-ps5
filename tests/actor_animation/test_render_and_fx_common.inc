@@ -194,7 +194,7 @@ static int native_save_safety(void) {
         .iconId=2,.itemId=0xB7,.kind=9,.tailCount=10,.tailCapacity=10};
     if (!Inv_ValidateSavedInventory(&candidate)) valid = 0;
     SaveRuntimeState clean = candidate;
-    for (unsigned fault = 0; fault < 8; ++fault) {
+    for (unsigned fault = 0; fault < 13; ++fault) {
         candidate = clean;
         switch (fault) {
         case 0: candidate.player.runtime.inventory.equipment[0].kind = 255; break;
@@ -205,6 +205,11 @@ static int native_save_safety(void) {
         case 5: candidate.player.aya.inventory_slot_count = 51; break;
         case 6: candidate.player.runtime.inventory.storage[99] = 0x180; break;
         case 7: candidate.player.runtime.inventory.specialStorage[81] = 0x209; break;
+        case 8: candidate.player.aya.inventory_items[0] = 0x100; break;
+        case 9: candidate.player.runtime.inventory.storage[99] = 0x100; break;
+        case 10: candidate.player.runtime.inventory.specialStorage[81] = 0x101; break;
+        case 11: candidate.player.runtime.inventory.equipment[0].itemId = 0; break;
+        case 12: candidate.player.runtime.inventory.equipment[0].iconId = 0; break;
         }
         if (Inv_ValidateSavedInventory(&candidate)) valid = 0;
     }

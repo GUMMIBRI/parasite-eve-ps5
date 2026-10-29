@@ -1,5 +1,7 @@
+    if(argc==2 && !strcmp(argv[1],"--movie-audio-lock-order"))return original_movie_audio_lock_order()?0:1;
     if(argc==2 && !strcmp(argv[1],"--save-safety"))return native_save_safety();
     if(argc==2 && !strcmp(argv[1],"--all-room-loads"))return original_all_room_loads();
+    if(argc==2 && !strcmp(argv[1],"--widescreen-rooms"))return original_widescreen_rooms();
     if(argc==2 && !strcmp(argv[1],"--anim-event-completion")){
         RenderAnimationDataHeader animation={0};animation.frame_count=8;
         void *old_animation=g_GameState.bank_rows[0][2];
@@ -1266,6 +1268,9 @@
         int result=original_credit_video_clock(&disc);pe_disc_close(&disc);return result?0:155;
     }
     if(argc==2 && !strcmp(argv[1],"--credits-playback")){
+        /* PCM is pulled explicitly below, including after audio re-init.
+         * A real-time SDL consumer would race those exact sample comparisons. */
+        if(!SDL_SetEnvironmentVariable(SDL_GetEnvironment(),"PSYZ_AUDIO_CLOCK","video",true))return 1;
         const char *path=getenv("PE_TEST_DISC");if(!path || !*path)return getenv("PE_REQUIRE_GAME_ASSETS")?1:77;
         PeDisc disc={0};if(!pe_disc_open(&disc,path))return 1;
         int result=original_credit_playback(&disc);pe_disc_close(&disc);return result?0:155;
@@ -1314,6 +1319,7 @@
         PeDisc disc={0};if(!pe_disc_open(&disc,path))return 1;
         int result=original_fx_model_render_assets(&disc) && original_fx_poly_render_assets(&disc);pe_disc_close(&disc);return result?0:146;
     }
+    if(argc==2 && !strcmp(argv[1],"--pulled-sprite"))return native_pulled_sprite_packets()?0:149;
     if(argc==2 && !strcmp(argv[1],"--fx-display")){if(!SDL_Init(SDL_INIT_EVENTS))return 43;ResetGraph(0);return original_gte_register_transfers() && original_fx_fog() && original_fx_display()?0:145;}
     if(argc==2 && !strcmp(argv[1],"--fx-camera"))return original_fx_node_pool() && original_fx_culling() && original_fx_camera_matrices()?0:143;
     if(argc==2 && !strcmp(argv[1],"--script-movie-error")){

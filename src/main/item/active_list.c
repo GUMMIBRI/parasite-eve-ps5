@@ -1,4 +1,5 @@
 #include "common.h"
+#include "pe_hooks.h"
 #include "pe1/akao.h"
 #include "pe1/akao/commands.h"
 #include "pe1/akao_counters.h"
@@ -468,6 +469,7 @@ void Menu_DrawSlotRow(ItemDataRecord *entry, u8 *text) {
     Draw_AllocSprite(entry->iconId - 1);
     Draw_OffsetCursor(0x12, 0);
 
+    PE_HOOK(PE_HOOK_SLOT_ROW, &text);
     if (text != 0) {
         Draw_PrintRawText(text);
     }
@@ -1232,6 +1234,7 @@ s32 Inv_AddItem(s32 arg0) {
     s32 t;
     s16 *cur;
     s16 *end;
+    if (PE_HOOK(PE_HOOK_ITEM_ADD, &arg0)) return 0;
     ItemDataRecord *ent;
 
     ret = 0;

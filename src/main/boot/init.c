@@ -85,6 +85,8 @@ int g_BootHostActive;
 u32 g_BootHostVBlankLimit;
 u32 g_BootHostVBlankCount;
 u32 g_BootHostControlAt;
+u32 g_BootHostCrashAt;
+int g_BootHostCrashAbort;
 void (*g_BootHostGraphicsOptions)(int, int, int);
 const char *g_BootHostVramPath;
 const char *g_BootHostFramePath;
@@ -674,8 +676,22 @@ static void Boot_ReadHostControlCommand(void) {
     g_BootHostControlAt = g_BootHostVBlankCount + (u32)frames;
 }
 
+static void Boot_TestCrash(void) {
+    static int *volatile target;
+
+    if (g_BootHostCrashAbort) {
+        fprintf(stderr, "Test crash: abort at VBlank %u\n", (unsigned)g_BootHostVBlankCount);
+        abort();
+    }
+    fprintf(stderr, "Test crash: write to address 0 at VBlank %u\n", (unsigned)g_BootHostVBlankCount);
+    *target = 0;
+}
+
 static void Boot_PollHost(void) {
     ++g_BootHostVBlankCount;
+    if (g_BootHostCrashAt && g_BootHostVBlankCount == g_BootHostCrashAt) {
+        Boot_TestCrash();
+    }
     Boot_ApplyScheduledPadAndHealthEvents();
 
     if (Psyz_QuitRequested()) {
@@ -1078,11 +1094,13 @@ void Field_HandleStateTransition(void) {
             pad_bits |= 0x2000;
         }
 
+        int run_mask = g_FieldRenderFlagTable[0];
+        PE_HOOK(PE_HOOK_PAD_MAP, (&(PeHookPadMap){pad_bits, &run_mask}));
         g_FieldPadBits = 0;
         /* Decoded input is saved in pad_bits; reuse the scratch for key indices. */
         for (i = 0; i < 0x20; i++) {
             base_bits = i;
-            if (((u16)pad_bits & g_FieldRenderFlagTable[base_bits]) != 0) {
+            if (((u16)pad_bits & (base_bits == 0 ? run_mask : g_FieldRenderFlagTable[base_bits])) != 0) {
                 g_FieldPadBits |= 1u << base_bits;
                 g_FieldPadHeldFrameCounts[base_bits]++;
             } else {

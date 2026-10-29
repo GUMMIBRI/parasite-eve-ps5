@@ -1,0 +1,9 @@
+# Upstream0.7 integration candidate
+
+This merge preserves original upstream history at da1f775e686ebe47fa5848c723f7efba73d59211, the PS5 implementation branch, and the fork's governance history. It imports the original upstream tree, then carries the isolated PS5 additions and reconciled root CMake/boot changes. Upstream gameplay and crash-reporting source remains present. The project-version conflict resolves to0.7.0 while retaining the default-OFF PS5 opt-in. Desktop CI remains required before merge.
+
+The generated source candidate was reconciled against base49341628f0756817ab997b3ae8d75e98201cc47b. The boot source merged cleanly; CMake needed the version resolution above. SDK/public SDL3 tooling and source staging remain separate from checked-in game logic. The working SDL3 source/library is deliberately retained. PsyZ pin7409317659395024a433f09d016e7f9546250f6e is explicitly retained; upstream daf1adc38a2a346462964e281dfa32fd74f6888e is NOT silently adopted. Changes in that PsyZ update require separate compatibility review and default desktop CI.
+
+Actual PS5 candidate compile/link completed using public SDKv0.45, LLVM18.1.8 and reviewed SDL3 archive c043029a134fe47d11a0c159a37419b335faa296f1409d9c6b45a63ca697fa9c. ELF4113384bytes SHA2564386b8605b57f198e9ae81ac7fd64b28cfd352ef898e1a22d5a89d7393949563. No console or gameplay test occurred. Runtime/service permissions, rendering, input/audio and saves remain owner-validation items. A private local original-disc package exists separately and must never enter Git or a public release.
+
+The fork's CODEOWNERS, review/security guidance and CI credential hardening are preserved. Readme/contribution docs combine the fork's PS5 guidance with current upstream desktop documentation. Source-only scripts and manifests do not prove console compatibility. Review this candidate as an explicit integration step, not an automatic moving-branch dependency.

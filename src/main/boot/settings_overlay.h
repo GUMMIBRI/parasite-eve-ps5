@@ -138,9 +138,9 @@ ACCESSORS(Scale, ClampIndex((int)host_options.scale - 1, COUNT_OF(kScaleNames)),
 ACCESSORS(Fullscreen, host_options.fullscreen != 0,
           host_options.fullscreen = i)
 
-static const char *const kAspectNames[] = {"Classic 4:3", "Square pixels"};
-ACCESSORS(Aspect, host_options.aspect != 0,
-          host_options.aspect = i)
+static const char *const kAspectNames[] = {"Classic 4:3", "Square pixels", "Widescreen"};
+ACCESSORS(Aspect, host_options.widescreen ? 2 : host_options.aspect != 0,
+          (host_options.widescreen = i == 2, host_options.aspect = i == 1))
 
 static const char *const kDitherNames[] = {"Original", "Off"};
 ACCESSORS(Dither, host_options.dither != 0,
@@ -161,7 +161,7 @@ static const OverlaySetting kGraphics[] = {
             kScaleNames, Scale),
     SETTING("Fullscreen", "Switch between windowed and fullscreen display.",
             kSwitchNames, Fullscreen),
-    SETTING("Aspect ratio", "Classic 4:3 matches the original PlayStation display.",
+    SETTING("Aspect ratio", "Classic 4:3 matches the PlayStation. Widescreen is 16:9 where the background allows.",
             kAspectNames, Aspect),
     SETTING("Dithering", "PlayStation 15-bit color dithering on shaded polygons.",
             kDitherNames, Dither),

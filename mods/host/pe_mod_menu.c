@@ -275,7 +275,11 @@ static int pe_menu_tick(void *ctx, void *user) {
     (void)ctx;
     (void)user;
     for (i = 0; i < s_tick_count; i++)
-        if (pe_mod_active(s_tick_mod[i])) s_ticks[i]();
+        if (pe_mod_active(s_tick_mod[i])) {
+            pe_mod_call_begin(s_tick_mod[i], "per-frame tick", NULL);
+            s_ticks[i]();
+            pe_mod_call_end();
+        }
     return 0;
 }
 
@@ -311,6 +315,7 @@ void pe_menu_row_value_text(PeMenuRow *row, char *out, unsigned size) {
         snprintf(out, size, "Off");
         return;
     }
+    pe_mod_call_begin(row->mod_id, "F1 row", row->label);
     switch (row->kind) {
     case PE_ROW_TOGGLE:
         snprintf(out, size, "%s", *row->value ? "On" : "Off");
@@ -338,6 +343,7 @@ void pe_menu_row_value_text(PeMenuRow *row, char *out, unsigned size) {
         row->text_fn(out, size);
         break;
     }
+    pe_mod_call_end();
 }
 
 static int pe_wrap(int v, int count) { return count > 0 ? ((v % count) + count) % count : 0; }
@@ -348,6 +354,7 @@ void pe_menu_row_step(PeMenuRow *row, int direction) {
     unsigned count;
     /* An inactive mod's settings can be set up (saved); what writes the game can't run. */
     if (!pe_menu_row_active(row) && (row->kind == PE_ROW_LIVE_INT || row->kind == PE_ROW_LIVE_CHOICE)) return;
+    pe_mod_call_begin(row->mod_id, "F1 row", row->label);
     switch (row->kind) {
     case PE_ROW_TOGGLE:
         *row->value = !*row->value;
@@ -372,6 +379,7 @@ void pe_menu_row_step(PeMenuRow *row, int direction) {
     case PE_ROW_INFO:
         break;
     }
+    pe_mod_call_end();
 }
 
 /* Enter: run an action, flip a toggle, cycle a choice. Numbers change with left/right only. */
@@ -383,7 +391,9 @@ void pe_menu_row_accept(PeMenuRow *row) {
             break;
         }
         pe_mod_log(NULL, "action %s/%s", row->page, row->label);
+        pe_mod_call_begin(row->mod_id, "F1 row", row->label);
         row->action();
+        pe_mod_call_end();
         break;
     case PE_ROW_TOGGLE:
     case PE_ROW_CHOICE:

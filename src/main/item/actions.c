@@ -1,4 +1,5 @@
 #include "common.h"
+#include "pe_hooks.h"
 #include "pe1/aya.h"
 #include "pe1/battle_cmd.h"
 #include "pe1/battle_modifiers.h"
@@ -939,6 +940,7 @@ int Inv_GetSlotHighlightState(int spell, int available) {
     }
     table = Aya_GetParasiteSpellUnlockTable();
     cost = table[spell].cost;
+    PE_HOOK(PE_HOOK_POWER_COST, (&(PeHookPowerCost){spell, &cost}));
     armor = LookupTrackedItem(g_InventoryRuntime.tracked[2]);
     if (armor != 0) {
         for (i = 0; i < armor->tailCount; i++) {

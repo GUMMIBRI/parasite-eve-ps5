@@ -13,6 +13,7 @@
 #include "pe1/menu_inventory.h"
 #include "pe1/menu_item_rows.h"
 #include "pe1/Menu_MemCardProgress_externs.h"
+#include "pe_hooks.h"
 #include "pe1/menu_notification_dialog.h"
 #include "pe1/menu_queue.h"
 #include "pe1/menu_sound.h"
@@ -339,6 +340,7 @@ void Menu_DrawContextHelpText(MenuWidgetNode *panel)
     }
     if (text != 0) {
         Draw_OffsetCursor(6, 5);
+        PE_HOOK(PE_HOOK_HELP_TEXT, &text);
         Draw_PrintRawText(text);
         Draw_SetColor(0x808080);
     }

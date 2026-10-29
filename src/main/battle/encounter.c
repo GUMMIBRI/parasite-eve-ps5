@@ -17,6 +17,7 @@
 #include "pe1/inventory_slots.h"
 #include "pe1/inventory_state.h"
 #include "pe1/stat_modifiers.h"
+#include "pe_hooks.h"
 
 /* Shared native state; external variables have one storage definition. */
 u8 g_BattleSuspendedModeState;
@@ -242,6 +243,7 @@ void Battle_Update(void) {
     Combatant *status;
     BattleEntity *entity;
     BattleEntity *victoryEntity;
+    PE_HOOK(PE_HOOK_BATTLE_UPDATE, NULL);
 
     menuMode = 1;
     if (g_ActiveActor->stateFlags & 0x80000) {

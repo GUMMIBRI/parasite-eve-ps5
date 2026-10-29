@@ -66,5 +66,5 @@ test_regex*.py
 # Local design notes
 /docs/widescreen.md
 
-# Local diagnostic payload builds and toolchain manifests
+# Private toolchain/game build and local asset packages
 /outputs/

@@ -1,4 +1,5 @@
 #include "common.h"
+#include "pe_hooks.h"
 #include "pe1/aya.h"
 #include "pe1/battle_cmd.h"
 #include "pe1/inventory.h"
@@ -317,6 +318,7 @@ void Inv_TransferItemBetweenLists(unsigned selection, int modifier, int flags, i
     ItemDataRecord *source, *dest, *ammo;
     int reserve;
     int slot, i, j, value, group, move;
+    PE_HOOK(PE_HOOK_TOOL_TRANSFER, (&(PeHookToolTransfer){selection, modifier, flags, cost}));
     {
         int index = RestoreSelection(selection);
         source = 0;
@@ -471,10 +473,13 @@ int Inv_ValidateSavedInventory(const SaveRuntimeState *state) {
     }
     const s16 *lists[] = {aya->inventory_items, inv->storage, inv->specialStorage};
     const unsigned counts[] = {50, 100, 82};
+    u8 referenced[128] = {0};
     for (unsigned list = 0; list < 3; ++list) for (unsigned i = 0; i < counts[list]; ++i) {
         unsigned id = (u16)lists[list][i];
         if (id <= 255 || (id >= 0x200 && id <= 0x208)) continue;
         if (id < 0x100 || id >= 0x180 || !inv->equipment[id - 0x100].iconId) return 0;
+        /* An equipment record is one physical item, unlike pooled ammo. */
+        if (referenced[id - 0x100]++) return 0;
     }
     const int equipped[] = {aya->equipped_weapon_slot, aya->equipped_armor_slot};
     for (unsigned i = 0; i < 2; ++i) {
@@ -751,6 +756,7 @@ void Inv_SortInventoryByMode(s32 arg0, s32 arg1) {
         }
     }
     Inv_RebuildSelectableMask();
+    PE_HOOK(PE_HOOK_INVENTORY_SORTED, NULL);
 }
 
 void Inv_SortContainerItems(int arg0) {

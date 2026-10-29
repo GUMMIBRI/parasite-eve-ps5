@@ -5,12 +5,17 @@ Experimental retail/homebrew PS5 adaptation of the native
 [PsyZ fork](https://github.com/khasinski/parasite-eve-psyz). This project preserves
 upstream game logic and keeps PS5-specific work isolated.
 
-**Status: no playable PS5 release.** The first [draft implementation](https://github.com/GUMMIBRI/parasite-eve-ps5/pull/1)
-contains host-only logging/file probes and a platform audit. It does not yet
-produce a PS5 payload or implement console controller, graphics or audio support.
-The target test setup is retail firmware 13.60 with kstuff-lite / ShadowMount+;
-compatibility is still being established. Console playtesting is performed by
-the project owner.
+**Status: native PS5 game test build compiled and linked; console behavior unverified.**
+The current integration candidate is derived from upstream0.7 and uses public
+SDL3 software video, AudioOut and DualSense backends. There is no validated
+playable PS5 release. Firmware13.60 with kstuff-lite / ShadowMount+ is the owner’s
+stated test environment; actual loader/service compatibility remains to be tested.
+Console and gameplay validation belong to the project owner.
+
+Original textures load from user-owned discs. External HD PNG replacement packs
+are not yet supported. No retail game files, texture packs or personal saves are
+distributed in this repository. See [native build notes](docs/PS5_GAME_BUILD.md)
+and [upstream integration](docs/PS5_UPSTREAM_SYNC.md).
 
 ## Project direction
 
@@ -32,8 +37,7 @@ Upstream desktop releases below are PC releases, not PS5 packages.
 
 ## Upstream PC documentation
 
-The following upstream documentation is retained for desktop usage and builds.
-
+# Parasite Eve
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/bQkCVvrkem)
 
@@ -58,11 +62,13 @@ Keep each CUE file next to its BIN file.
 **Enter** is START and skips movies; in a story movie, START pauses it and asks whether to skip. View or change all bindings in **Escape → Controls**. A **speed** button can be bound there too: the game runs at 2x while it is held, or 3x or 4x with the arrows either side of the number (Left/Right on that row). It is unbound until you choose a key or button, and keeps your VSync setting.
 The left stick provides analog movement. **Escape → Controls → Field run threshold** sets how far to push it before Aya runs (85% by default).
 Settings and selected disc paths are saved automatically. Memory cards are kept in `memory-cards` beside your user preferences. Older `bu00`/`bu10` cards from the launch or executable folder are imported once, keeping the original files.
-Optional geometry correction, antialiasing and model texture filtering are in **Escape → Graphics**.
+**Escape → Graphics** includes geometry correction, antialiasing, model texture filtering and an optional **Widescreen** aspect ratio. Widescreen shows more of the original background where available; narrow scenes and movies stay in 4:3.
+
+If the game crashes, it saves a report and shows where to find it. Attach that file when reporting the problem on Discord.
 
 ## Mods
 
-Downloads include an optional mod host. When building from source, enable it with `-DPE_MODS=ON`: the
+Downloads include an optional mod host. When building from source, enable it with `-DPE_MODS=ON`. Without it, the
 `PE_HOOK(...)` lines in the game compile to nothing. In a mod build, **F1** opens the Mods panel;
 mods start only after **F1 → Manage mods → All mods** is turned on and the game restarted.
 Settings are saved in `pe_mods.ini`. See [the mod guide](mods/README.md) for writing a mod.
@@ -75,6 +81,31 @@ Open **F1 → PE Enhancements** to configure them.
   (walking and running default to 1.75×).
 - **Encounters** (`pe_qol`): no random battles, or Normal, 2×, 4× or Every Check frequency. Story
   and room rules still apply; this changes how often fights happen, not their size.
+- **Key-item pocket** (`pe_qol`): story keys and Chrysler elevator keys stay out of the bag but
+  still count for story checks; browse them through **Key Items** in Aya's main menu.
+- **Remembered sorting** (`pe_qol`): Auto keeps the game's own sort settings; moving items by hand
+  switches back to Manual. Square in the Use Item list opens sorting.
+- **Combat rules** (`pe_rebalance`): Vanilla, Rebalanced and Custom rules for gun and armor
+  effects: Heat/Frost, Rate of Fire, gun progression bonuses, Attack All crowd damage, status
+  chances, Critical Up, Quickdraw and armor tradeoffs; weapon DPS in the help text.
+- **Parasite Energy rules** (`pe_rebalance`): Vanilla, Rebalanced and Custom healing amounts and
+  power costs.
+- **Half-bar turns** (`pe_rebalance`): items, Quick PE powers and weapon changes on half a bar,
+  with a gauge indicator; attacks and other powers still need a full bar.
+- **Medicine combining and Panacea** (`pe_rebalance`): two Medicine 1/2/3 become the next tier;
+  Medicine 4 and Full Cure become Panacea (400 HP and cures ailments).
+- **Junk economy** (`pe_economy`): a shared Junk counter, battle and steal rewards, Super/Duper
+  Junk conversion, difficulty presets, rare drops with soft pity, a Junk counter beside the
+  bag's Quantity, and four economy armor effects (Bargain, Scavenger, Lucky Find, Salvager).
+- **Mod Catalog** (`pe_economy`): dismantle equipment to unlock effects, then install, remove or
+  replace them on equipped gear, from Aya's main menu or F1; Rebuild buys dismantled gear back.
+- **Requisition and Wayne's Workshop** (`pe_economy`): buy medicine, ammo, Smoke Grenades,
+  Revive and Tools with Junk, from F1 or Wayne's own menu (also Mod Permit Cards); Warner offers
+  storage and the Workshop where he stands guard on Day 4. Smoke Grenades escape ordinary battles.
+- **Bestiary and Wardrobe** (`pe_collection`): 75 creatures revealed by kills, Scan or Junk;
+  Aya's outfits and character skins to unlock and wear. Skins are built from your own disc with
+  the decomp bridge tools and stay hidden until present. Unlocks are kept across games in
+  `pe_collection.ini`; other mods can register their own creatures and costumes.
 
 Mod builds are experimental; a passing build or test does not establish full in-game compatibility.
 
@@ -100,6 +131,6 @@ cmake --build build-mods --parallel
 ./build-mods/parasite-eve-pc
 ```
 
-`PE_MOD_LIST` picks the mods by folder name (default: `pe_qol`).
+`PE_MOD_LIST` picks the mods by folder name (default: `pe_qol;pe_rebalance;pe_economy;pe_collection`).
 
 For development details, see [code organization](docs/CODE_ORGANIZATION.md).

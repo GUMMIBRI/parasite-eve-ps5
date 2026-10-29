@@ -53,7 +53,6 @@ the parent project; do not consume a moving branch implicitly. Fetch upstream
 from `Xeeynamo/psyz`, integrate deliberately, and send reusable fixes upstream
 as patches or through a fork-network PR branch when appropriate.
 
-
 ## PS5 fork contributions and review
 
 This repository targets an experimental retail/homebrew PS5 port. Preserve the

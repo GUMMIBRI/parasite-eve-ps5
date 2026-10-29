@@ -1,4 +1,5 @@
 #include "common.h"
+#include "pe_hooks.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1385,6 +1386,7 @@ int CdRom_DetectDiscChange(void) {
 /* Load the area textures and model/action bank through the original phases. */
 int Scene_LoadEntityTexture(void)
 {
+    PE_HOOK(PE_HOOK_PLAYER_BANK, NULL);
     int bank = g_SceneAreaType;
     u32 lba = g_GameState.pe_image_base_lba;
     Pe1GameState *state = &g_GameState;
@@ -1432,6 +1434,10 @@ retry:
         break;
     case 3:
         blob = (SceneAssetBlob *)state->scene_load_scratch;
+        if (PE_HOOK(PE_HOOK_PLAYER_TEXTURES, blob)) {
+            state->entity_texture_phase = 4;
+            break;
+        }
         directory = SceneAsset_ResolveOffset(blob, blob->directoryOffset);
         timOffset = directory->timEntries & 0x3fffff;
         firstTim = SceneAsset_ResolveOffset(blob, timOffset);
@@ -1493,6 +1499,7 @@ retry:
         state->entity_texture_phase = 0;
         state->loaded_entity_bank = state->requested_entity_bank;
         state->flags &= ~0x200000;
+        PE_HOOK(PE_HOOK_PLAYER_ROWS, NULL);
         return 0;
     default:
         return 0;
@@ -1566,6 +1573,7 @@ s32 Scene_InitEntityPlayer(s32 resume) {
         gameState->scene_init_phase = 0x27;
         return 1;
     case 39:
+        PE_HOOK(PE_HOOK_PLAYER_ROWS, NULL);
         {
             FieldActor *player = g_PlayerEntity;
             player->model_state.model_header = g_GameState.bank_slots[0];
