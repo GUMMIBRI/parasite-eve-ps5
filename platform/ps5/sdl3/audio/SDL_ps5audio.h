@@ -35,6 +35,7 @@ struct SDL_PrivateAudioData
 {
     int handle;
     Uint8 *mixbuf;
+    bool pending;
 };
 
 #define PS5_AUDIO_OUT_PORT_TYPE_MAIN 0

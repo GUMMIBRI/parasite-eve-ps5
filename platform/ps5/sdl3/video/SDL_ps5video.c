@@ -146,7 +146,7 @@ static bool PS5_CreateFramebuffer(SDL_VideoDevice *device, SDL_Window *window,
     surface = SDL_CreateSurface(width, height, SDL_PIXELFORMAT_ABGR8888);
     if (!surface) return false;
     if (!SDL_SetSurfaceProperty(SDL_GetWindowProperties(window), PS5_SURFACE_PROPERTY, surface)) {
-        SDL_DestroySurface(surface);
+        /* SDL_SetSurfaceProperty takes cleanup ownership even on failure. */
         return false;
     }
     *format = SDL_PIXELFORMAT_ABGR8888;

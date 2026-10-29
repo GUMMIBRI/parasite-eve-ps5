@@ -95,20 +95,37 @@ static Uint8 *PS5AUDIO_GetDeviceBuf(SDL_AudioDevice *device, int *buffer_size)
 
 static bool PS5AUDIO_WaitDevice(SDL_AudioDevice *device)
 {
-    (void)device;
-    /* sceAudioOutOutput is blocking; SDL3 supplies/joins the playback thread. */
+    /* SDL3 calls this on the same playback thread, after releasing the physical
+     * device mutex. CloseDevice cannot free the buffer until this thread joins.
+     * No other thread reads or writes pending, so it needs no second lock.
+     */
+    if (!device->hidden->pending) {
+        return true;
+    }
+    device->hidden->pending = false;
+    if (SDL_GetAtomicInt(&device->shutdown)) {
+        return true; /* Do not submit a new grain after close was requested. */
+    }
+    const int result = sceAudioOutOutput(device->hidden->handle, device->hidden->mixbuf);
+    if (result < 0) {
+        return SDL_SetError("sceAudioOutOutput failed: 0x%08x", (unsigned int)result);
+    }
     return true;
 }
 
 static bool PS5AUDIO_PlayDevice(SDL_AudioDevice *device, const Uint8 *buffer, int buflen)
 {
-    if (!buffer || buflen != device->buffer_size) {
+    if (buffer != device->hidden->mixbuf || buflen != device->buffer_size) {
         return SDL_SetError("PS5 audio received an incomplete playback grain");
     }
-    const int result = sceAudioOutOutput(device->hidden->handle, buffer);
-    if (result < 0) {
-        return SDL_SetError("sceAudioOutOutput failed: 0x%08x", (unsigned int)result);
+    if (device->hidden->pending) {
+        return SDL_SetError("PS5 audio playback grain has not been consumed");
     }
+    /* PlayDevice runs under SDL3's physical-device mutex: validate and publish
+     * only. The playback thread owns mixbuf until WaitDevice returns; it cannot
+     * start filling the next grain while native output still reads this one.
+     */
+    device->hidden->pending = true;
     return true;
 }
 

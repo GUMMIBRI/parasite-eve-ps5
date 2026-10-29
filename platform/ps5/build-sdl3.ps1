@@ -58,6 +58,10 @@ try {
     Copy-Item -LiteralPath "$PSScriptRoot/sdl3/platform.cmake" -Destination "$source/pe-public-ps5.cmake"
     Replace-Once "$source/cmake/sdlplatform.cmake" '  if(WIN32)' "  if(PS5)`n    set(sdl_cmake_platform PS5)`n  elseif(WIN32)"
     Replace-Once "$source/CMakeLists.txt" ("`n" + 'elseif(UNIX AND NOT APPLE AND NOT RISCOS AND NOT HAIKU)') ("`n" + 'elseif(PS5)' + "`n" + '  include("${SDL3_SOURCE_DIR}/pe-public-ps5.cmake")' + "`n`n" + 'elseif(UNIX AND NOT APPLE AND NOT RISCOS AND NOT HAIKU)')
+    # The SDK target also defines generic UNIX. This dedicated console branch
+    # does not build desktop GTK, so exclude its include/shutdown call honestly.
+    Replace-Once "$source/src/SDL.c" ('#if defined(SDL_PLATFORM_UNIX) && !defined(SDL_PLATFORM_ANDROID)' + "`n") ('#if defined(SDL_PLATFORM_UNIX) && !defined(SDL_PLATFORM_ANDROID) && !defined(SDL_PLATFORM_PS5)' + "`n")
+    Replace-Once "$source/src/SDL.c" '#if defined(SDL_PLATFORM_UNIX) && !defined(SDL_PLATFORM_ANDROID) && !defined(SDL_PLATFORM_EMSCRIPTEN) && !defined(SDL_PLATFORM_PRIVATE)' '#if defined(SDL_PLATFORM_UNIX) && !defined(SDL_PLATFORM_ANDROID) && !defined(SDL_PLATFORM_EMSCRIPTEN) && !defined(SDL_PLATFORM_PRIVATE) && !defined(SDL_PLATFORM_PS5)'
     Replace-Once "$source/src/audio/SDL_audio.c" '#ifdef SDL_AUDIO_DRIVER_PS2' "#ifdef SDL_AUDIO_DRIVER_PS5`n    &PS5AUDIO_bootstrap,`n#endif`n#ifdef SDL_AUDIO_DRIVER_PS2"
     Replace-Once "$source/src/audio/SDL_sysaudio.h" 'extern AudioBootStrap PS2AUDIO_bootstrap;' "extern AudioBootStrap PS5AUDIO_bootstrap;`nextern AudioBootStrap PS2AUDIO_bootstrap;"
     Replace-Once "$source/src/video/SDL_video.c" '#ifdef SDL_VIDEO_DRIVER_PSP' "#ifdef SDL_VIDEO_DRIVER_PS5`n    &PS5_bootstrap,`n#endif`n#ifdef SDL_VIDEO_DRIVER_PSP"

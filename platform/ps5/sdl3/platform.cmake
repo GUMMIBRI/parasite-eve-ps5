@@ -1,5 +1,6 @@
 # Public PS5 platform fragment for a generated copy of pinned SDL3.
 # This is not Sony's private SDL backend. Video is CPU/software presentation.
+sdl_compile_definitions(PRIVATE SDL_PLATFORM_PS5=1)
 
 if(SDL_AUDIO)
   set(SDL_AUDIO_DRIVER_PS5 1)

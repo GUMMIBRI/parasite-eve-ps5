@@ -50,7 +50,10 @@ sceAudioOutInit, sceAudioOutOpen, sceAudioOutOutput, sceAudioOutClose.
 Real hardware still needs the expected userland service context and may return
 errors for the inherited system user0xff; no firmware13.60 sound claim is made.
 A successful link is not proof of service permission, audible output or clean
-shutdown. The blocking output call has no timeout in the reviewed public API;
+shutdown. Pending state and the mixing buffer are owned by the same playback
+thread between PlayDevice and WaitDevice. SDL3 joins that thread before
+CloseDevice can close the native handle and free the buffer. WaitDevice skips
+a new submission when the atomic shutdown flag is already set. The blocking output call has no timeout in the reviewed public API;
 owner validation must include closing while playback is active.
 
 ## Actual checks
@@ -72,3 +75,33 @@ x86-64 relocatable output and expected AudioOut imports. Object retained outside
 Git at work/ps5-coordination/public-reference/SDL_ps5audio-ps5.o.
 `git apply --check register-audio.patch` passed against the pinned SDL3 tree.
 No audio/runtime/console test, complete SDL3 link or game build was performed.
+
+## Review correction: nonblocking PlayDevice
+
+The first SDL3 adaptation incorrectly submitted blocking AudioOut output from
+PlayDevice. In the pinned SDL3 core, SDL_PlaybackAudioThreadIterate holds the
+physical device mutex while calling PlayDevice (SDL_audio.c1295-1299), then
+unlocks before returning. PlaybackAudioThread calls WaitDevice after that
+iteration. PlayDevice now validates the exact backend-owned buffer and full
+grain size, rejects an already-pending grain, and marks it pending without a
+native call. WaitDevice runs on the same playback thread outside that mutex,
+clears pending, skips new output when shutdown is already requested, and
+performs the blocking sceAudioOutOutput call with real failure propagation.
+
+The buffer cannot be filled for the next grain until this same playback thread
+returns from WaitDevice. Pending needs no additional lock because it is not
+shared with a second producer/consumer. ClosePhysicalAudioDevice sets atomic
+shutdown, releases its device lock, joins the playback thread, and only then
+calls CloseDevice; the native handle/buffer therefore outlive a pending call.
+A native service that stalls indefinitely still has no cancellation/timeout in
+the reviewed public API, so shutdown behavior must be checked by the owner.
+
+All192 static-library build steps passed after the fix, with the latest video
+property-ownership correction incorporated. Separate installed prefix:
+C:/.pe/tools/pe-ps5-sdl3/20261029T010754Z-68fad8/install-reviewfix
+Library SHA256:
+C043029A134FE47D11A0C159A37419B335FAA296F1409D9C6B45A63CA697FA9C
+Original installed baseline remains untouched. This build also excludes the
+unavailable desktop GTK shutdown path under an explicit private
+SDL_PLATFORM_PS5 compile definition; no successful GTK stub was introduced.
+No console test or full game rebuild was performed by this task.
