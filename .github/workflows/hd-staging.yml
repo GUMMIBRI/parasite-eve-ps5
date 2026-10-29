@@ -34,7 +34,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/sdl" \
             -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST_LIBRARY=OFF \
             -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF -DSDL_AUDIO=OFF -DSDL_VIDEO=OFF \
-            -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF
+            -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF -DSDL_UNIX_CONSOLE_BUILD=ON
           cmake --build "$RUNNER_TEMP/sdl-build" --parallel 2
           cmake --install "$RUNNER_TEMP/sdl-build"
       - name: Build and run synthetic HD checks
