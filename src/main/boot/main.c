@@ -30,6 +30,12 @@
 #include "pe1/scene_dispatch.h"
 #include "pe_hooks.h"
 
+#ifdef PE_PS5
+/* Local staged PsyZ status; no upstream public ABI change. */
+extern int Psyz_PS5PlatformReady(void);
+extern const char *Psyz_PS5PlatformInitError(void);
+#endif
+
 /* Desktop preferences belong to the original boot module. The modal loop
  * never ticks the game, PS1 timers, scripts, or audio. */
 
@@ -2433,6 +2439,13 @@ images_ready:;
      * ends (mesh_list.c); kept on so switching it on mid-game works. */
     Psyz_GpuSetVramCopy(1);
     Boot_InitSystem();
+#ifdef PE_PS5
+    if (!Psyz_PS5PlatformReady()) {
+        fprintf(stderr, "PS5 platform initialization failed: %s\n",
+                Psyz_PS5PlatformInitError());
+        goto shutdown;
+    }
+#endif
     if (Psyz_VideoGetInternalResolution() != internal_resolution) {
         fprintf(stderr, "Requested internal resolution unavailable\n");
         goto shutdown;

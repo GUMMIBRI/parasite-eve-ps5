@@ -12,19 +12,26 @@ $new=@'
     headless_renderer = headless && strcmp(headless, "1") == 0;
 #ifdef PE_PS5
     if (headless && strcmp(headless, "gpu") == 0) {
-        ERRORF("PS5 GPU headless mode is unavailable in the software build");
+        SDL_strlcpy(ps5_platform_init_error,
+                    "PS5 GPU headless mode is unavailable in the software build",
+                    sizeof(ps5_platform_init_error));
+        ERRORF("%s", ps5_platform_init_error);
         return false;
     }
     ps5_interactive_software = !headless_renderer;
     if (ps5_interactive_software) {
     // PE_PS5 software presentation uses the existing CPU PS1 rasterizer.
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD | SDL_INIT_AUDIO)) {
-        ERRORF("SDL_Init: %s", SDL_GetError());
+        SDL_strlcpy(ps5_platform_init_error, SDL_GetError(),
+                    sizeof(ps5_platform_init_error));
+        ERRORF("SDL_Init: %s", ps5_platform_init_error);
         return false;
     }
     sdl3_window = SDL_CreateWindow(window_title, 640, 480, 0);
     if (!sdl3_window || !SDL_GetWindowSurface(sdl3_window)) {
-        ERRORF("PS5 software window: %s", SDL_GetError());
+        SDL_strlcpy(ps5_platform_init_error, SDL_GetError(),
+                    sizeof(ps5_platform_init_error));
+        ERRORF("PS5 software window: %s", ps5_platform_init_error);
         return false;
     }
     headless_renderer = true; // routes primitives to the software rasterizer
@@ -82,6 +89,47 @@ foreach($anchor in $guards.Keys){
  if(!$s.Contains($anchor)){throw "Missing software feature guard anchor: $anchor"}
  $s=$s.Replace($anchor,$anchor+"`n#ifdef PE_PS5`n    "+$guards[$anchor]+"`n#endif")
 }
+# These checked transformations are regenerated from the selected original on
+# every invocation, including Resume; no private candidate input is required.
+function ReplaceUnique([string]$Text,[string]$Old,[string]$New) {
+ if(([regex]::Matches($Text,[regex]::Escape($Old))).Count -ne 1){throw "Expected unique platform anchor: $Old"}
+ return $Text.Replace($Old,$New)
+}
+$status=@'
+#ifdef PE_PS5
+/* Snapshot before later boot/audio calls can replace SDL's thread error. */
+static char ps5_platform_init_error[1024];
+int Psyz_PS5PlatformReady(void) {
+    return is_platform_init_successful &&
+           (!ps5_interactive_software || sdl3_window != NULL);
+}
+const char *Psyz_PS5PlatformInitError(void) {
+    return ps5_platform_init_error[0] ? ps5_platform_init_error :
+           "platform did not complete initialization";
+}
+#endif
+
+'@
+$s=ReplaceUnique $s 'bool InitPlatform() {' ($status+"`n"+'bool InitPlatform() {')
+$s=ReplaceUnique $s "        if (!SDL_Init(SDL_INIT_EVENTS))`n            return false;" @'
+        if (!SDL_Init(SDL_INIT_EVENTS)) {
+#ifdef PE_PS5
+            SDL_strlcpy(ps5_platform_init_error, SDL_GetError(),
+                        sizeof(ps5_platform_init_error));
+#endif
+            return false;
+        }
+'@
+$s=ReplaceUnique $s "    return headless_renderer;`n}" @'
+#ifdef PE_PS5
+    /* CPU mode remains CPU even when initialization failed. Readiness is
+     * reported separately; never route a failed CPU boot to GPU. */
+    return ps5_interactive_software || headless_renderer;
+#else
+    return headless_renderer;
+#endif
+}
+'@
 [IO.File]::WriteAllText($p,$s)
 # Card initialization must use the same absolute mapping as all card I/O.
 # Patch only the exported revision; never mutate the pinned PsyZ checkout.
