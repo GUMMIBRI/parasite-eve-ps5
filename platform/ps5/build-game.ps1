@@ -12,11 +12,13 @@ param(
  [string]$SourceRoot,
  [string]$PsyZRevision,
  [switch]$StartupLog,
+ [switch]$AllocationLog,
  [string]$ApplicationTooling
 )
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=(Resolve-Path "$PSScriptRoot/../..").Path
+if($AllocationLog -and (!$ApplicationTooling -or !$StartupLog)){throw 'AllocationLog requires ApplicationTooling and StartupLog'}
 if($ApplicationTooling -and $StartupLog -and $Resume){throw 'Application diagnostics require a fresh output to preserve CRT instrumentation provenance'}
 if($ApplicationTooling){$ApplicationTooling=(Resolve-Path -LiteralPath $ApplicationTooling).Path}
 $gameSource=if($SourceRoot){(Resolve-Path $SourceRoot).Path}else{$root}
@@ -110,7 +112,11 @@ try{
  if($LASTEXITCODE -ne 0){throw 'Cannot read selected PsyZ GPU source'}
  [IO.File]::WriteAllText($gpuOriginal,($gpuText -join "`n")+"`n")
  & "$PSScriptRoot/patch-game.ps1" -Stage $stage -OriginalSource $gpuOriginal
- $inputs=@('CMakeLists.txt','cmake/ps5/game.cmake','platform/ps5/build-game.ps1','platform/ps5/patch-game.ps1','src/main/boot/main.c') | ForEach-Object {
+ $inputFiles=@('CMakeLists.txt','cmake/ps5/game.cmake','platform/ps5/build-game.ps1','platform/ps5/patch-game.ps1','src/main/boot/main.c')
+ if($StartupLog){$inputFiles+='platform/ps5/startup-log.c'}
+ if($ApplicationTooling -and $StartupLog){$inputFiles+='platform/ps5/application-startup-log.c'}
+ if($AllocationLog){$inputFiles+='platform/ps5/application-allocation-log.c'}
+ $inputs=$inputFiles | ForEach-Object {
   $inputRoot=if($_ -like 'platform/*'){$root}else{$gameSource}
   @{File=$_; SHA256=(Get-FileHash "$inputRoot/$_").Hash}
  }
@@ -120,7 +126,7 @@ try{
   } | ConvertTo-Json -Depth 3 | Set-Content "$out/CANDIDATE-SOURCES.json"
   Copy-Item -LiteralPath (Join-Path (Split-Path $gameSource) 'CANDIDATE.json') -Destination "$out/CANDIDATE.json"
  }
- @{PsyZRevision=$pin; GameRevision=(& git -C $root rev-parse HEAD); SourceRoot=$gameSource; UpstreamCandidate=$candidate; SDL3Prefix=$SDL3Prefix; SDL3Source=$SDL3Source; SDL3Build=$SDL3Build; SDL3CoreSHA256=(Get-FileHash "$SDL3Source/src/SDL.c").Hash; SDL3ConfigSHA256=(Get-FileHash "$SDL3Build/include-config-release/build_config/SDL_build_config.h").Hash; SDL3LibrarySHA256=(Get-FileHash "$SDL3Prefix/lib/libSDL3.a").Hash; Files=@($inputs)} | ConvertTo-Json -Depth 8 | Set-Content "$out/INPUTS.json"
+ @{PsyZRevision=$pin; StartupLog=[bool]$StartupLog; AllocationLog=[bool]$AllocationLog; ApplicationABI=[bool]$ApplicationTooling; GameRevision=(& git -C $root rev-parse HEAD); SourceRoot=$gameSource; UpstreamCandidate=$candidate; SDL3Prefix=$SDL3Prefix; SDL3Source=$SDL3Source; SDL3Build=$SDL3Build; SDL3CoreSHA256=(Get-FileHash "$SDL3Source/src/SDL.c").Hash; SDL3ConfigSHA256=(Get-FileHash "$SDL3Build/include-config-release/build_config/SDL_build_config.h").Hash; SDL3LibrarySHA256=(Get-FileHash "$SDL3Prefix/lib/libSDL3.a").Hash; Files=@($inputs)} | ConvertTo-Json -Depth 8 | Set-Content "$out/INPUTS.json"
  Run $CMake @('-S',$gameSource,'-B',"$out/b",'-G','Ninja',"-DCMAKE_MAKE_PROGRAM=$Ninja", "-DCMAKE_TOOLCHAIN_FILE=$Sdk/toolchain/prospero.cmake", "-DPS5_PAYLOAD_SDK=$Sdk", "-DCMAKE_AR=$LlvmBin/llvm-ar.exe", "-DCMAKE_RANLIB=$LlvmBin/llvm-ranlib.exe", "-DSDL3_DIR=$SDL3Prefix/lib/cmake/SDL3", "-DPE_PS5_SDL3_SOURCE=$SDL3Source", "-DPE_PS5_SDL3_BUILD=$SDL3Build", "-DPSYZ_DIR=$stage", "-DPE_PS5_LLVM_BIN=$LlvmBin", '-DCMAKE_VERBOSE_MAKEFILE=OFF', '-DPE_PS5_GAME=ON','-DBUILD_TESTING=OFF','-DCMAKE_BUILD_TYPE=Release','-DCMAKE_C_FLAGS=-std=gnu11')
  if($ApplicationTooling){
   $native=(Resolve-Path -LiteralPath $ApplicationTooling).Path.Replace('\','/')
@@ -196,6 +202,11 @@ target_sources(parasite-eve-pc PRIVATE `$<TARGET_OBJECTS:pe-startup-log>)
    $diag+="`ntarget_compile_definitions(pe-startup-log PRIVATE PE_APPLICATION_SERVICE_DIAGNOSTICS=1)"
    $wraps+=@('sceUserServiceInitialize','scePadInit','sceSystemServiceHideSplashScreen','sceVideoOutOpen')
   }
+  if($AllocationLog){
+   $allocationSource=(Join-Path $PSScriptRoot 'application-allocation-log.c').Replace('\','/')
+   $diag+="`ntarget_sources(pe-startup-log PRIVATE `"$allocationSource`")"
+   $wraps+=@('malloc','calloc','realloc')
+  }
   foreach($symbol in $wraps){$diag+="`ntarget_link_libraries(parasite-eve-pc PRIVATE -Wl,--wrap=$symbol)"}
   # Windows direct ld invocation does not accept the compiler-driver -Wl prefix.
   $diag=$diag.Replace('-Wl,--wrap=','--wrap=')
@@ -212,7 +223,7 @@ target_sources(parasite-eve-pc PRIVATE `$<TARGET_OBJECTS:pe-startup-log>)
   Copy-Item -LiteralPath $elf -Destination "$out/b/parasite-eve-ps5-startup-debug.elf"
   Copy-Item -LiteralPath "$PSScriptRoot/startup-log.c" -Destination "$out/startup-log.c"
   if($ApplicationTooling){Copy-Item "$PSScriptRoot/application-startup-log.c" "$out/application-startup-log.c"}
-  @{Enabled=$true; ApplicationABI=[bool]$ApplicationTooling; SourceSHA256=(Get-FileHash "$out/startup-log.c").Hash; EarlyApplicationSourceSHA256=$(if($ApplicationTooling){(Get-FileHash "$out/application-startup-log.c").Hash}else{$null}); DebugELF="$out/b/parasite-eve-ps5-startup-debug.elf"; SHA256=(Get-FileHash $elf).Hash; PrimaryLog='/data/parasite-eve/startup.log'; FallbackLog='/data/parasite-eve-startup.log'; ConsoleTested=$false} | ConvertTo-Json | Set-Content "$out/STARTUP-LOG.json"
+  @{Enabled=$true; AllocationLog=[bool]$AllocationLog; ApplicationABI=[bool]$ApplicationTooling; SourceSHA256=(Get-FileHash "$out/startup-log.c").Hash; EarlyApplicationSourceSHA256=$(if($ApplicationTooling){(Get-FileHash "$out/application-startup-log.c").Hash}else{$null}); DebugELF="$out/b/parasite-eve-ps5-startup-debug.elf"; SHA256=(Get-FileHash $elf).Hash; PrimaryLog='/data/parasite-eve/startup.log'; FallbackLog='/data/parasite-eve-startup.log'; ConsoleTested=$false} | ConvertTo-Json | Set-Content "$out/STARTUP-LOG.json"
  }
  Run "$LlvmBin/llvm-readelf.exe" @('-h','-d',$elf)
  Get-FileHash $elf | Format-List | Out-File "$out/ELF-SHA256.txt"
