@@ -469,6 +469,7 @@ void Menu_DrawSlotRow(ItemDataRecord *entry, u8 *text) {
     Draw_AllocSprite(entry->iconId - 1);
     Draw_OffsetCursor(0x12, 0);
 
+    PE_HOOK(PE_HOOK_SLOT_ROW, &text);
     if (text != 0) {
         Draw_PrintRawText(text);
     }

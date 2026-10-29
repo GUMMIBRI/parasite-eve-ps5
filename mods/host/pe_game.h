@@ -36,6 +36,12 @@ int pe_mod_effect_group(int armor, int effect);
 /* Parasite Energy powers by index (0 Heal 1 .. 19 Liberate): a compact tag for logs ("EnergyShot"). */
 const char *pe_power_tag(int power);
 
+/* ---- host features (started by the host) ---- */
+/* Equipment sync: whenever the equipped gun or armor record changes in free field (Catalog, Tools,
+ * editors, Rebuild ...), the game's own equipment rebuild runs, so the change reaches the next
+ * battle without a room change. */
+void pe_equip_sync_init(void);
+
 /* Equipped weapon (armor = 0) or armor (armor = 1) record, or NULL. */
 ItemDataRecord *pe_equipped(int armor);
 /* Base item data for item id (1-based), or NULL. */

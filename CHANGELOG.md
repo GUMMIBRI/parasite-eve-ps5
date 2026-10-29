@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Fixed a Windows x64 crash while drawing the beacon effect in the NYPD boss fight.
+- Added optional Junk economy, equipment dismantling/rebuilding and workshop services.
+- Added optional Bestiary and Wardrobe menus.
+- The save editor can inspect mod records and edit supported mod data while preserving unknown records.
+
 ## 0.7
 
 - Fixed crashes when repeated or status-effect shots hit an enemy that has already been defeated.

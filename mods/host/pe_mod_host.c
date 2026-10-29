@@ -14,6 +14,7 @@
 #include "pe_mod_host.h"
 #include "pe_mod_menu.h"
 #include "pe_pages.h"
+#include "pe_present.h"
 #include "pe_save.h"
 
 #define PE_INV_CMD_START_NEW_GAME 1117   /* the EX Game's start (Inv_DispatchCommand) */
@@ -328,6 +329,8 @@ static void pe_host_start(const PeHookInit *init) {
     pe_start_mods();
     if (s_all_on) {                              /* off: nothing but F1 touches the game */
         pe_main_menu_init();
+        pe_equip_sync_init();
+        pe_present_install();
     }
     pe_save_install();                           /* always: a save made with mods off keeps their data too */
     if (s_interactive) pe_panel_install();

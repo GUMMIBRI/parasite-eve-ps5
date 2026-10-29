@@ -2017,13 +2017,10 @@ void FieldFx_UpdatePointHistory(RenderHistoryPoint *history, s16 count,
     }
 }
 
-/* Matching debt: two empty barriers and five volatile stack parameters keep
- * every save before the stack argument loads (see
- * docs/CODE_ORGANIZATION.md). */
 void FieldFx_DrawPulledSprite(GteShortVector *position, int scale_x, int scale_y,
-                   int texture, volatile int input_clut, volatile int input_page,
-                   volatile int input_intensity, RenderColor *volatile input_color,
-                   volatile int input_pull)
+                   int texture, int input_clut, int input_page,
+                   int input_intensity, RenderColor *input_color,
+                   int input_pull)
 {
     GteShortVector center;
     GteShortVector screen;

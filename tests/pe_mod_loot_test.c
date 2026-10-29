@@ -1,0 +1,41 @@
+/* Exercise the production reward and balance logic without rendering a menu. */
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+#include "../mods/pe_economy/pe_loot.c"
+SaveRuntimeState g_SaveRuntimeState;
+GameStateBlock g_GameStateBlock;
+Pe1GameState g_GameState;
+InventoryItemWorkspace g_InventoryItemWorkspace;
+ItemDataRecord *pe_equipped(int armor) { (void)armor;return NULL; }
+int pe_rec_has_effect(const ItemDataRecord *rec,int effect) { (void)rec;(void)effect;return 0; }
+const void *pe_service_get(const char *name,int version) { (void)name;(void)version;return NULL; }
+void pe_log(const char *tag,const char *fmt,...) { (void)tag;(void)fmt; }
+int main(void) {
+    s_st.junk=100;
+    pe_loot_give_junk(UINT32_MAX);
+    assert(pe_loot_junk()==99999);
+    assert(!pe_loot_spend_junk(100000) && pe_loot_junk()==99999);
+    assert(pe_loot_spend_junk(99999) && pe_loot_junk()==0);
+    BattleRewardSlot list[10]={{.id=0x14},{.id=6},{0}};
+    PeHookRewards reward={.exp=80,.list=list};
+    s_enabled=0;
+    BattleRewardSlot before[10];memcpy(before,list,sizeof list);
+    pe_on_rewards(&reward,NULL);
+    assert(!memcmp(before,list,sizeof list) && s_st.junk==0);
+    s_enabled=1;s_st.preset=1;s_st.steal_bank=2;
+    s_tune_rare_base=s_tune_rare_step=0;s_tune_rare_guarantee=200;
+    pe_on_rewards(&reward,NULL);
+    assert(list[0].id==6 && list[1].id==0x14 && list[2].id==0);
+    assert(s_found.junk_shown==16 && s_st.steal_bank==0 && s_st.junk==0);
+    /* A full reward list still pays Junk immediately and never overwrites it. */
+    for(int i=0;i<10;++i)list[i]=(BattleRewardSlot){.id=6};
+    pe_on_rewards(&reward,NULL);
+    assert(s_st.junk==13 && !s_found.junk_shown);
+    for(int i=0;i<10;++i)assert(list[i].id==6);
+    s_st.preset=2;s_st.junk=123;s_st.rare_dry=17;
+    pe_save_reset(NULL);
+    assert(s_st.junk==0 && s_st.preset==2 && s_st.rare_dry==0);
+    puts("Loot: saturated balance, disabled parity, reward compaction, full list and new game passed");
+    return 0;
+}

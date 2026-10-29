@@ -172,9 +172,9 @@ pub const WEAPON_MOD_TABLE: [ModMetadata; 21] = [
     ModMetadata { id: 0x14, code_name: "WMOD_COMMAND_3", name: "Command x3", description: "Allows entering 3 commands per turn", is_armor_mod: false, default_group_bits: 0x60 },
 ];
 
-/// Armor effects 0..=15 are the game's; 16 is unused. 17..=20 are the PE Enhancements economy
-/// mod's (`PE_FX_*` in `mods/host/pe_services.h`): they only work in a game with that mod on.
-pub const ARMOR_MOD_TABLE: [ModMetadata; 21] = [
+/// Retail armor effects. PE Enhancements' 17..=20 live in custom_effects.rs;
+/// external definitions can supply other names/encodings independently of installed mods.
+pub const ARMOR_MOD_TABLE: [ModMetadata; 17] = [
     ModMetadata { id: 0x00, code_name: "AMOD_EMPTY_SLOT", name: "Empty Slot", description: "No modification installed", is_armor_mod: true, default_group_bits: 0x00 },
     ModMetadata { id: 0x01, code_name: "AMOD_RESIST_POISON", name: "Resist Poison", description: "Prevents Poison status ailment", is_armor_mod: true, default_group_bits: 0x00 },
     ModMetadata { id: 0x02, code_name: "AMOD_RESIST_STIFFNESS", name: "Resist Stiffness", description: "Prevents Stiffness/Paralysis status", is_armor_mod: true, default_group_bits: 0x00 },
@@ -192,10 +192,7 @@ pub const ARMOR_MOD_TABLE: [ModMetadata; 21] = [
     ModMetadata { id: 0x0E, code_name: "AMOD_PE_LIGHT", name: "PE Light", description: "Reduces Parasite Energy cost by 1/3", is_armor_mod: true, default_group_bits: 0x00 },
     ModMetadata { id: 0x0F, code_name: "AMOD_OFFENSE_DOWN", name: "Attack Down", description: "Lowers Offense while equipped", is_armor_mod: true, default_group_bits: 0x00 },
     ModMetadata { id: 0x10, code_name: "AMOD_UNUSED_16", name: "Unused Effect 16", description: "Not used by the game; does nothing", is_armor_mod: true, default_group_bits: 0x00 },
-    ModMetadata { id: 0x11, code_name: "PE_FX_BARGAIN", name: "Bargain (mod)", description: "PE Enhancements economy mod: shop prices -15%", is_armor_mod: true, default_group_bits: 0x00 },
-    ModMetadata { id: 0x12, code_name: "PE_FX_SCAVENGER", name: "Scavenger (mod)", description: "PE Enhancements economy mod: battle Junk +50%", is_armor_mod: true, default_group_bits: 0x00 },
-    ModMetadata { id: 0x13, code_name: "PE_FX_LUCKY_FIND", name: "Lucky Find (mod)", description: "PE Enhancements economy mod: the rare-drop pity counter builds twice as fast", is_armor_mod: true, default_group_bits: 0x00 },
-    ModMetadata { id: 0x14, code_name: "PE_FX_SALVAGER", name: "Salvager (mod)", description: "PE Enhancements economy mod: dismantle Junk +25%", is_armor_mod: true, default_group_bits: 0x00 },
+
 ];
 
 /// Shown for an effect number no table names: the slot holds something, so it is never "Empty".
@@ -203,6 +200,10 @@ pub const UNKNOWN_MOD: ModMetadata = ModMetadata { id: 0x1F, code_name: "MOD_UNK
 
 pub fn mod_metadata(mod_byte: u8, is_armor: bool) -> &'static ModMetadata {
     let idx = (mod_byte & 0x1F) as usize;
+    if let Some(external) = crate::definitions::effect(idx as u8, is_armor) { return external; }
+    if let Some(custom) = crate::custom_effects::metadata(idx as u8, is_armor) {
+        return custom;
+    }
     if is_armor {
         ARMOR_MOD_TABLE.get(idx).unwrap_or(&UNKNOWN_MOD)
     } else {
@@ -671,7 +672,13 @@ pub const ITEM_TABLE: [ItemMetadata; 256] = [
 ];
 
 pub fn item_metadata(item_id: u8) -> &'static ItemMetadata {
-    &ITEM_TABLE[item_id as usize]
+    crate::definitions::item(item_id)
+        .or_else(|| crate::custom_effects::item(item_id))
+        .unwrap_or(&ITEM_TABLE[item_id as usize])
+}
+
+pub fn all_item_metadata() -> Vec<&'static ItemMetadata> {
+    (0..=255u8).map(item_metadata).collect()
 }
 
 /// Returns the short save-header location name (matching `Text_GetMapLocationName` in `src/main/text/tables.c`).

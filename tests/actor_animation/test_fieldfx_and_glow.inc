@@ -1,3 +1,52 @@
+#include "pe1/field_pulled_sprite.h"
+#include "pe1/room_orbit_spin_burst.h"
+#include "pe1/scene_e22_ember_burst.h"
+#include "../../src/overlays/scene_e19_cruiser/e19_externs.h"
+
+/* This must agree in every overlay as well as geometry.c: an int zero in
+ * Windows x64's eighth argument slot does not initialize a 64-bit pointer. */
+_Static_assert(_Generic(&FieldFx_DrawPulledSprite,
+    void (*)(GteShortVector *, int, int, int, int, int, int, RenderColor *, int): 1,
+    default: 0), "Pulled sprite color must be a pointer in every caller");
+
+static int native_pulled_sprite_packets(void)
+{
+    struct { FieldStripPacket packet; u8 guard[16]; } buffer;
+    static RenderGpuTag ordering[4096];
+    RenderBufferPrefix saved=D_800B0E38;
+    RenderEffectParameters params=g_FieldFxSpriteParams;
+    int saved_slot=g_ActiveDrawSlot, saved_offset=g_DrawPacketOffset;
+    GteMatrix *saved_view=g_GeomScroll.words.viewMatrix;
+    GteMatrix view={.m={{4096,0,0},{0,4096,0},{0,0,4096}}};
+    GteShortVector position={0,0,512};
+    RenderColor tint={64,32,16,0};
+    g_GeomScroll.words.viewMatrix=&view;
+    Psyz_GteCtrlWrite(26,256); gte_SetGeomOffset(160,120);
+    g_FieldFxSpriteParams=(RenderEffectParameters){.extent_x=32,.extent_y=32,.tpage=0x100};
+    for(int slot=0;slot<2;++slot) for(int colored=0;colored<2;++colored)
+    for(int intensity=0;intensity<=192;intensity+=64) {
+        memset(&buffer,0xa5,sizeof buffer);
+        for(unsigned i=0;i<4096;++i) ordering[i]=(RenderGpuTag){.address=0xffffff};
+        D_800B0E38.ordering[slot]=ordering;
+        D_800B0E38.packets[slot]=(char *)&buffer;
+        g_ActiveDrawSlot=slot;g_DrawPacketOffset=0;
+        FieldFx_DrawPulledSprite(&position,4096,4096,0x4d,0x123,1,
+                                 intensity,colored?&tint:0,0xa00);
+        FieldStripPacket *p=&buffer.packet;
+        if(p->r0!=(colored?intensity/2:intensity) ||
+           p->g0!=(colored?intensity/4:intensity) ||
+           p->b0!=(colored?intensity/8:intensity) ||
+           p->clut!=0x123 || p->code!=0x2e || p->tag.length!=9 ||
+           ordering[14].address!=(uintptr_t)p || g_DrawPacketOffset!=sizeof(*p))return 0;
+        for(unsigned i=0;i<sizeof buffer.guard;++i)if(buffer.guard[i]!=0xa5)return 0;
+    }
+    D_800B0E38=saved;g_FieldFxSpriteParams=params;
+    g_ActiveDrawSlot=saved_slot;g_DrawPacketOffset=saved_offset;
+    g_GeomScroll.words.viewMatrix=saved_view;
+    puts("Pulled sprites: pointer ABI, null/tinted color, fade levels and both draw buffers passed");
+    return 1;
+}
+
 int CdRom_InitScreenState(void);
 void Render_ResetScene(int width,int height);
 int Draw_InitDisplay(int mode);

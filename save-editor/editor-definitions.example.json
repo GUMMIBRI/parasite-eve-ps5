@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "items": [
+    {
+      "id": 25,
+      "name": "Panacea (mod)",
+      "description": "Restores 400 HP and cures ailments with PE Enhancements enabled.",
+      "category": "Consumable"
+    }
+  ],
+  "effects": [
+    {
+      "id": 20,
+      "name": "Salvager (mod)",
+      "description": "Dismantle Junk +50% before the payout cap; requires PE Enhancements.",
+      "armor": true,
+      "group": 0
+    }
+  ]
+}
