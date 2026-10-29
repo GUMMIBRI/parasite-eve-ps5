@@ -207,6 +207,13 @@ static void PS5_DeleteDevice(SDL_VideoDevice *device)
     SDL_free(device);
 }
 
+/* This fixed-display backend has no native window event queue. SDL's common
+ * event maintenance polls the joystick driver separately after this callback. */
+static void PS5_PumpEvents(SDL_VideoDevice *device)
+{
+    (void)device;
+}
+
 static SDL_VideoDevice *PS5_CreateDevice(void)
 {
     SDL_VideoDevice *device = SDL_calloc(1, sizeof(*device));
@@ -216,6 +223,7 @@ static SDL_VideoDevice *PS5_CreateDevice(void)
     device->internal->handle = -1;
     device->VideoInit = PS5_VideoInit;
     device->VideoQuit = PS5_VideoQuit;
+    device->PumpEvents = PS5_PumpEvents;
     device->CreateSDLWindow = PS5_CreateWindow;
     device->DestroyWindow = PS5_DestroyWindow;
     device->CreateWindowFramebuffer = PS5_CreateFramebuffer;
@@ -227,3 +235,4 @@ static SDL_VideoDevice *PS5_CreateDevice(void)
 
 VideoBootStrap PS5_bootstrap = { "ps5", "Public PS5 software video", PS5_CreateDevice, NULL, false };
 #endif
+
