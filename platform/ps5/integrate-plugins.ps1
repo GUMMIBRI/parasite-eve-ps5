@@ -5,7 +5,8 @@ param([Parameter(Mandatory)][string]$Root,
       [Parameter(Mandatory)][ValidateSet('Game','PsyZ')][string]$Tree,
       [switch]$CheckOnly)
 $ErrorActionPreference='Stop'
-$entries=@(Get-Content -LiteralPath "$PSScriptRoot/plugin-source.json" -Raw | ConvertFrom-Json)
+# Direct assignment avoids a nested array from Windows PowerShell 5.1 JSON output.
+$entries=ConvertFrom-Json -InputObject ([IO.File]::ReadAllText("$PSScriptRoot/plugin-source.json"))
 $pending=@()
 foreach($entry in $entries | Where-Object Tree -eq $Tree){
  $path=Join-Path $Root $entry.Path
