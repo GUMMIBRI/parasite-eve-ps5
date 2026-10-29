@@ -119,3 +119,5 @@ Review source: pe_hd_lookup.c/h, lookup.cmake, this document,
 tests/check_lookup_real.c, tests/check_lookup_faults.c and
 tests/lookup/CMakeLists.txt. outputs/ is evidence only, excluded from public PR.
 
+Full-page key units: source_width is packed VRAM words (64 for P4, 128 for P8), source_height is 256 rows. The supported region is 256x256 expanded texels at origin zero. Output scale is derived from expanded texel width/height, never packed source_width. This matches snapshot/identity keys; cropped/window/STP inputs remain unsupported.
+

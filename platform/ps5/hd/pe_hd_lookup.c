@@ -57,8 +57,9 @@ static bool supported(const PeHdFilename *key,const pe_hd_lookup_observation *o)
     expected.texture=*key;
     if(!observation_equal(o,&expected) || o->unsupported ||
         (key->mode!=PE_HD_NAME_P4 && key->mode!=PE_HD_NAME_P8) ||
-        !key->source_width || !key->source_height || key->x || key->y ||
-        key->width!=key->source_width || key->height!=key->source_height ||
+        key->source_width!=(key->mode==PE_HD_NAME_P4?64:128) ||
+        key->source_height!=256 || key->x || key->y ||
+        key->width!=256 || key->height!=256 ||
         key->palette_first || key->palette_last!=(key->mode==PE_HD_NAME_P4?15:255) ||
         !o->output_width || !o->output_height ||
         o->output_width>PE_HD_MAX_DIMENSION || o->output_height>PE_HD_MAX_DIMENSION)
