@@ -130,6 +130,18 @@ $s=ReplaceUnique $s "    return headless_renderer;`n}" @'
 #endif
 }
 '@
+# The headless CPU backend never needed a display mask; the PS5 presenter does.
+$s=ReplaceUnique $s "void Draw_DisplayEnable(unsigned int on) {`n    if (UseSoftwareBackend())`n        return;" @'
+void Draw_DisplayEnable(unsigned int on) {
+    if (UseSoftwareBackend()) {
+#ifdef PE_PS5
+        /* Interactive software presentation still obeys the PS1 display mask. */
+        if (ps5_interactive_software)
+            disp_on = on;
+#endif
+        return;
+    }
+'@
 [IO.File]::WriteAllText($p,$s)
 # Card initialization must use the same absolute mapping as all card I/O.
 # Patch only the exported revision; never mutate the pinned PsyZ checkout.
