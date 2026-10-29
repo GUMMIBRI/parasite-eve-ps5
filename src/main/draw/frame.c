@@ -7,6 +7,7 @@
 #include "pe1/menu_widget.h"
 #include "pe1/psyq_gpu.h"
 #include "pe1/render_packets.h"
+#include "pe_hooks.h"
 #include "pe1/textbox.h"
 
 int g_ActiveDrawSlot;
@@ -42,6 +43,7 @@ void Draw_RenderFrame(void) {
 
     DrawSync(0);
     Menu_DrawSaveBg();
+    PE_HOOK(PE_HOOK_FRAME_DRAWN, NULL);
 
     displayFlags = g_GameState.flags & 0x200;
     if (displayFlags) {

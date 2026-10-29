@@ -1319,6 +1319,7 @@
         PeDisc disc={0};if(!pe_disc_open(&disc,path))return 1;
         int result=original_fx_model_render_assets(&disc) && original_fx_poly_render_assets(&disc);pe_disc_close(&disc);return result?0:146;
     }
+    if(argc==2 && !strcmp(argv[1],"--pulled-sprite"))return native_pulled_sprite_packets()?0:149;
     if(argc==2 && !strcmp(argv[1],"--fx-display")){if(!SDL_Init(SDL_INIT_EVENTS))return 43;ResetGraph(0);return original_gte_register_transfers() && original_fx_fog() && original_fx_display()?0:145;}
     if(argc==2 && !strcmp(argv[1],"--fx-camera"))return original_fx_node_pool() && original_fx_culling() && original_fx_camera_matrices()?0:143;
     if(argc==2 && !strcmp(argv[1],"--script-movie-error")){

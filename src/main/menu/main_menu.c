@@ -1,4 +1,5 @@
 #include "common.h"
+#include "pe_hooks.h"
 #include "pe1/akao_counters.h"
 #include "pe1/battle_cmd.h"
 #include "pe1/battle_modifiers.h"
@@ -378,6 +379,7 @@ void Aya_SetTotalExp(s32 exp_delta, s32 pe_bonus_delta, void *wayne_items) {
     s32 i;
     s32 stat_level;
 
+    PE_HOOK(PE_HOOK_BATTLE_REWARDS, (&(PeHookRewards){exp_delta, wayne_items}));
     Menu_SetBattleEquipMode(0);
     BattleCmd_SyncActiveAmmo();
 
