@@ -883,10 +883,14 @@ static void Host_OverlayRenderFallback(
     if (h <= 0) {
         h = 600;
     }
-    OverlayComputeLayout(state->page, w, h, &layout);
+    OverlayComputeStateLayout(state, w, h, &layout);
     s_overlayLayout = layout;
     if (OverlayFontReady() && OverlaySurfaceResize(&s_overlaySurface, layout.w, layout.h)) {
-        OverlayPaint(&s_overlaySurface, state, &layout);
+        if (state->prompt) {
+            OverlayPaintPrompt(&s_overlaySurface, state, &layout);
+        } else {
+            OverlayPaint(&s_overlaySurface, state, &layout);
+        }
         if (*texture == NULL || *texW != layout.w || *texH != layout.h) {
             if (*texture != NULL) {
                 SDL_DestroyTexture(*texture);
