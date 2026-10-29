@@ -37,3 +37,4 @@ pe_hd_result pe_hd_image_decode(pe_hd_context *ctx, const void *png,
 /* Release exactly once on owning worker. Zeroed image release is harmless. */
 void pe_hd_image_release(pe_hd_image *image);
 #endif
+

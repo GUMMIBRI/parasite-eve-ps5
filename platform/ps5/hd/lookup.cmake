@@ -1,0 +1,17 @@
+# Independent coordinator; standalone staging can opt in, renderer stays unbound.
+option(PE_PS5_HD_LOOKUP "Build bounded HD candidate coordinator" OFF)
+if(PE_PS5_HD_LOOKUP AND NOT TARGET pe-hd-lookup)
+    if(NOT TARGET pe-hd-pipeline OR NOT TARGET pe-hd-generation)
+        message(FATAL_ERROR "Include enabled pipeline and generation modules before lookup.cmake")
+    endif()
+    add_library(pe-hd-lookup STATIC "${CMAKE_CURRENT_LIST_DIR}/pe_hd_lookup.c")
+    target_include_directories(pe-hd-lookup PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
+    target_link_libraries(pe-hd-lookup PUBLIC pe-hd-pipeline pe-hd-generation)
+    set_target_properties(pe-hd-lookup PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES C_EXTENSIONS NO)
+    if(MSVC)
+        target_compile_options(pe-hd-lookup PRIVATE /W4 /WX)
+    else()
+        target_compile_options(pe-hd-lookup PRIVATE -Wall -Wextra -Werror)
+    endif()
+endif()
+

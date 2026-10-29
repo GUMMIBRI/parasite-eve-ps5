@@ -1,0 +1,18 @@
+# Read-only trusted-root provider; standalone and default OFF.
+option(PE_PS5_HD_PACK "Build bounded HD trusted immutable pack provider" OFF)
+if(PE_PS5_HD_PACK AND NOT TARGET pe-hd-pack)
+    if(NOT TARGET pe-hd-index)
+        set(PE_PS5_HD_INDEX ON)
+        include("${CMAKE_CURRENT_LIST_DIR}/index.cmake")
+    endif()
+    add_library(pe-hd-pack STATIC "${CMAKE_CURRENT_LIST_DIR}/pe_hd_pack.c")
+    target_include_directories(pe-hd-pack PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
+    target_link_libraries(pe-hd-pack PUBLIC pe-hd-index)
+    set_target_properties(pe-hd-pack PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES C_EXTENSIONS NO)
+    if(MSVC)
+        target_compile_options(pe-hd-pack PRIVATE /W4 /WX)
+    else()
+        target_compile_options(pe-hd-pack PRIVATE -Wall -Wextra -Werror)
+    endif()
+endif()
+

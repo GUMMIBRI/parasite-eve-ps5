@@ -74,7 +74,9 @@ pe_hd_result pe_hd_rgba_size(uint32_t w, uint32_t h, size_t *bytes)
     *bytes = 0;
     if (!w || !h || w > PE_HD_MAX_DIMENSION || h > PE_HD_MAX_DIMENSION)
         return PE_HD_LIMIT;
-    if ((size_t)w > SIZE_MAX / 4) return PE_HD_LIMIT;
+#if SIZE_MAX / 4 < UINT32_MAX
+    if (w > SIZE_MAX / 4) return PE_HD_LIMIT;
+#endif
     row = (size_t)w * 4;
     if ((size_t)h > SIZE_MAX / row || row * h > PE_HD_MAX_IMAGE_BYTES)
         return PE_HD_LIMIT;
@@ -125,3 +127,4 @@ void pe_hd_image_release(pe_hd_image *image)
     hd_free((void *)image->rgba);
     memset(image, 0, sizeof(*image));
 }
+

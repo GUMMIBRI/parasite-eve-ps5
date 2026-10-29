@@ -13,3 +13,4 @@ if(PE_PS5_HD_IMAGE)
         C_STANDARD 11 C_STANDARD_REQUIRED YES C_EXTENSIONS NO)
     target_compile_options(pe-ps5-hd-image PRIVATE -Wall -Wextra -Wno-unused-function)
 endif()
+
