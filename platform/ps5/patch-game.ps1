@@ -4,10 +4,19 @@ $ErrorActionPreference='Stop'
 $p=Join-Path $Stage 'psyz/src/platform/sdl3_gpu.c'
 $original=Join-Path $PSScriptRoot '../../third_party/psyz/psyz/src/platform/sdl3_gpu.c'
 $s=[IO.File]::ReadAllText($original).Replace("`r`n","`n")
+$state='static bool hidden_gpu_renderer;'
+if(!$s.Contains($state)){throw 'Missing renderer state anchor'}
+$s=$s.Replace($state,$state+"`n#ifdef PE_PS5`nstatic bool ps5_interactive_software;`n#endif")
 $old='    headless_renderer = headless && strcmp(headless, "1") == 0;'
 $new=@'
     headless_renderer = headless && strcmp(headless, "1") == 0;
 #ifdef PE_PS5
+    if (headless && strcmp(headless, "gpu") == 0) {
+        ERRORF("PS5 GPU headless mode is unavailable in the software build");
+        return false;
+    }
+    ps5_interactive_software = !headless_renderer;
+    if (ps5_interactive_software) {
     // PE_PS5 software presentation uses the existing CPU PS1 rasterizer.
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD | SDL_INIT_AUDIO)) {
         ERRORF("SDL_Init: %s", SDL_GetError());
@@ -26,6 +35,7 @@ $new=@'
     is_window_visible = true;
     is_platform_init_successful = true;
     return true;
+    }
 #endif
 '@
 if(!$s.Contains($old)){throw 'Missing renderer init anchor'}
@@ -36,7 +46,7 @@ static void PlatformBackend_Present(void) {
     if (UseSoftwareBackend()) {
 #ifdef PE_PS5
         // Reuse existing 15-bit VRAM and RGB24 conversion for display.
-        if (sdl3_window && !present_skip) {
+        if (ps5_interactive_software && sdl3_window && !present_skip) {
             SDL_Surface *dst = SDL_GetWindowSurface(sdl3_window);
             if (dst) {
                 SDL_FillSurfaceRect(dst, NULL, 0);
