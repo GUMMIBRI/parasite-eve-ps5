@@ -65,3 +65,6 @@ test_regex*.py
 
 # Local design notes
 /docs/widescreen.md
+
+# Local diagnostic payload builds and toolchain manifests
+/outputs/

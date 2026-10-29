@@ -3,3 +3,5 @@
 /build-blocked/
 /probe-*
 /zig-host.cmd
+/downloads/
+/tools/

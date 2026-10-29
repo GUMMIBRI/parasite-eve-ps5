@@ -1,5 +1,81 @@
 # PS5 bootstrap checkpoint — 2026-10-27
 
+## Tooling handoff — 2026-10-29 UTC
+
+Actual public SDK ELF builds now pass on Windows without WSL. This supersedes
+the older source-only/toolchain-not-installed statements below. No console run,
+deployment, loader validation, graphics, input or audio success is claimed.
+
+Public release checked against GitHub releases/latest: SDK `v0.45` (published
+2026-10-21), source checkout `a7685ce8e97ce1f8a4f38253a41d54241c9124f1`.
+Release archive SHA-256:
+`5fac64093d0e3e69f2584ce7935f24f703f622d9681f1495c85b9f00d1291a2c`.
+Official portable LLVM 18.1.8 Windows archive SHA-256, measured locally:
+`22c5907db053026cc2a8ff96d21c0f642a90d24d66c23c6d28ee7b1d572b82e8`.
+The LLVM hash pins the downloaded official release asset; it is not a publisher
+signature. URLs and license details are in `outputs/PS5-TOOLCHAIN.json` and
+`platform/ps5/setup-public-sdk.ps1`. LLVM is Apache-2.0 WITH LLVM-exception, with
+additional bundled notices. SDK GPLv3+ and individual BSD notices remain relevant.
+The pinned source's license is named `LICENSE`, despite header references to
+`COPYING`; setup retains it as `LICENSE.SDK` next to unchanged release files.
+
+```powershell
+./platform/ps5/setup-public-sdk.ps1
+./platform/ps5/build-public-payloads.ps1 `
+  -CMake C:/.pe/tools/cmake/cmake-4.4.4-windows-x86_64/bin/cmake.exe `
+  -Ninja C:/.pe/tools/ninja/ninja.exe
+```
+
+The paths above identify existing local CMake/Ninja executables used in this
+verification; on other machines provide equivalent paths or put both on PATH.
+Setup downloads/extracts only public archives under ignored `platform/ps5` tools
+and downloads directories. It preserves existing installations. It does not run
+an installer or change persistent PATH, registry, accounts or credentials.
+Builds use the release's unmodified `win/prospero-clang.cmd` and
+`win/prospero-lld.exe`, its sysroot, CRT and linker script. LLVM 18 is enforced.
+The upstream Windows linker wrapper requires SDK/output paths without spaces;
+the build script rejects those paths explicitly. Each build gets a fresh directory
+under `outputs/ps5`, with a transcript, ELF header inspection, hashes and an
+`UNTESTED ON CONSOLE` marker. Do not publish SDK/tools or build artifacts as part
+of the source PR without separate distribution review.
+
+Validated final output: `outputs/ps5/20261029T003225Z-b7d03c58`.
+`hello-sdk.elf` comes from the unmodified release sample `samples/hello_cmake/main.c`;
+`pe-ps5-io.elf` is the isolated CMake target (`PE_PS5_PAYLOAD=ON`), returning before
+PsyZ/SDL/game configuration. Both linked with Clang/LLD 18.1.8 and passed
+ELF64, little-endian, x86-64, ET_DYN, nonzero-entry and PT_LOAD inspection.
+Hashes and detailed commands are in the output directory and `outputs/RESULT.md`.
+
+The I/O payload requires two loader argv paths: a readable fixture and a new
+scratch file in a private writable directory. It uses exclusive creation,
+handles partial/interrupted descriptor I/O, reads back the same descriptor,
+compares contents, and removes its scratch file. It never writes when fixture
+opening/reading fails. Existing scratch files are preserved. Use a directory
+without concurrent path replacement. Exit 1 means failure; exit 2 means probes
+passed or unavailable argv, with console capabilities still unverified. This is
+not a game adapter. Native Windows validation passed roundtrip/removal, existing
+file preservation, missing-fixture write prevention and absent-argv cases.
+
+WSL `--list --verbose` confirmed no installed distro. The authorized
+`wsl --install -d Ubuntu-24.04 --no-launch` returned success with **changes will
+not be effective until the system is rebooted**. No reboot was performed.
+After the owner chooses to reboot, complete Ubuntu 24.04 installation/first-run
+account setup as needed, then run:
+
+```sh
+bash platform/ps5/setup-public-sdk.sh --install-dependencies
+bash platform/ps5/build-public-payloads.sh
+```
+
+Linux dependency install/build remains untested here. Shell scripts now have
+enforced LF checkout, correct archive root and LICENSE handling, staged extraction,
+LLVM 18 checks and unique output directories. WSL is no longer a blocker to the
+actual Windows ELF build milestone. Human console validation remains outstanding.
+
+Read-only upstream fetch found `upstream/main` at `da1f775e6` (0.7-alpha release).
+No checkout, reset, commit, integration or submodule pin change was performed;
+main owns integration. Qwen playlist and dispatch remain main's exclusive queue.
+
 Base: `49341628f0756817ab997b3ae8d75e98201cc47b`, branch
 `ps5/bootstrap-platform`. Manager owns Git. No console connection or gameplay
 test was performed. Human testing is required for every console claim.
