@@ -235,4 +235,3 @@ static SDL_VideoDevice *PS5_CreateDevice(void)
 
 VideoBootStrap PS5_bootstrap = { "ps5", "Public PS5 software video", PS5_CreateDevice, NULL, false };
 #endif
-
