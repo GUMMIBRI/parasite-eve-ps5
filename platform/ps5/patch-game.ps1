@@ -83,3 +83,38 @@ foreach($anchor in $guards.Keys){
  $s=$s.Replace($anchor,$anchor+"`n#ifdef PE_PS5`n    "+$guards[$anchor]+"`n#endif")
 }
 [IO.File]::WriteAllText($p,$s)
+# Card initialization must use the same absolute mapping as all card I/O.
+# Patch only the exported revision; never mutate the pinned PsyZ checkout.
+$card=Join-Path $Stage 'psyz/src/psyz/libcard.c'
+$cardText=[IO.File]::ReadAllText($card).Replace("`r`n","`n")
+$cardAnchor="void _bu_init(void) {`n#ifdef _MSC_VER"
+$cardReplacement=@'
+void _bu_init(void) {
+#ifdef PE_PS5
+    char path[4096];
+    Psyz_AdjustPath(path, "bu00:*", sizeof(path));
+    Psyz_AdjustPath(path, "bu10:*", sizeof(path));
+#elif defined(_MSC_VER)
+'@
+# Validate the entire selected original initializer, or exactly this recipe's
+# result. A Resume stage retains libcard.c, unlike the regenerated GPU source.
+$cardOriginal=@'
+void _bu_init(void) {
+#ifdef _MSC_VER
+    NOT_IMPLEMENTED;
+#elif __MINGW32__
+    mkdir("bu00");
+    mkdir("bu10");
+#else
+    mkdir("bu00", 0755);
+    mkdir("bu10", 0755);
+#endif
+}
+'@
+$cardPatched=$cardOriginal.Replace($cardAnchor,$cardReplacement)
+$originalCount=([regex]::Matches($cardText,[regex]::Escape($cardOriginal))).Count
+$patchedCount=([regex]::Matches($cardText,[regex]::Escape($cardPatched))).Count
+$initCount=([regex]::Matches($cardText,'\bvoid\s+_bu_init\s*\(')).Count
+if($initCount -ne 1 -or ($originalCount+$patchedCount) -ne 1){throw 'Unknown or non-unique card initialization form'}
+if($originalCount -eq 1){[IO.File]::WriteAllText($card,$cardText.Replace($cardOriginal,$cardPatched))}
+

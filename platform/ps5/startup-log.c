@@ -3,8 +3,11 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <dirent.h>
 
 static int log_fd = -1;
 static void stage(const char *fmt, ...) {
@@ -32,6 +35,67 @@ static void SDLCALL sdl_log(void *userdata, int category, SDL_LogPriority priori
     (void)userdata;
     stage("SDL category=%d priority=%d: %s\n", category, (int)priority, message);
 }
+/* Bounded observation only: do not retry, probe, clear errors or change returns.
+ * Capture errno before SDL error formatting/cleanup can obscure the syscall. */
+static atomic_uint fs_events;
+static int fs_trace(void) {
+    return atomic_fetch_add_explicit(&fs_events, 1, memory_order_relaxed) < 128;
+}
+#define FS_INT_WRAP(name, declaration, arguments, path) \
+    int __real_##name declaration; \
+    int __wrap_##name declaration { \
+        int trace = fs_trace(); \
+        if (trace) stage("before fs " #name " path=%.700s\n", path); \
+        int result = __real_##name arguments; \
+        int error = errno; \
+        if (trace) stage("after fs " #name " result=%d errno=%d\n", result, error); \
+        errno = error; \
+        return result; \
+    }
+FS_INT_WRAP(stat, (const char *path, struct stat *info), (path, info), path)
+FS_INT_WRAP(mkdir, (const char *path, mode_t mode), (path, mode), path)
+DIR *__real_opendir(const char *);
+DIR *__wrap_opendir(const char *path) {
+    int trace = fs_trace();
+    if (trace) stage("before fs opendir path=%.700s\n", path);
+    DIR *result = __real_opendir(path);
+    int error = errno;
+    if (trace) stage("after fs opendir null=%d errno=%d\n", result == NULL, error);
+    errno = error;
+    return result;
+}
+struct dirent *__real_readdir(DIR *);
+struct dirent *__wrap_readdir(DIR *dir) {
+    int trace = fs_trace();
+    int prior_error = errno;
+    struct dirent *result = __real_readdir(dir);
+    int error = errno;
+    if (trace) stage("after fs readdir dir=%p null=%d prior_errno=%d errno=%d (null may be EOF)\n",
+                     (void *)dir, result == NULL, prior_error, error);
+    errno = error;
+    return result;
+}
+/* API-boundary errors complement the immediate POSIX results above. A success
+ * does not make errno meaningful; SDL_GetError is read only on failure. */
+#define FS_SDL_WRAP(name, declaration, arguments, path) \
+    bool __real_##name declaration; \
+    bool __wrap_##name declaration { \
+        int trace = fs_trace(); \
+        if (trace) stage("before fs " #name " path=%.700s\n", path); \
+        bool result = __real_##name arguments; \
+        int error = errno; \
+        if (trace) stage("after fs " #name " result=%d errno=%d SDL=%.500s\n", \
+                         result, error, result ? "" : SDL_GetError()); \
+        errno = error; \
+        return result; \
+    }
+FS_SDL_WRAP(SDL_CreateDirectory, (const char *path), (path), path)
+FS_SDL_WRAP(SDL_GetPathInfo, (const char *path, SDL_PathInfo *info), (path, info), path)
+FS_SDL_WRAP(SDL_EnumerateDirectory,
+            (const char *path, SDL_EnumerateDirectoryCallback cb, void *userdata),
+            (path, cb, userdata), path)
+FS_SDL_WRAP(SDL_SaveFile, (const char *path, const void *data, size_t size),
+            (path, data, size), path)
 #ifdef PE_APPLICATION_SERVICE_DIAGNOSTICS
 /* Observe real backend calls without repeating initialization or changing
  * service ownership. Raw returns do not prove firmware support. */
@@ -60,6 +124,38 @@ int __wrap_sceVideoOutOpen(int user, int type, int index, const void *params) {
     return result;
 }
 #endif
+int __real_chdir(const char *);
+int __wrap_chdir(const char *path) {
+    stage("before chdir path=%.200s\n", path ? path : "(null)");
+    int result = __real_chdir(path);
+    int error = errno;
+    stage("after chdir result=%d errno=%d\n", result, error);
+    errno = error;
+    return result;
+}
+int __real_dup2(int, int);
+int __wrap_dup2(int from, int to) {
+    stage("before dup2 from=%d to=%d\n", from, to);
+    int result = __real_dup2(from, to);
+    int error = errno;
+    stage("after dup2 result=%d errno=%d\n", result, error);
+    errno = error;
+    return result;
+}
+FILE *__real_fopen(const char *, const char *);
+FILE *__wrap_fopen(const char *path, const char *mode) {
+    static atomic_uint remaining = 16;
+    unsigned count = atomic_load_explicit(&remaining, memory_order_relaxed);
+    while (count && !atomic_compare_exchange_strong_explicit(&remaining,
+            &count, count - 1, memory_order_relaxed, memory_order_relaxed)) {}
+    if (count) stage("before fopen path=%.200s mode=%.16s\n",
+        path ? path : "(null)", mode ? mode : "(null)");
+    FILE *result = __real_fopen(path, mode);
+    int error = errno;
+    if (count) stage("after fopen null=%d errno=%d\n", result == NULL, error);
+    errno = error;
+    return result;
+}
 int __real_main(int, char **);
 int __wrap_main(int argc, char **argv) {
     const char *path = "/data/parasite-eve/startup.log";

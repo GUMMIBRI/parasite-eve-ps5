@@ -10,14 +10,25 @@ param(
  [string]$Ninja='C:/.pe/tools/ninja/ninja.exe',
  [string]$Resume,
  [string]$SourceRoot,
+ [string]$OutputRoot,
  [string]$PsyZRevision,
  [switch]$StartupLog,
  [switch]$AllocationLog,
+ [switch]$DebugSymbols,
  [string]$ApplicationTooling
 )
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=(Resolve-Path "$PSScriptRoot/../..").Path
+$buildConfiguration=if($DebugSymbols){'RelWithDebInfo'}else{'Release'}
+# Never relabel an existing build or reuse objects with a different debug mode.
+if($Resume){
+ $resumeInputs=Join-Path $Resume 'INPUTS.json'
+ if(!(Test-Path -LiteralPath $resumeInputs)){throw 'Resume requires INPUTS.json to verify build configuration'}
+ $resumeProvenance=Get-Content -LiteralPath $resumeInputs -Raw | ConvertFrom-Json
+ $previousConfiguration=if($resumeProvenance.PSObject.Properties.Name -contains 'BuildConfiguration'){$resumeProvenance.BuildConfiguration}else{'Release'}
+ if($previousConfiguration -ne $buildConfiguration){throw 'Resume build configuration changed; use a fresh output or retain DebugSymbols'}
+}
 if($AllocationLog -and (!$ApplicationTooling -or !$StartupLog)){throw 'AllocationLog requires ApplicationTooling and StartupLog'}
 if($ApplicationTooling -and $StartupLog -and $Resume){throw 'Application diagnostics require a fresh output to preserve CRT instrumentation provenance'}
 if($ApplicationTooling){$ApplicationTooling=(Resolve-Path -LiteralPath $ApplicationTooling).Path}
@@ -57,13 +68,25 @@ if($PsyZRevision){
 }
 $dirty=& git -C "$root/third_party/psyz" status --porcelain --untracked-files=no
 if($LASTEXITCODE -ne 0 -or $dirty){throw 'PsyZ tracked sources must be clean for generated patches'}
-$out=if($Resume){(Resolve-Path $Resume).Path}else{Join-Path $root ('outputs/ps5/game-'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')+'-'+[Guid]::NewGuid().ToString('N').Substring(0,6))}
+# Resume identifies an existing tree; output selection must never redirect it.
+if($Resume -and $PSBoundParameters.ContainsKey('OutputRoot')){throw 'OutputRoot cannot be combined with Resume'}
+if(!$Resume){
+ if(!$OutputRoot){$OutputRoot=$env:PE_PS5_OUTPUT_ROOT}
+ if(!$OutputRoot){$OutputRoot=Join-Path $root 'outputs/ps5'}
+ $OutputRoot=$ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputRoot)
+ if(Test-Path -LiteralPath $OutputRoot -PathType Leaf){throw 'OutputRoot must be a directory, not a file'}
+ New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
+ $OutputRoot=(Resolve-Path -LiteralPath $OutputRoot).Path
+}
+$out=if($Resume){(Resolve-Path -LiteralPath $Resume).Path}else{Join-Path $OutputRoot ('game-'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')+'-'+[Guid]::NewGuid().ToString('N'))}
 if($Resume -and (Test-Path "$out/application-project.cmake") -and !$ApplicationTooling){throw 'Application build resume requires ApplicationTooling; use a fresh output for payload ABI'}
 if($Resume -and !$StartupLog -and ((Test-Path "$out/startup-project.cmake") -or (Test-Path "$out/STARTUP-LOG.json"))){
  throw 'Cannot disable startup diagnostics when resuming an instrumented build; retain StartupLog or use a fresh output'
 }
 if($ApplicationTooling -and $Resume -and (Test-Path "$out/startup-project.cmake")){throw 'Cannot reuse payload diagnostics build for application ABI'}
-New-Item -ItemType Directory -Force $out | Out-Null
+if($Resume){
+ if(!(Test-Path -LiteralPath $out -PathType Container)){throw 'Resume must be a directory'}
+}else{New-Item -ItemType Directory -Path $out | Out-Null}
 if($Resume -and (Test-Path "$out/INPUTS.json")){
  $previous=Get-Content "$out/INPUTS.json" -Raw | ConvertFrom-Json
  if($previous.PsyZRevision -ne $pin){throw 'Resume PsyZ revision changed; use a new isolated build'}
@@ -126,8 +149,8 @@ try{
   } | ConvertTo-Json -Depth 3 | Set-Content "$out/CANDIDATE-SOURCES.json"
   Copy-Item -LiteralPath (Join-Path (Split-Path $gameSource) 'CANDIDATE.json') -Destination "$out/CANDIDATE.json"
  }
- @{PsyZRevision=$pin; StartupLog=[bool]$StartupLog; AllocationLog=[bool]$AllocationLog; ApplicationABI=[bool]$ApplicationTooling; GameRevision=(& git -C $root rev-parse HEAD); SourceRoot=$gameSource; UpstreamCandidate=$candidate; SDL3Prefix=$SDL3Prefix; SDL3Source=$SDL3Source; SDL3Build=$SDL3Build; SDL3CoreSHA256=(Get-FileHash "$SDL3Source/src/SDL.c").Hash; SDL3ConfigSHA256=(Get-FileHash "$SDL3Build/include-config-release/build_config/SDL_build_config.h").Hash; SDL3LibrarySHA256=(Get-FileHash "$SDL3Prefix/lib/libSDL3.a").Hash; Files=@($inputs)} | ConvertTo-Json -Depth 8 | Set-Content "$out/INPUTS.json"
- Run $CMake @('-S',$gameSource,'-B',"$out/b",'-G','Ninja',"-DCMAKE_MAKE_PROGRAM=$Ninja", "-DCMAKE_TOOLCHAIN_FILE=$Sdk/toolchain/prospero.cmake", "-DPS5_PAYLOAD_SDK=$Sdk", "-DCMAKE_AR=$LlvmBin/llvm-ar.exe", "-DCMAKE_RANLIB=$LlvmBin/llvm-ranlib.exe", "-DSDL3_DIR=$SDL3Prefix/lib/cmake/SDL3", "-DPE_PS5_SDL3_SOURCE=$SDL3Source", "-DPE_PS5_SDL3_BUILD=$SDL3Build", "-DPSYZ_DIR=$stage", "-DPE_PS5_LLVM_BIN=$LlvmBin", '-DCMAKE_VERBOSE_MAKEFILE=OFF', '-DPE_PS5_GAME=ON','-DBUILD_TESTING=OFF','-DCMAKE_BUILD_TYPE=Release','-DCMAKE_C_FLAGS=-std=gnu11')
+ @{BuildConfiguration=$buildConfiguration; DebugSymbols=[bool]$DebugSymbols; PsyZRevision=$pin; StartupLog=[bool]$StartupLog; AllocationLog=[bool]$AllocationLog; ApplicationABI=[bool]$ApplicationTooling; GameRevision=(& git -C $root rev-parse HEAD); SourceRoot=$gameSource; UpstreamCandidate=$candidate; SDL3Prefix=$SDL3Prefix; SDL3Source=$SDL3Source; SDL3Build=$SDL3Build; SDL3CoreSHA256=(Get-FileHash "$SDL3Source/src/SDL.c").Hash; SDL3ConfigSHA256=(Get-FileHash "$SDL3Build/include-config-release/build_config/SDL_build_config.h").Hash; SDL3LibrarySHA256=(Get-FileHash "$SDL3Prefix/lib/libSDL3.a").Hash; Files=@($inputs)} | ConvertTo-Json -Depth 8 | Set-Content "$out/INPUTS.json"
+ Run $CMake @('-S',$gameSource,'-B',"$out/b",'-G','Ninja',"-DCMAKE_MAKE_PROGRAM=$Ninja", "-DCMAKE_TOOLCHAIN_FILE=$Sdk/toolchain/prospero.cmake", "-DPS5_PAYLOAD_SDK=$Sdk", "-DCMAKE_AR=$LlvmBin/llvm-ar.exe", "-DCMAKE_RANLIB=$LlvmBin/llvm-ranlib.exe", "-DSDL3_DIR=$SDL3Prefix/lib/cmake/SDL3", "-DPE_PS5_SDL3_SOURCE=$SDL3Source", "-DPE_PS5_SDL3_BUILD=$SDL3Build", "-DPSYZ_DIR=$stage", "-DPE_PS5_LLVM_BIN=$LlvmBin", '-DCMAKE_VERBOSE_MAKEFILE=OFF', '-DPE_PS5_GAME=ON','-DBUILD_TESTING=OFF',"-DCMAKE_BUILD_TYPE=$buildConfiguration",'-DCMAKE_C_FLAGS=-std=gnu11')
  if($ApplicationTooling){
   $native=(Resolve-Path -LiteralPath $ApplicationTooling).Path.Replace('\','/')
   foreach($file in @('app_crt.cpp','ps5-pie.ld','app-symbols.map')){
@@ -164,7 +187,8 @@ try{
 static char *GetExePath(void)
 {
     return SDL_strdup("/app0/eboot.bin");'
-  Run "$LlvmBin/clang++.exe" @('-target','x86_64-sie-ps5','-isysroot',$Sdk,'-isystem',"$Sdk/target/include/c++/v1",'-isystem',"$Sdk/target/include",'-fno-stack-protector','-fno-plt','-femulated-tls','-std=c++20','-O2','-fno-exceptions','-fno-rtti','-ffunction-sections','-fdata-sections','-c',"$native/app_crt.cpp",'-o',"$out/app_crt.o")
+  $crtDebugFlags=@(if($DebugSymbols){'-g'})
+  Run "$LlvmBin/clang++.exe" ($crtDebugFlags + @('-target','x86_64-sie-ps5','-isysroot',$Sdk,'-isystem',"$Sdk/target/include/c++/v1",'-isystem',"$Sdk/target/include",'-fno-stack-protector','-fno-plt','-femulated-tls','-std=c++20','-O2','-fno-exceptions','-fno-rtti','-ffunction-sections','-fdata-sections','-c',"$native/app_crt.cpp",'-o',"$out/app_crt.o"))
   $app=@"
 target_sources(parasite-eve-pc PRIVATE "$($out.Replace('\','/'))/app_crt.o")
 target_sources(parasite-eve-pc PRIVATE "$($PSScriptRoot.Replace('\','/'))/application-static-dlfcn.c")
@@ -197,7 +221,7 @@ add_library(pe-startup-log OBJECT "$diagSource")
 target_link_libraries(pe-startup-log PRIVATE SDL3::SDL3)
 target_sources(parasite-eve-pc PRIVATE `$<TARGET_OBJECTS:pe-startup-log>)
 "@
-  $wraps=@('main','SDL_Init','SDL_InitSubSystem','SDL_CreateWindow','SDL_GetWindowSurface','SDL_UpdateWindowSurface','SDL_OpenAudioDevice','SDL_OpenAudioDeviceStream','SDL_ResumeAudioStreamDevice','SDL_OpenGamepad','Boot_InitSystem','Boot_InitGameState','Boot_InitSubsystems','Asset_OpenPeImage','Scene_LoadSceneData')
+  $wraps=@('main','chdir','dup2','fopen','stat','mkdir','opendir','readdir','SDL_CreateDirectory','SDL_GetPathInfo','SDL_EnumerateDirectory','SDL_SaveFile','SDL_Init','SDL_InitSubSystem','SDL_CreateWindow','SDL_GetWindowSurface','SDL_UpdateWindowSurface','SDL_OpenAudioDevice','SDL_OpenAudioDeviceStream','SDL_ResumeAudioStreamDevice','SDL_OpenGamepad','Boot_InitSystem','Boot_InitGameState','Boot_InitSubsystems','Asset_OpenPeImage','Scene_LoadSceneData')
   if($ApplicationTooling){
    $diag+="`ntarget_compile_definitions(pe-startup-log PRIVATE PE_APPLICATION_SERVICE_DIAGNOSTICS=1)"
    $wraps+=@('sceUserServiceInitialize','scePadInit','sceSystemServiceHideSplashScreen','sceVideoOutOpen')
@@ -219,6 +243,20 @@ target_sources(parasite-eve-pc PRIVATE `$<TARGET_OBJECTS:pe-startup-log>)
  Run $CMake @('--build',"$out/b",'--target','parasite-eve-pc','--parallel','4')
  $elf="$out/b/parasite-eve-ps5.elf"
  if(!(Test-Path $elf)){throw 'Game target did not produce its ELF'}
+ $symbolElf=$null
+ if($DebugSymbols){
+  # Retain the linked ELF before any external conversion/packaging. Fail closed
+  # if a toolchain/linker update silently removes the requested debug info.
+  $sections=& "$LlvmBin/llvm-readelf.exe" --sections --wide $elf
+  if($LASTEXITCODE -ne 0){throw 'Cannot inspect debug sections'}
+  $sections | Set-Content "$out/DWARF-SECTIONS.txt"
+  foreach($section in @('.debug_info','.debug_abbrev','.debug_line')){
+   if(($sections -join "`n") -notmatch ([regex]::Escape($section)+'\s')){throw "Missing DWARF section: $section"}
+  }
+  $symbolElf="$out/parasite-eve-ps5-unstripped.elf"
+  Copy-Item -LiteralPath $elf -Destination $symbolElf
+  @{BuildConfiguration=$buildConfiguration; ELF=$symbolElf; SHA256=(Get-FileHash $symbolElf).Hash; SourceRoot=$gameSource; PsyZSource=$stage; ApplicationSource=$(if($ApplicationTooling){"$native/app_crt.cpp"}else{$null}); Sections="$out/DWARF-SECTIONS.txt"; ConsoleTested=$false} | ConvertTo-Json | Set-Content "$out/DEBUG-SYMBOLS.json"
+ }
  if($StartupLog){
   Copy-Item -LiteralPath $elf -Destination "$out/b/parasite-eve-ps5-startup-debug.elf"
   Copy-Item -LiteralPath "$PSScriptRoot/startup-log.c" -Destination "$out/startup-log.c"
@@ -227,7 +265,7 @@ target_sources(parasite-eve-pc PRIVATE `$<TARGET_OBJECTS:pe-startup-log>)
  }
  Run "$LlvmBin/llvm-readelf.exe" @('-h','-d',$elf)
  Get-FileHash $elf | Format-List | Out-File "$out/ELF-SHA256.txt"
- @{Schema=2; State='succeeded'; Attempt=$attempt; InputsSHA256=(Get-FileHash "$out/INPUTS.json").Hash; ELF=$elf; SHA256=(Get-FileHash $elf).Hash; Bytes=(Get-Item $elf).Length; ConsoleTested=$false} | ConvertTo-Json | Set-Content "$out/RESULT.json"
+ @{Schema=2; State='succeeded'; BuildConfiguration=$buildConfiguration; DebugSymbols=[bool]$DebugSymbols; UnstrippedELF=$symbolElf; Attempt=$attempt; InputsSHA256=(Get-FileHash "$out/INPUTS.json").Hash; ELF=$elf; SHA256=(Get-FileHash $elf).Hash; Bytes=(Get-Item $elf).Length; ConsoleTested=$false} | ConvertTo-Json | Set-Content "$out/RESULT.json"
  Write-Output "Linked native game ELF (UNTESTED ON CONSOLE): $elf"
 }finally{$env:PATH=$oldPath; $env:PS5_PAYLOAD_SDK=$oldSdk}
 

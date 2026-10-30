@@ -54,6 +54,61 @@ static struct {
     int enabled;
 } host_options;
 
+#ifdef PE_PS5
+#ifndef PE_PS5_DATA_ROOT
+#define PE_PS5_DATA_ROOT "/data/parasite-eve"
+#endif
+static char host_data_root[4096];
+
+/* PS5 application launches cannot depend on changing the process cwd. */
+static int Host_DataPath(char *out, size_t capacity, const char *path) {
+    int n = snprintf(out, capacity, "%s%s%s", path[0] == '/' ? "" : host_data_root,
+                     path[0] == '/' ? "" : "/", path);
+    if (n < 0 || (size_t)n >= capacity) {
+        if (capacity) out[0] = '\0';
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "PS5 path too long: %.200s", path);
+        return 0;
+    }
+    return 1;
+}
+
+static int Host_InitPaths(void) {
+    SDL_Environment *env = SDL_GetEnvironment();
+    const char *root = SDL_GetEnvironmentVariable(env, "PE_DATA_HOME");
+    if (!root || !*root) root = PE_PS5_DATA_ROOT;
+    if (root[0] != '/' || strlen(root) >= sizeof(host_data_root)) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "PS5 data root must be an absolute path: %.200s", root);
+        return 0;
+    }
+    strcpy(host_data_root, root);
+    size_t length = strlen(host_data_root);
+    while (length > 1 && host_data_root[length - 1] == '/') host_data_root[--length] = '\0';
+    const char *config = SDL_GetEnvironmentVariable(env, "PE_CONFIG_HOME");
+    char directory[4096];
+    if (!config || !*config) config = host_data_root;
+    if (!Host_DataPath(directory, sizeof(directory), config)) return 0;
+    int n = snprintf(host_options.user_file, sizeof(host_options.user_file),
+                     "%s/parasite-eve.toml", directory);
+    if (n < 0 || (size_t)n >= sizeof(host_options.user_file)) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "PS5 preferences path too long");
+        return 0;
+    }
+    SDL_Log("PS5 paths data=%s preferences=%s", host_data_root, host_options.user_file);
+    return 1;
+}
+
+static int Host_OpenDisc(PeDisc *disc, const char *path) {
+    char absolute[8192];
+    if (!Host_DataPath(absolute, sizeof(absolute), path)) return 0;
+    SDL_Log("PS5 disc open path=%s", absolute);
+    int ok = pe_disc_open(disc, absolute);
+    if (!ok) SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "PS5 disc open failed: %s", absolute);
+    return ok;
+}
+#else
+#define Host_OpenDisc pe_disc_open
+#endif
+
 #define HOST_BINDING_COUNT 17
 #define HOST_SPEED_BINDING 16
 #define HOST_ANALOG_RUN_ROW (HOST_BINDING_COUNT + 1)
@@ -267,6 +322,11 @@ static int Host_ParseOptionValue(const char *section, const char *key, char *val
 
 static void Host_LoadOptions(const char *path) {
     FILE *file = fopen(path, "r");
+#ifdef PE_PS5
+    int error = file ? 0 : errno;
+    SDL_Log("PS5 preferences open path=%s success=%d errno=%d", path, file != NULL, error);
+    errno = error;
+#endif
     if (!file) {
         return;
     }
@@ -396,18 +456,34 @@ static int Host_SaveOptions(void) {
 /* Bundled desktop launches have no useful writable working directory.
  * Keep PS1 card files alongside the per-user preferences, without changing
  * relative image paths or the working directory used by headless replays. */
+static void Host_CardDiagnostic(const char *operation, const char *path) {
+#ifdef PE_PS5
+    static unsigned count;
+    int error = errno;
+    if (count++ < 32)
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                     "PS5 card failure operation=%s path=%.700s errno=%d SDL=%.400s",
+                     operation, path, error, SDL_GetError());
+    errno = error;
+#else
+    (void)operation; (void)path;
+#endif
+}
 static int Host_CardPath(char *dst, const char *src, int capacity) {
     if (strlen(src) < 5 || src[0] != 'b' || src[1] != 'u' || src[4] != ':' ||
         src[2] < '0' || src[2] > '1' || src[3] < '0' || src[3] > '3') {
+        Host_CardDiagnostic("invalid-device", src);
         return -1;
     }
     const char *slash = strrchr(host_options.user_file, '/');
     const char *backslash = strrchr(host_options.user_file, '\\');
     if (backslash && (!slash || backslash > slash)) slash = backslash;
     if (!slash) {
+        Host_CardDiagnostic("preferences-no-parent", host_options.user_file);
         return -1;
     }
     if (capacity <= 0) {
+        Host_CardDiagnostic("invalid-capacity", src);
         return 0;
     }
 
@@ -419,7 +495,7 @@ static int Host_CardPath(char *dst, const char *src, int capacity) {
         host_options.user_file,
         src
     );
-    if (n < 0 || n >= capacity) { dst[0] = '\0'; return 0; }
+    if (n < 0 || n >= capacity) { Host_CardDiagnostic("directory-format-truncated", src); dst[0] = '\0'; return 0; }
 #ifdef _WIN32
     /* SDL's Win32 calls also need the extended prefix for long paths. Leave
      * short portable paths unchanged, including their usual slash spelling. */
@@ -448,7 +524,7 @@ static int Host_CardPath(char *dst, const char *src, int capacity) {
         }
     }
 #endif
-    if (!SDL_CreateDirectory(dst)) { dst[0] = '\0'; return 0; }
+    if (!SDL_CreateDirectory(dst)) { Host_CardDiagnostic("SDL_CreateDirectory", dst); dst[0] = '\0'; return 0; }
 
     const char *name = src + 5;
     if (*name == '*') {
@@ -460,6 +536,7 @@ static int Host_CardPath(char *dst, const char *src, int capacity) {
 #endif
     int added = snprintf(dst + n, (size_t)(capacity - n), "%c%s", separator, name);
     if (added < 0 || added >= capacity - n) {
+        Host_CardDiagnostic("filename-format-truncated", src);
         dst[0] = '\0';
     }
     return 0;
@@ -486,28 +563,30 @@ static SDL_EnumerationResult SDLCALL Host_ImportCard(void *userdata, const char 
     unsigned port = length >= 4 && dirname[length - 3] == '1';
     snprintf(device, sizeof(device), "bu%u0:%s", port, name);
     Host_CardPath(target, device, sizeof(target));
-    if (!*target) { import->ok = 0; return SDL_ENUM_CONTINUE; }
+    if (!*target) { Host_CardDiagnostic("import-card-callback", device); import->ok = 0; return SDL_ENUM_CONTINUE; }
     if (SDL_GetPathInfo(target, &info)) return SDL_ENUM_CONTINUE;
-    if (import->count >= 128) { import->ok = 0; return SDL_ENUM_CONTINUE; }
+    if (import->count >= 128) { Host_CardDiagnostic("import-count-limit", source); import->ok = 0; return SDL_ENUM_CONTINUE; }
     size_t bytes = 0;
     void *data = SDL_LoadFile(source, &bytes);
-    if (!data || bytes != 8192) { SDL_free(data); import->ok = 0; return SDL_ENUM_CONTINUE; }
+    if (!data || bytes != 8192) { Host_CardDiagnostic("import-load-or-size", source); SDL_free(data); import->ok = 0; return SDL_ENUM_CONTINUE; }
     const char *last = strrchr(target, '/');
     const char *backslash = strrchr(target, '\\');
     if (backslash && (!last || backslash > last)) last = backslash;
     snprintf(temporary, sizeof(temporary), "%.*s.pe-save-import-%llu.tmp",
              last ? (int)(last - target + 1) : 0, target, (unsigned long long)SDL_GetTicksNS());
     SDL_IOStream *io = SDL_IOFromFile(temporary, "wbx");
-    if (!io) { SDL_free(data); import->ok = 0; return SDL_ENUM_CONTINUE; }
+    if (!io) { Host_CardDiagnostic("import-exclusive-open", temporary); SDL_free(data); import->ok = 0; return SDL_ENUM_CONTINUE; }
     int written = SDL_WriteIO(io, data, bytes) == bytes && SDL_FlushIO(io);
-    if (!SDL_CloseIO(io)) written = 0;
+    if (!written) Host_CardDiagnostic("import-write-or-flush", temporary);
+    if (!SDL_CloseIO(io)) { Host_CardDiagnostic("import-close", temporary); written = 0; }
     SDL_free(data);
     if (!written || !SDL_RenamePath(temporary, target)) {
+        if (written) Host_CardDiagnostic("import-rename", target);
         SDL_RemovePath(temporary);
         import->ok = 0;
     } else {
         char *created = SDL_strdup(target);
-        if (!created) { SDL_RemovePath(target); import->ok = 0; }
+        if (!created) { Host_CardDiagnostic("import-track-allocation", target); SDL_RemovePath(target); import->ok = 0; }
         else import->created[import->count++] = created;
     }
     return SDL_ENUM_CONTINUE;
@@ -515,23 +594,31 @@ static SDL_EnumerationResult SDLCALL Host_ImportCard(void *userdata, const char 
 
 static int Host_InstallCardPaths(const char *base) {
     char marker[4096], card[4096];
-    if (Host_CardPath(card, "bu00:*", sizeof(card)) || !*card) return 0;
+    if (Host_CardPath(card, "bu00:*", sizeof(card)) || !*card) { Host_CardDiagnostic("install-card-callback", "bu00:*"); return 0; }
     snprintf(marker, sizeof(marker), "%.*s.legacy-imported", (int)strlen(card) - 5, card);
     SDL_PathInfo info;
     if (!SDL_GetPathInfo(marker, &info)) {
         HostCardImport import = {.ok = 1};
+#ifdef PE_PS5
+        char *cwd = SDL_malloc(strlen(host_data_root) + 2);
+        if (!cwd) { Host_CardDiagnostic("import-root-allocation", host_data_root); return 0; }
+        snprintf(cwd, strlen(host_data_root) + 2, "%s/", host_data_root);
+        if (base && base[0] != '/') base = NULL;
+#else
         char *cwd = SDL_GetCurrentDirectory();
+#endif
         const char *roots[] = {cwd, base};
         for (unsigned root = 0; root < 2; ++root) if (roots[root]) {
             for (unsigned port = 0; port < 2; ++port) {
                 char source[8192];
                 snprintf(source, sizeof(source), "%sbu%u0", roots[root], port);
                 if (SDL_GetPathInfo(source, &info) && info.type == SDL_PATHTYPE_DIRECTORY &&
-                    !SDL_EnumerateDirectory(source, Host_ImportCard, &import)) import.ok = 0;
+                    !SDL_EnumerateDirectory(source, Host_ImportCard, &import)) { Host_CardDiagnostic("import-enumerate", source); import.ok = 0; }
             }
         }
         SDL_free(cwd);
         if (import.ok && !SDL_SaveFile(marker, "", 0)) {
+            Host_CardDiagnostic("import-marker-save", marker);
             SDL_RemovePath(marker);
             import.ok = 0;
         }
@@ -570,6 +657,12 @@ static void Host_InitOptions(int enabled) {
         return;
     }
 
+#ifdef PE_PS5
+    char path[4096];
+    if (Host_DataPath(path, sizeof(path), "parasite-eve.toml") &&
+        strcmp(path, host_options.user_file)) Host_LoadOptions(path);
+    Host_LoadOptions(host_options.user_file);
+#else
     const char *base = SDL_GetBasePath();
     char path[4096];
     if (base) {
@@ -623,6 +716,7 @@ static void Host_InitOptions(int enabled) {
     if (*host_options.user_file && !Host_InstallCardPaths(base)) {
         fprintf(stderr, "Cannot prepare user memory cards; legacy cards remain in use.\n");
     }
+#endif
 }
 
 static void Host_ApplyOptions(SDL_Window *window) {
@@ -779,7 +873,7 @@ static int Host_InstallImage(unsigned identity, const char *path) {
 
     PeDisc *image = &host_images[slot];
     unsigned found = 0;
-    if (!pe_disc_open(image, path)) {
+    if (!Host_OpenDisc(image, path)) {
         return 0;
     }
 
@@ -1990,23 +2084,9 @@ static int Host_ParseHealthEventArg(const char *cursor, int argc) {
     return 1;
 }
 
-#ifdef PE_PS5
-#include <unistd.h>
-#ifndef PE_PS5_DATA_ROOT
-#define PE_PS5_DATA_ROOT "/data/parasite-eve"
-#endif
-#endif
-
 int main(int argc, char **argv) {
 #ifdef PE_PS5
-    const char *data_root = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "PE_DATA_HOME");
-    if (!data_root || !*data_root) data_root = PE_PS5_DATA_ROOT;
-    if (chdir(data_root) != 0) {
-        fprintf(stderr, "Cannot open PS5 data root %s: %s\n", data_root, strerror(errno));
-        return EXIT_FAILURE;
-    }
-    if (!SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "PE_CONFIG_HOME"))
-        SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "PE_CONFIG_HOME", data_root, false);
+    if (!Host_InitPaths()) return EXIT_FAILURE;
 #endif
     int mode;
     u32 token;
@@ -2035,6 +2115,10 @@ int main(int argc, char **argv) {
 #endif
     Host_InitOptions(interactive);
 #ifdef PE_PS5
+    if (!Host_InstallCardPaths(SDL_GetBasePath())) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "PS5 memory card path setup failed: %s", host_options.user_file);
+        return EXIT_FAILURE;
+    }
     host_options.scale = 1;
     host_options.geometry_correction = host_options.antialiasing = host_options.model_filtering = 0;
     host_options.widescreen = 0;
@@ -2168,6 +2252,14 @@ int main(int argc, char **argv) {
         }
     }
 
+#ifdef PE_PS5
+    char capture_paths[3][4096];
+    const char **capture_targets[] = {&g_BootHostVramPath, &g_BootHostFramePath, &g_BootHostAudioPath};
+    for (unsigned i = 0; i < 3; ++i) if (*capture_targets[i]) {
+        if (!Host_DataPath(capture_paths[i], sizeof(capture_paths[i]), *capture_targets[i])) return EXIT_FAILURE;
+        *capture_targets[i] = capture_paths[i];
+    }
+#endif
     if (interactive) {
         if (!paths[0] && !paths[1]) {
             for (unsigned i = 0; i < 2; ++i) {
@@ -2251,7 +2343,7 @@ mount_images:
         if (!paths[slot]) {
             continue;
         }
-        if (!pe_disc_open(&images[slot], paths[slot])) {
+        if (!Host_OpenDisc(&images[slot], paths[slot])) {
             fprintf(stderr, "Cannot open image: %s\n", images[slot].error);
             goto image_error;
         }
