@@ -10,6 +10,7 @@ function GitText([string[]]$Arguments) {
  return ($result -join "`n")+"`n"
 }
 $theirs=(GitText @('rev-parse',"$Revision^{commit}")).Trim()
+$original08=$theirs -eq '8c52cdde5d60ee52f00913517ffb593e9521bf2d'
 $ours=(GitText @('rev-parse','HEAD')).Trim()
 $base=(GitText @('merge-base',$ours,$theirs)).Trim()
 if(!$OutputRoot){$OutputRoot=$env:PE_PS5_OUTPUT_ROOT}
@@ -64,7 +65,11 @@ foreach($path in $paths) {
     if($merged -notmatch '(?m)^<<<<<<< '){$mergeCode=0; $resolution='Accepted upstream project version plus local PS5 opt-in/include (-AcceptVersionResolution)'}
    }
   }
-  if($mergeCode -and $IncludePS5Plugins -and $path -eq 'mods/CMakeLists.txt'){
+  if($mergeCode -and $original08 -and $AcceptVersionResolution -and $path -eq 'src/main/boot/main.c'){
+   & "$PSScriptRoot/integrate-upstream08.ps1" -Root "$mergeDir/ours" -Revision $theirs -Mode MainConflict
+   $mergeCode=0; $resolution='Checked original 0.8 main conflict recipe: preserve PS5 guards and upstream Unicode/HD dispatch'
+  }
+  if($mergeCode -and ($IncludePS5Plugins -or ($original08 -and $AcceptVersionResolution)) -and $path -eq 'mods/CMakeLists.txt'){
    # Preserve the selected upstream host/list. The checked plugin recipe below
    # adds the CPU adapter and the opt-in CMake forces only pe_assists.
    Copy-Item -LiteralPath "$mergeDir/theirs" -Destination "$mergeDir/ours"
@@ -102,8 +107,12 @@ if($bootText.Contains('    int widescreen;')){
  $changes+=@{Path='src/main/boot/main.c'; Resolution='PE_PS5-only widescreen option normalization; CPU renderer has no extended widescreen surface'}
 }
 if($IncludePS5Plugins){
- & "$PSScriptRoot/integrate-plugins.ps1" -Root $source -Tree Game | Out-Null
+ & "$PSScriptRoot/integrate-plugins.ps1" -Root $source -Tree Game -Revision $theirs | Out-Null
  $changes+=@{Path='platform/ps5/plugin-source.json'; Resolution='Checked built-in source integration; PE_PS5_PLUGINS defaults OFF'; SHA256=(Get-FileHash "$PSScriptRoot/plugin-source.json").Hash}
+}
+if($original08 -and $AcceptVersionResolution -and !$conflicts.Count){
+ & "$PSScriptRoot/integrate-upstream08.ps1" -Root $source -Revision $theirs
+ $changes+=@{Path='platform/ps5/upstream08-recipe.json'; Resolution='Checked original 0.8 adaptation; desktop downloads default ON, native OFF'; SHA256=(Get-FileHash "$PSScriptRoot/upstream08-recipe.json").Hash; ScriptSHA256=(Get-FileHash "$PSScriptRoot/integrate-upstream08.ps1").Hash}
 }
 $pin=(GitText @('-C',"$root/third_party/psyz",'rev-parse','HEAD')).Trim()
 if($PsyZRevision){$pin=(GitText @('-C',"$root/third_party/psyz",'rev-parse',"$PsyZRevision^{commit}")).Trim()}
@@ -114,7 +123,6 @@ foreach($change in $changes){
   throw "Local input changed during preparation: $($change.Path); candidate not marked ready"
  }
 }
-@{Base=$base; Ours=$ours; Theirs=$theirs; SourceRoot=$source; PsyZRevision=$pin; SDLHeaderRevision=$sdlPin; UpstreamPsyZ=$upstreamPin; Changes=$changes; Conflicts=$conflicts; Ready=($conflicts.Count -eq 0)} | ConvertTo-Json -Depth 6 | Set-Content "$out/CANDIDATE.json"
+@{Revision=$theirs; Base=$base; Ours=$ours; Theirs=$theirs; SourceRoot=$source; PsyZRevision=$pin; SDLHeaderRevision=$sdlPin; UpstreamPsyZ=$upstreamPin; Changes=$changes; Conflicts=$conflicts; Ready=($conflicts.Count -eq 0)} | ConvertTo-Json -Depth 6 | Set-Content "$out/CANDIDATE.json"
 Write-Output "Candidate: $out"
 if($conflicts.Count){throw "Resolve recorded conflicts in candidate only: $($conflicts -join ', ')"}
-

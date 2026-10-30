@@ -3,7 +3,7 @@
 param(
  [string]$Sdk='',
  [string]$LlvmBin='',
- [string]$SDL3Prefix='C:/.pe/tools/pe-ps5-sdl3/20261029T010754Z-68fad8/install-reviewfix',
+ [string]$SDL3Prefix='C:/.pe/tools/pe-ps5-sdl3/20261029T010754Z-68fad8/install-eventfix',
  [string]$SDL3Source,
  [string]$SDL3Build,
  [string]$CMake='C:/.pe/tools/cmake/cmake-4.4.4-windows-x86_64/bin/cmake.exe',
@@ -143,8 +143,9 @@ try{
  if($LASTEXITCODE -ne 0){throw 'Cannot read selected PsyZ GPU source'}
  [IO.File]::WriteAllText($gpuOriginal,($gpuText -join "`n")+"`n")
  & "$PSScriptRoot/patch-game.ps1" -Stage $stage -OriginalSource $gpuOriginal
- if($Plugins){& "$PSScriptRoot/integrate-plugins.ps1" -Root $stage -Tree PsyZ | Out-Null}
+ if($Plugins){& "$PSScriptRoot/integrate-plugins.ps1" -Root $stage -Tree PsyZ -Revision $pin | Out-Null}
  $inputFiles=@('CMakeLists.txt','cmake/ps5/game.cmake','platform/ps5/build-game.ps1','platform/ps5/patch-game.ps1','platform/ps5/integrate-plugins.ps1','platform/ps5/plugin-source.json','src/main/boot/main.c')
+ if($candidate){$inputFiles+=@('platform/ps5/prepare-upstream-source.ps1','platform/ps5/integrate-upstream08.ps1','platform/ps5/upstream08-recipe.json')}
  if($StartupLog){$inputFiles+='platform/ps5/startup-log.c'}
  if($ApplicationTooling -and $StartupLog){$inputFiles+='platform/ps5/application-startup-log.c'}
  if($AllocationLog){$inputFiles+='platform/ps5/application-allocation-log.c'}
@@ -158,7 +159,7 @@ try{
   } | ConvertTo-Json -Depth 3 | Set-Content "$out/CANDIDATE-SOURCES.json"
   Copy-Item -LiteralPath (Join-Path (Split-Path $gameSource) 'CANDIDATE.json') -Destination "$out/CANDIDATE.json"
  }
- @{Plugins=[bool]$Plugins; BuildConfiguration=$buildConfiguration; DebugSymbols=[bool]$DebugSymbols; PsyZRevision=$pin; StartupLog=[bool]$StartupLog; AllocationLog=[bool]$AllocationLog; ApplicationABI=[bool]$ApplicationTooling; GameRevision=(& git -C $root rev-parse HEAD); SourceRoot=$gameSource; UpstreamCandidate=$candidate; SDL3Prefix=$SDL3Prefix; SDL3Source=$SDL3Source; SDL3Build=$SDL3Build; SDL3CoreSHA256=(Get-FileHash "$SDL3Source/src/SDL.c").Hash; SDL3ConfigSHA256=(Get-FileHash "$SDL3Build/include-config-release/build_config/SDL_build_config.h").Hash; SDL3LibrarySHA256=(Get-FileHash "$SDL3Prefix/lib/libSDL3.a").Hash; Files=@($inputs)} | ConvertTo-Json -Depth 8 | Set-Content "$out/INPUTS.json"
+ @{Plugins=[bool]$Plugins; BuildConfiguration=$buildConfiguration; DebugSymbols=[bool]$DebugSymbols; PsyZRevision=$pin; Revision=$(if($candidate){$candidate.Theirs}else{(& git -C $root rev-parse HEAD)}); StartupLog=[bool]$StartupLog; AllocationLog=[bool]$AllocationLog; ApplicationABI=[bool]$ApplicationTooling; GameRevision=(& git -C $root rev-parse HEAD); SourceRoot=$gameSource; UpstreamCandidate=$candidate; SDL3Prefix=$SDL3Prefix; SDL3Source=$SDL3Source; SDL3Build=$SDL3Build; SDL3CoreSHA256=(Get-FileHash "$SDL3Source/src/SDL.c").Hash; SDL3ConfigSHA256=(Get-FileHash "$SDL3Build/include-config-release/build_config/SDL_build_config.h").Hash; SDL3LibrarySHA256=(Get-FileHash "$SDL3Prefix/lib/libSDL3.a").Hash; Files=@($inputs)} | ConvertTo-Json -Depth 8 | Set-Content "$out/INPUTS.json"
  Run $CMake @('-S',$gameSource,'-B',"$out/b",'-G','Ninja',"-DCMAKE_MAKE_PROGRAM=$Ninja", "-DCMAKE_TOOLCHAIN_FILE=$Sdk/toolchain/prospero.cmake", "-DPS5_PAYLOAD_SDK=$Sdk", "-DCMAKE_AR=$LlvmBin/llvm-ar.exe", "-DCMAKE_RANLIB=$LlvmBin/llvm-ranlib.exe", "-DSDL3_DIR=$SDL3Prefix/lib/cmake/SDL3", "-DPE_PS5_SDL3_SOURCE=$SDL3Source", "-DPE_PS5_SDL3_BUILD=$SDL3Build", "-DPSYZ_DIR=$stage", "-DPE_PS5_LLVM_BIN=$LlvmBin", '-DCMAKE_VERBOSE_MAKEFILE=OFF', '-DPE_PS5_GAME=ON',"-DPE_PS5_PLUGINS=$(if($Plugins){'ON'}else{'OFF'})",'-DBUILD_TESTING=OFF',"-DCMAKE_BUILD_TYPE=$buildConfiguration",'-DCMAKE_C_FLAGS=-std=gnu11')
  if($ApplicationTooling){
   $native=(Resolve-Path -LiteralPath $ApplicationTooling).Path.Replace('\','/')
@@ -277,4 +278,3 @@ target_sources(parasite-eve-pc PRIVATE `$<TARGET_OBJECTS:pe-startup-log>)
  @{Schema=2; State='succeeded'; BuildConfiguration=$buildConfiguration; DebugSymbols=[bool]$DebugSymbols; UnstrippedELF=$symbolElf; Attempt=$attempt; InputsSHA256=(Get-FileHash "$out/INPUTS.json").Hash; ELF=$elf; SHA256=(Get-FileHash $elf).Hash; Bytes=(Get-Item $elf).Length; ConsoleTested=$false} | ConvertTo-Json | Set-Content "$out/RESULT.json"
  Write-Output "Linked native game ELF (UNTESTED ON CONSOLE): $elf"
 }finally{$env:PATH=$oldPath; $env:PS5_PAYLOAD_SDK=$oldSdk}
-

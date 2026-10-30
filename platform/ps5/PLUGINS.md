@@ -25,9 +25,30 @@ preserved independently in main.c, outside the recipe. The new source is
 Apache-2.0 under existing project notices; existing component licenses remain.
 No absolute local candidate path is required by the recipe at build time.
 
+The same unique anchors also support original 0.8.0 revision
+`8c52cdde5d60ee52f00913517ffb593e9521bf2d` with PsyZ
+`db796262b2a696241ec8f3965ebbfbcbc45bfc30`. No blend or host implementation
+is regenerated: surrounding upstream host, ABI, crash and save-tail changes
+are retained. The adapter rejects other revisions, mismatched project versions,
+duplicate anchors and mixed integrated/unintegrated anchors before writing.
+Game checks read the adjacent `CANDIDATE.json`; source preparation passes its
+selected revision explicitly. PsyZ integration requires `-Revision <pin>`.
+Direct Windows PowerShell 5.1 `ConvertFrom-Json` assignment is retained.
+
+For every new application build, explicitly pass
+`-SDL3Prefix C:\.pe\tools\pe-ps5-sdl3\20261029T010754Z-68fad8\install-eventfix`
+with matching `-SDL3Source ...\src` and `-SDL3Build ...\b` from that same SDL
+root. Its `libSDL3.a` SHA256 is
+`6E0A9A10C51A3813D56DA21FB7BFE3132C54047F666EBC673D35B6DE7ADA71FF`.
+The accompanying public 0.8 builder defaults to that eventfix prefix. Supply
+the source and build from the same SDL root when overriding installed inputs.
+The older reviewfix archive remains preserved and must not be selected for a
+new game build because it lacks the required event pump callback.
+The 0.8 native desktop-download dependency gate remains OFF independently of
+plugins; its unsupported HD state does not enable network or pack downloads.
+
 L1+R1+physical touchpad click opens/closes the CPU panel. Existing All mods OFF,
 per-mod restart, assist defaults OFF and loaded-game guards remain. Settings
 follow the validated absolute game preferences directory. This is a static
 built-in panel, not a native folder loader. Compilation/static audits establish
 neither console compatibility nor playability. The owner performs runtime work.
-
