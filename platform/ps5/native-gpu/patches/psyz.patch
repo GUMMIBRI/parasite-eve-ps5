@@ -1,0 +1,2302 @@
+diff --git a/psyz/CMakeLists.txt b/psyz/CMakeLists.txt
+index ac0522c..bb8e79e 100644
+--- a/psyz/CMakeLists.txt
++++ b/psyz/CMakeLists.txt
+@@ -12,7 +12,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/module.cmake)
+ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ios.cmake)
+ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/web.cmake)
+ 
+-if(NOT PSP)
++if(NOT PSP AND NOT TARGET SDL3::SDL3)
+     set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+     set(SDL_STATIC ON CACHE BOOL "" FORCE)
+     set(SDL_TEST OFF CACHE BOOL "" FORCE)
+@@ -224,7 +224,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+     list(APPEND PSYZ_SOURCES src/platform/sdl3_audio.c)
+     list(APPEND PSYZ_SOURCES src/platform/sdl3_os.c)
+     list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
+-    list(APPEND PSYZ_SOURCES src/dbgserver/dbgserver.c)
++# Console build: debug HTTP server excluded.
+     list(APPEND PSYZ_SOURCES src/platform/module_win.c)
+     list(APPEND PSYZ_LIBS ws2_32)
+     if(PSYZ_RENDERER STREQUAL "sdl3_gl")
+@@ -249,7 +249,7 @@ elseif(ANDROID)
+     list(APPEND PSYZ_SOURCES src/platform/sdl3_os.c)
+     list(APPEND PSYZ_SOURCES src/platform/sdl3_gpu.c)
+     list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
+-    list(APPEND PSYZ_SOURCES src/dbgserver/dbgserver.c)
++# Console build: debug HTTP server excluded.
+     list(APPEND PSYZ_SOURCES src/platform/module_unix.c)
+     list(APPEND PSYZ_LIBS ${CMAKE_DL_LIBS} android log c++_static c++abi)
+ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+@@ -258,7 +258,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+     list(APPEND PSYZ_SOURCES src/platform/sdl3_audio.c)
+     list(APPEND PSYZ_SOURCES src/platform/sdl3_os.c)
+     list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
+-    list(APPEND PSYZ_SOURCES src/dbgserver/dbgserver.c)
++# Console build: debug HTTP server excluded.
+     list(APPEND PSYZ_SOURCES src/platform/module_unix.c)
+     list(APPEND PSYZ_LIBS ${CMAKE_DL_LIBS})
+     if(PSYZ_RENDERER STREQUAL "sdl3_gl")
+@@ -313,7 +313,7 @@ else()
+     list(APPEND PSYZ_SOURCES src/platform/sdl3_audio.c)
+     list(APPEND PSYZ_SOURCES src/platform/sdl3_os.c)
+     list(APPEND PSYZ_SOURCES src/psyz/psyz_spu.c)
+-    list(APPEND PSYZ_SOURCES src/dbgserver/dbgserver.c)
++# Console build: debug HTTP server excluded.
+     list(APPEND PSYZ_SOURCES src/platform/module_unix.c)
+     list(APPEND PSYZ_LIBS ${CMAKE_DL_LIBS})
+     if(PSYZ_RENDERER STREQUAL "sdl3_gl")
+diff --git a/psyz/include/psyz/overlay_sdl3_gpu.h b/psyz/include/psyz/overlay_sdl3_gpu.h
+index a60527d..66e4a44 100644
+--- a/psyz/include/psyz/overlay_sdl3_gpu.h
++++ b/psyz/include/psyz/overlay_sdl3_gpu.h
+@@ -7,6 +7,13 @@
+ extern "C" {
+ #endif
+ 
++/* Terminal GPU state: borrowed error string valid until process exit. No
++ * retry/reinitialization or CPU fallback after failure. Main loop also receives
++ * SDL_EVENT_QUIT; callers can distinguish it from an ordinary user Quit. */
++int Psyz_GpuFailed(void);
++const char *Psyz_GpuFirstError(void);
++int Psyz_GpuRetirementUncertain(void);
++
+ // Called once after SDL3/SDL_GPU initialization completes.
+ // Use this to initialize overlay backends (e.g., ImGui_ImplSDLGPU3_Init).
+ // Query swapchain texture format with SDL_GetGPUSwapchainTextureFormat.
+diff --git a/psyz/src/platform/cpu-material-adapter.h b/psyz/src/platform/cpu-material-adapter.h
+new file mode 100644
+index 0000000..cc68022
+--- /dev/null
++++ b/psyz/src/platform/cpu-material-adapter.h
+@@ -0,0 +1,260 @@
++/* CPU native-pack material adapter experiment.
++ * Original implementation for this integration; no emulator implementation.
++ * Included by sdl3_gpu.c after LoadHdImage so existing WebP/PNG decoding is reused.
++ * Ordered presentation consumer; canonical VRAM remains authoritative.
++ */
++#ifndef PE_CPU_MATERIAL_ADAPTER_H
++#define PE_CPU_MATERIAL_ADAPTER_H
++#define CPU_MATERIAL_SLOTS 32
++#define CPU_MATERIAL_FAILED_SLOTS 256
++#define CPU_MATERIAL_BUDGET (16u*1024u*1024u)
++typedef struct {
++    uint64_t key;
++    SDL_Surface *art, *reference;
++    unsigned columns, rows;
++    size_t bytes;
++} CpuMaterialAtlas;
++typedef struct {
++    const CpuMaterialAtlas *atlas;
++    unsigned cell;
++    bool extension;
++} CpuMaterialSelection;
++static CpuMaterialAtlas cpu_material_cache[CPU_MATERIAL_SLOTS];
++static unsigned cpu_material_count;
++/* Current configured root/reset epoch only. Fixed FIFO; failed entries own no
++ * surfaces and never evict successful atlases or disturb held selections.
++ * All failures, including allocator/decoder OOM, retry after OFF->ON, explicit
++ * atlas reset, root change, or FIFO eviction. No file polling/mtime promise. */
++static uint64_t cpu_material_failed_keys[CPU_MATERIAL_FAILED_SLOTS];
++static unsigned cpu_material_failed_count,cpu_material_failed_next;
++static size_t cpu_material_bytes;
++static CpuMaterialSelection cpu_material_next;
++
++static int cpu_material_requested;
++static char cpu_material_directory[4096];
++static uint64_t cm_hits,cm_misses,cm_loaded,cm_failed,cm_unsupported,cm_failed_hits;
++static uint64_t cm_selected,cm_select_miss,cm_samples,cm_rejected,cm_present,cm_fallback;
++static unsigned cm_logs;
++static Uint64 cm_last_log;
++static void CmCount(uint64_t *n) { if(*n!=UINT64_MAX)++*n; }
++static int CpuMaterialRememberFailure(uint64_t key) {
++    cpu_material_failed_keys[cpu_material_failed_next]=key;
++    if(cpu_material_failed_count<CPU_MATERIAL_FAILED_SLOTS)++cpu_material_failed_count;
++    if(++cpu_material_failed_next==CPU_MATERIAL_FAILED_SLOTS)cpu_material_failed_next=0;
++    CmCount(&cm_failed);return -1;
++}
++int Psyz_CpuFieldMaterialAvailable(void) {
++#ifdef PE_PS5
++    return ps5_interactive_software && sdl3_window && is_platform_init_successful;
++#else
++    return 0;
++#endif
++}
++static bool CpuMaterialEnabled(void) {
++#ifdef PE_PS5
++    return cpu_material_requested && *cpu_material_directory && Psyz_CpuFieldMaterialAvailable();
++#else
++    return false;
++#endif
++}
++static void CpuMaterialSummary(int force) {
++    Uint64 now=SDL_GetTicks();
++    if((!force && (now-cm_last_log<10000)))return;
++    cm_last_log=now;++cm_logs;
++    unsigned long long covered=0,total=0;
++    SoftwareRasterizer_MaterialCoverage(&covered,&total);
++    INFOF("CPU fieldHD requested=%d available=%d eligible=%d cache=%u bytes=%zu failed_keys=%u failed_hit=%llu hit=%llu miss=%llu loaded=%llu failed=%llu unsupported=%llu selected=%llu select_miss=%llu sampled=%llu rejected=%llu ordered_HD_writes=%llu/textured_sprite_samples=%llu prepared_HD=%llu fallback=%llu (ordered accepted HD samples/textured sprite samples this epoch; cache counters cumulative)",
++        cpu_material_requested,Psyz_CpuFieldMaterialAvailable(),CpuMaterialEnabled(),cpu_material_count,cpu_material_bytes,
++        cpu_material_failed_count,(unsigned long long)cm_failed_hits,
++        (unsigned long long)cm_hits,(unsigned long long)cm_misses,(unsigned long long)cm_loaded,(unsigned long long)cm_failed,
++        (unsigned long long)cm_unsupported,(unsigned long long)cm_selected,(unsigned long long)cm_select_miss,
++        (unsigned long long)cm_samples,(unsigned long long)cm_rejected,covered,total,
++        (unsigned long long)cm_present,(unsigned long long)cm_fallback);
++}
++static void CpuMaterialReset(void) {
++    CpuMaterialSummary(1);
++    SoftwareRasterizer_Reject2x();
++    SoftwareRasterizer_InvalidateMaterial();
++    SoftwareRasterizer_SetMaterialSampler(NULL);
++    cpu_material_next=(CpuMaterialSelection){0};
++    for(unsigned i=0;i<cpu_material_count;++i) {
++        SDL_DestroySurface(cpu_material_cache[i].art);
++        SDL_DestroySurface(cpu_material_cache[i].reference);
++    }
++    memset(cpu_material_cache,0,sizeof(cpu_material_cache));
++    cpu_material_count=0;cpu_material_bytes=0;
++    memset(cpu_material_failed_keys,0,sizeof(cpu_material_failed_keys));
++    cpu_material_failed_count=0;cpu_material_failed_next=0;
++}
++int Psyz_CpuFieldMaterialConfigure(int enabled,const char *directory) {
++    if(!directory)directory="";
++    size_t n=strlen(directory);
++    int valid=n<sizeof(cpu_material_directory) && (!n || (directory[0]=='/' &&
++        !strstr(directory,"/../") && !strstr(directory,"/./") && !strchr(directory,'\\') &&
++        !(n>=3 && !strcmp(directory+n-3,"/..")) && !(n>=2 && !strcmp(directory+n-2,"/."))));
++    if(!valid){enabled=0;directory="";}
++    enabled=enabled!=0;
++    if(cpu_material_requested!=enabled || strcmp(cpu_material_directory,directory)) {
++        CpuMaterialReset();
++        cpu_material_requested=enabled;SDL_strlcpy(cpu_material_directory,directory,sizeof(cpu_material_directory));
++        CpuMaterialSummary(1);
++    }
++    return CpuMaterialEnabled(); /* Actual current capability, never asset-success. */
++}
++const char *Psyz_CpuFieldMaterialDirectory(void) { return CpuMaterialEnabled()?cpu_material_directory:""; }
++static bool CpuMaterialShape(SDL_Surface *s) {
++    return s && s->w>0 && s->h>0 && s->w<=16*68 && s->h<=8192 &&
++        s->w%68==0 && s->h%68==0 &&
++        (uint64_t)s->w*s->h*8<=CPU_MATERIAL_BUDGET;
++}
++static int CpuMaterialLoad(uint64_t key,const char *filename) {
++    if(!CpuMaterialEnabled() || !key || !filename) return 0;
++    /* Only official separate-reference WebP layout in this bounded adapter.
++     * Combined PNG/BMP and extension cells explicitly remain unsupported. */
++    const char *ext=SDL_strrchr(filename,'.');
++    if(!ext || SDL_strcasecmp(ext,".webp")){CmCount(&cm_unsupported);return 0;}
++    /* The producer emits root/key.webp. Validate the actual pathname before
++     * consulting either key cache: a stale producer root must not poison the
++     * new configuration or falsely hit an atlas from it. Reset clears the
++     * entire epoch, so generation counters cannot wrap into stale entries. */
++    char expected[4096];
++    int length=SDL_snprintf(expected,sizeof(expected),"%s/%016llx.webp",
++        cpu_material_directory,(unsigned long long)key);
++    if(length<0 || (size_t)length>=sizeof(expected) || strcmp(filename,expected))return 0;
++    for(unsigned i=0;i<cpu_material_count;++i)
++        if(cpu_material_cache[i].key==key){CmCount(&cm_hits);return 1;}
++    for(unsigned i=0;i<cpu_material_failed_count;++i)
++        if(cpu_material_failed_keys[i]==key){CmCount(&cm_failed_hits);return -1;}
++    CmCount(&cm_misses);
++    if(cpu_material_count==CPU_MATERIAL_SLOTS)return CpuMaterialRememberFailure(key);
++    char path[4096];size_t prefix=(size_t)(ext-filename);
++    if(prefix+sizeof(".ref.png")>sizeof(path))return CpuMaterialRememberFailure(key);
++    memcpy(path,filename,prefix);memcpy(path+prefix,".ref.png",sizeof(".ref.png"));
++    /* Keep both streams stable through metadata validation and decode. Never
++     * use LoadHdImage here: its title/GPU allocation cap is intentionally larger.
++     * No eviction: selections carry atlas pointers until reset invalidates them. */
++    SDL_Surface *art=NULL,*reference=NULL,*converted=NULL;
++    SDL_IOStream *webp=NULL,*pngfile=NULL;
++    void *data=NULL;
++    webp=SDL_IOFromFile(filename,"rb");pngfile=SDL_IOFromFile(path,"rb");
++    if(!webp || !pngfile)goto fail;
++    Sint64 compressed=SDL_GetIOSize(webp),pngsize=SDL_GetIOSize(pngfile);
++    if(compressed<=0 || compressed>32*1024*1024 || pngsize<33 ||
++       pngsize>32*1024*1024)goto fail;
++    /* Compressed input is separately capped; only decoded surface storage is
++     * charged to CPU_MATERIAL_BUDGET, not libwebp's internal scratch memory. */
++    data=SDL_malloc((size_t)compressed);
++    if(!data || SDL_ReadIO(webp,data,(size_t)compressed)!=(size_t)compressed)goto fail;
++    WebPBitstreamFeatures features;
++    if(WebPGetFeatures(data,(size_t)compressed,&features)!=VP8_STATUS_OK ||
++       features.has_animation || features.width<=0 || features.height<=0 ||
++       features.width>16*68 || features.height>8192 ||
++       features.width%68 || features.height%68)goto fail;
++    unsigned char png[33];
++    static const unsigned char signature[16]={
++        137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82};
++    if(SDL_ReadIO(pngfile,png,sizeof(png))!=sizeof(png) ||
++       memcmp(png,signature,sizeof(signature)))goto fail;
++    uint32_t pw=((uint32_t)png[16]<<24)|((uint32_t)png[17]<<16)|
++        ((uint32_t)png[18]<<8)|png[19];
++    uint32_t ph=((uint32_t)png[20]<<24)|((uint32_t)png[21]<<16)|
++        ((uint32_t)png[22]<<8)|png[23];
++    if(pw!=(unsigned)features.width || ph!=(unsigned)features.height ||
++       png[26] || png[27] || png[28]>1)goto fail;
++    /* Valid PNG sample layouts only. SDL's decoder may expand 16-bit RGBA
++     * to eight bytes/pixel before RGBA32 conversion; reserve that peak too. */
++    unsigned depth=png[24],color=png[25];
++    if(!((color==0 && (depth==1||depth==2||depth==4||depth==8||depth==16)) ||
++         (color==3 && (depth==1||depth==2||depth==4||depth==8)) ||
++         ((color==2||color==4||color==6) && (depth==8||depth==16))))goto fail;
++    uint64_t pixels=(uint64_t)pw*ph;
++    if(cpu_material_bytes>CPU_MATERIAL_BUDGET ||
++       pixels>(CPU_MATERIAL_BUDGET-cpu_material_bytes)/16u)goto fail;
++    if(SDL_SeekIO(pngfile,0,SDL_IO_SEEK_SET)!=0)goto fail;
++    art=SDL_CreateSurface(features.width,features.height,SDL_PIXELFORMAT_RGBA32);
++    if(!art || art->pitch!=features.width*4 ||
++       !WebPDecodeRGBAInto(data,(size_t)compressed,art->pixels,
++           (size_t)art->pitch*art->h,art->pitch))goto fail;
++    SDL_free(data);data=NULL;
++    reference=SDL_LoadPNG_IO(pngfile,false);
++    if(!CpuMaterialShape(reference) || reference->w!=art->w || reference->h!=art->h)goto fail;
++    if(reference->format!=SDL_PIXELFORMAT_RGBA32) {
++        converted=SDL_ConvertSurface(reference,SDL_PIXELFORMAT_RGBA32);
++        if(!converted)goto fail;
++        SDL_DestroySurface(reference);reference=converted;converted=NULL;
++    }
++    if(reference->pitch!=reference->w*4 || art->pitch<=0 || reference->pitch<=0)goto fail;
++    size_t bytes=((size_t)art->pitch+(size_t)reference->pitch)*(size_t)art->h;
++    if(bytes>CPU_MATERIAL_BUDGET-cpu_material_bytes)goto fail;
++    SDL_CloseIO(webp);SDL_CloseIO(pngfile);
++    /* Publish only a complete pair. Every earlier failure leaves accounting
++     * and all existing selections untouched, and retains canonical fallback. */
++    cpu_material_cache[cpu_material_count++]=(CpuMaterialAtlas){
++        key,art,reference,(unsigned)art->w/68,(unsigned)art->h/68,bytes};
++    cpu_material_bytes+=bytes;CmCount(&cm_loaded);
++    return 1;
++fail:
++    if(webp)SDL_CloseIO(webp);
++    if(pngfile)SDL_CloseIO(pngfile);
++    SDL_free(data);SDL_DestroySurface(converted);
++    SDL_DestroySurface(art);SDL_DestroySurface(reference);return CpuMaterialRememberFailure(key);
++}
++static void CpuMaterialSelect(uint64_t key,unsigned cell) {
++    cpu_material_next=(CpuMaterialSelection){0};
++    if(!CpuMaterialEnabled())return;
++    bool extension=(cell&0x800000u)!=0;cell&=0x7fffffu;
++    for(unsigned i=0;i<cpu_material_count;++i) {
++        CpuMaterialAtlas *a=&cpu_material_cache[i];
++        if(a->key==key && cell<a->columns*a->rows) {
++            cpu_material_next=(CpuMaterialSelection){a,cell,extension};CmCount(&cm_selected);return;
++        }
++    }
++    CmCount(&cm_select_miss);
++}
++/* One selection belongs to the immediately following primitive, never UI later.
++ * The draw backend will consume this at Draw_PushPrim entry, before decoding. */
++static CpuMaterialSelection CpuMaterialTake(void) {
++    CpuMaterialSelection result=cpu_material_next;
++    cpu_material_next=(CpuMaterialSelection){0};
++    return CpuMaterialEnabled()?result:(CpuMaterialSelection){0};
++}
++/* Pure consumer: caller must prove native accepted coverage first. All four
++ * samples commit atomically. Refplanes identify unchanged palette pixels; they
++ * do not confer PS1 coverage, depth, transparency or mask ownership. */
++static bool CpuMaterialSample2x(CpuMaterialSelection selection,unsigned px,
++    unsigned py,uint16_t native,uint16_t output[4]) {
++    const CpuMaterialAtlas *a=selection.atlas;
++    if(!a)return false;
++    CmCount(&cm_samples);
++    uint16_t staged[4];
++    if(!a || !output || px>=16 || py>=16 || !native ||
++        !a->columns || selection.cell>=a->columns*a->rows){CmCount(&cm_rejected);return false;}
++    unsigned left=(selection.cell%a->columns)*68+2;
++    unsigned top=(selection.cell/a->columns)*68+2;
++    for(unsigned sy=0;sy<2;++sy)for(unsigned sx=0;sx<2;++sx) {
++        unsigned x=left+px*4+sx*2+1,y=top+py*4+sy*2+1;
++        const uint8_t *ref=(const uint8_t *)a->reference->pixels+
++            (size_t)y*a->reference->pitch+(size_t)x*4;
++        const uint8_t *art=(const uint8_t *)a->art->pixels+
++            (size_t)y*a->art->pitch+(size_t)x*4;
++        unsigned basis=(ref[0]>>3)|((ref[1]>>3)<<5)|((ref[2]>>3)<<10);
++        if(ref[3]!=255 || art[3]!=255 || basis!=(native&0x7fff)){CmCount(&cm_rejected);return false;}
++        staged[sy*2+sx]=(uint16_t)((art[0]>>3)|((art[1]>>3)<<5)|((art[2]>>3)<<10));
++    }
++    memcpy(output,staged,sizeof(staged));return true;
++}
++/* Extension art owns only noncanonical pixels. No reference comparison can
++ * manufacture native coverage: absent/transparent texels simply draw nothing. */
++static int CpuExtensionSample(unsigned px,unsigned py,unsigned lx,unsigned ly,
++    unsigned scale,uint16_t *out) {
++ const CpuMaterialSelection s=cpu_material_next;const CpuMaterialAtlas *a=s.atlas;
++ if(!CpuMaterialEnabled() || !s.extension || !a || !out || px>=16 || py>=16 ||
++    !scale || lx>=scale || ly>=scale || s.cell>=a->columns*a->rows)return 0;
++ unsigned x=(s.cell%a->columns)*68+2+px*4+(4*lx+2)/scale;
++ unsigned y=(s.cell/a->columns)*68+2+py*4+(4*ly+2)/scale;
++ if(x>=(unsigned)a->art->w || y>=(unsigned)a->art->h)return 0;
++ const uint8_t *v=(const uint8_t*)a->art->pixels+(size_t)y*a->art->pitch+x*4;
++ if(v[3]!=255)return 0;
++ *out=(uint16_t)((v[0]>>3)|((v[1]>>3)<<5)|((v[2]>>3)<<10));return 1;
++}
++#endif
+diff --git a/psyz/src/platform/cpu-raster2x.h b/psyz/src/platform/cpu-raster2x.h
+new file mode 100644
+index 0000000..60de28b
+--- /dev/null
++++ b/psyz/src/platform/cpu-raster2x.h
+@@ -0,0 +1,272 @@
++/* SPDX-License-Identifier: MIT
++ * Bounded variable-scale CPU triangle component (1 native; 2/4/6/8 experimental). No canonical VRAM writes or feedback.
++ * Caller seeds a presentation epoch from canonical display-page RGB555.
++ * Unsupported operation poisons the WHOLE epoch until next explicit begin.
++ * Configuration and presentation are owned by the caller. */
++#ifndef PE_CPU_2X_H
++#define PE_CPU_2X_H
++#include <stdint.h>
++#include <stdbool.h>
++#include <stddef.h>
++#include "pe-ps5-render-buffer.h"
++#include <stdlib.h>
++#include <limits.h>
++#define PE2_MAX_SCALE 8
++#define PE2_MAX_PIXELS ((size_t)320*240*PE2_MAX_SCALE*PE2_MAX_SCALE)
++static bool Pe2PageValid(int x,int y,int w,int h){
++ return x>=0 && y>=0 && w>0 && h>0 && w<=320 && h<=240 && x<=1024-w && y<=512-h;
++}
++enum {PE2_UNSUPPORTED=1,PE2_BOUNDS,PE2_ALLOC,PE2_PAGE,PE2_CONFIG,PE2_RGB24,PE2_EMPTY,PE2_REASON_COUNT};
++static bool Pe2ScaleValid(int s){return s==1 || s==2 || s==4 || s==6 || s==8;}
++_Static_assert(320*8*3 <= INT_MAX && 240*8 <= INT_MAX,"RGB pitch/dimensions");
++_Static_assert(PE2_MAX_PIXELS <= SIZE_MAX/3,"allocation arithmetic");
++_Static_assert(INT64_C(255)*4095*4096*2*16*8192*2 < INT64_MAX,"attribute intermediates");
++/* Floor, including negative attribute planes; preserves native 8-bit wrap. */
++static int Pe2Attribute(int64_t n,int d){
++ int64_t q=n/d;if(n<0 && n%d)--q;return (int)((uint64_t)q&255);
++}
++typedef struct {int x,y,u,v,r,g,b;} Pe2Vertex;
++#ifndef PE2_SAMPLE_VISIBLE
++#define PE2_SAMPLE_VISIBLE(value) ((value)!=0)
++#endif
++typedef uint16_t (*Pe2Sample)(void *,int,int,int,int,int);
++#ifndef PE2_MATERIAL_USED
++#define PE2_MATERIAL_USED false
++#endif
++typedef uint16_t (*Pe2PolygonSample)(void *,int,int,int,int,int,int,int);
++/* Per-primitive state is captured before canonical rasterization. Destination
++ * words retain RGB555 and bit15 independently at every high-resolution sample. */
++typedef struct {
++ bool semi,set_mask,preserve_mask;
++ int abr;
++ bool (*write)(uint16_t *,uint16_t,bool,int,bool,bool);
++} Pe2Paint;
++static bool Pe2Write(Pe2Paint paint,uint16_t *out,uint16_t src,bool textured) {
++ return paint.write(out,src,paint.semi && (!textured || (src&0x8000)),
++                    paint.abr,paint.set_mask,paint.preserve_mask);
++}
++typedef struct {
++ uint16_t *pixels;
++#ifdef PE_PS5
++ PeRenderBuffer direct;
++#endif
++ size_t capacity;
++ unsigned long long material_covered,material_total;
++ int scale,reason;
++ int w,h,page_x,page_y,sx0,sy0,sx1,sy1;
++ bool active,failed,drawn;
++} Pe2Frame;
++static void Pe2RejectReason(Pe2Frame *f,int reason){
++ if(f && f->active){if(!f->failed)f->reason=reason;f->failed=true;}
++}
++__attribute__((used,retain)) void Pe2Reject(Pe2Frame *f){Pe2RejectReason(f,PE2_UNSUPPORTED);}
++/* Bounds and page identity are explicit. No backing pointer escapes. */
++__attribute__((used,retain)) bool Pe2Begin(Pe2Frame *f,int scale,const uint16_t *native,int pitch,
++ int x,int y,int w,int h) {
++ if(!f)return false;
++ f->active=false;f->failed=false;f->drawn=false;f->reason=0;f->scale=scale;
++ f->material_covered=f->material_total=0;
++ if(!Pe2ScaleValid(scale) || !native || pitch!=1024 || !Pe2PageValid(x,y,w,h)){f->reason=PE2_BOUNDS;return false;}
++ size_t count=(size_t)w*h*scale*scale;
++ if(count>PE2_MAX_PIXELS){f->reason=PE2_BOUNDS;return false;}
++#ifdef PE_PS5
++ if(!PeRenderReserve(&f->direct,PE2_MAX_PIXELS*sizeof(uint16_t))){f->reason=PE2_ALLOC;return false;}
++ f->pixels=f->direct.data;f->capacity=PE2_MAX_PIXELS;
++#else
++ if(count>f->capacity){
++  uint16_t *next=realloc(f->pixels,count*sizeof(*next));
++  if(!next){f->reason=PE2_ALLOC;return false;}
++  f->pixels=next;f->capacity=count;
++ }
++#endif
++ f->w=w*f->scale;f->h=h*f->scale;f->page_x=x;f->page_y=y;
++ f->sx0=0;f->sy0=0;f->sx1=f->w;f->sy1=f->h;
++ for(int py=0;py<f->h;++py)for(int px=0;px<f->w;++px)
++  f->pixels[py*f->w+px]=native[(y+py/f->scale)*pitch+x+px/f->scale];
++ f->active=true;return true;
++}
++__attribute__((used,retain)) void Pe2Scissor(Pe2Frame *f,int x0,int y0,int x1,int y1){
++ if(!f || !f->active)return;
++ if(x0 < -2048 || x0>2047 || y0 < -2048 || y0>2047 ||
++    x1 < -2048 || x1>2047 || y1 < -2048 || y1>2047){Pe2Reject(f);return;}
++ /* Native draw area is inclusive. Restrict it to the selected display page. */
++ int a=(x0-f->page_x)*f->scale,b=(y0-f->page_y)*f->scale;
++ int c=(x1-f->page_x+1)*f->scale,d=(y1-f->page_y+1)*f->scale;
++ f->sx0=a<0?0:(a>f->w?f->w:a);f->sy0=b<0?0:(b>f->h?f->h:b);
++ f->sx1=c<0?0:(c>f->w?f->w:c);f->sy1=d<0?0:(d>f->h?f->h:d);
++}
++/* Direct VRAM mutation ownership is independent of draw-area scissor.
++ * Load/move deliberately replace detail with canonical words: no shadow feedback.
++ * Source must be the already-mutated canonical row, preserving native row-order
++ * memmove overlap semantics even for vertically overlapping rectangles. */
++static void Pe2CanonicalSpan(Pe2Frame *f,int x,int y,int w,const uint16_t *row){
++ if(!f || !f->active || f->failed || y<f->page_y || y>=f->page_y+f->h/f->scale)return;
++ int lo=x<f->page_x?f->page_x:x;
++ int hi=x+w;if(hi>f->page_x+f->w/f->scale)hi=f->page_x+f->w/f->scale;
++ for(int nx=lo;nx<hi;++nx){
++  int px=(nx-f->page_x)*f->scale,py=(y-f->page_y)*f->scale;
++  uint16_t c=row[nx-x];
++  for(int ly=0;ly<f->scale;++ly)for(int lx=0;lx<f->scale;++lx)
++   f->pixels[(py+ly)*f->w+px+lx]=c;
++  f->drawn=true;
++ }
++}
++/* Native clear ignores draw scissor and blending but honors preserve-mask;
++ * apply that decision to each independent destination, including bit15. */
++static void Pe2ClearSpan(Pe2Frame *f,int x,int y,int w,uint16_t color,bool preserve){
++ if(!f || !f->active || f->failed || y<f->page_y || y>=f->page_y+f->h/f->scale)return;
++ int lo=x<f->page_x?f->page_x:x;
++ int hi=x+w;if(hi>f->page_x+f->w/f->scale)hi=f->page_x+f->w/f->scale;
++ for(int nx=lo;nx<hi;++nx)for(int lane_y=0;lane_y<f->scale;++lane_y)
++  for(int lane_x=0;lane_x<f->scale;++lane_x){
++   uint16_t *out=&f->pixels[((y-f->page_y)*f->scale+lane_y)*f->w+(nx-f->page_x)*f->scale+lane_x];
++   if(!preserve || !(*out&0x8000)){*out=color;f->drawn=true;}
++  }
++}
++/* Supplied by the canonical backend: matrix and RGB555 clamp order shared. */
++static int Pe2Dither(int x,int y);
++static uint16_t Pe2PackDither(int r,int g,int b,int d);
++static int64_t Pe2Edge(Pe2Vertex a,Pe2Vertex b,int x4,int y4,int denom){
++ return (int64_t)(b.x-a.x)*(y4-a.y*denom)-(int64_t)(b.y-a.y)*(x4-a.x*denom);
++}
++static bool Pe2Top(Pe2Vertex a,Pe2Vertex b){return b.y<a.y || (b.y==a.y && b.x>a.x);}
++/* Dedicated native centered line triangles: RGB uses exact barycentric
++ * truncation, never the polygon's anchor-biased fixed-point attribute planes.
++ * Ordered triangles share the same top-left rule, so their diagonal has one owner. */
++static bool Pe2CenteredLineTriangle(Pe2Frame *f,Pe2Vertex a,Pe2Vertex b,Pe2Vertex c,
++ bool do_dither,Pe2Paint paint){
++ if(!f || !f->active || f->failed)return false;
++ /* VertexXY may include draw offset and the signed endpoint extension.
++  * Its int range is bounded by native Sign11 plus native draw offset. */
++ int64_t area=(int64_t)(b.x-a.x)*(c.y-a.y)-(int64_t)(b.y-a.y)*(c.x-a.x);
++ if(!area)return true;
++ if(area<0){Pe2Vertex t=b;b=c;c=t;area=-area;}
++ int minx=a.x<b.x?a.x:b.x;if(c.x<minx)minx=c.x;
++ int maxx=a.x>b.x?a.x:b.x;if(c.x>maxx)maxx=c.x;
++ int miny=a.y<b.y?a.y:b.y;if(c.y<miny)miny=c.y;
++ int maxy=a.y>b.y?a.y:b.y;if(c.y>maxy)maxy=c.y;
++ minx=(minx-f->page_x)*f->scale;maxx=(maxx-f->page_x)*f->scale;
++ miny=(miny-f->page_y)*f->scale;maxy=(maxy-f->page_y)*f->scale;
++ if(minx<f->sx0)minx=f->sx0;if(miny<f->sy0)miny=f->sy0;
++ if(maxx>f->sx1)maxx=f->sx1;if(maxy>f->sy1)maxy=f->sy1;
++ for(int y=miny;y<maxy;++y)for(int x=minx;x<maxx;++x){
++  int units=2*f->scale;
++  int x4=f->page_x*units+x*2+1,y4=f->page_y*units+y*2+1;
++  int64_t wa=Pe2Edge(b,c,x4,y4,units),wb=Pe2Edge(c,a,x4,y4,units),wc=Pe2Edge(a,b,x4,y4,units);
++  if(wa<0 || (!wa&&!Pe2Top(b,c)) || wb<0 || (!wb&&!Pe2Top(c,a)) ||
++     wc<0 || (!wc&&!Pe2Top(a,b)))continue;
++  int64_t denom=area*units;
++  int r=(int)((wa*a.r+wb*b.r+wc*c.r)/denom);
++  int g=(int)((wa*a.g+wb*b.g+wc*c.g)/denom);
++  int blue=(int)((wa*a.b+wb*b.b+wc*c.b)/denom);
++  int d=do_dither?Pe2Dither(f->page_x+x/f->scale,f->page_y+y/f->scale):0;
++  uint16_t color=Pe2PackDither(r,g,blue,d);
++  if(Pe2Write(paint,&f->pixels[y*f->w+x],color,false))f->drawn=true;
++ }
++ return true;
++}
++/* Flat/Gouraud, untextured/raw/modulated triangles. Vertex coords
++ * remain integer PS1 positions. Coverage is evaluated at (2*lane+1)/(2*scale) native pixels,
++ * native-biased 12-bit UV gradients at each covered subpixel; never sampled from an upscaled
++ * final image. Canonical sampler MUST be read-only and alias-free for epoch.
++ * Aliasing, lines and VRAM mutations
++ * require Pe2Reject; native raster remains the sole feedback authority. */
++__attribute__((used,retain)) bool Pe2Triangle(Pe2Frame *f,Pe2Vertex a,Pe2Vertex b,Pe2Vertex c,
++ bool gouraud,bool do_dither,Pe2PolygonSample sample,void *context,Pe2Paint paint,bool unsupported){
++ if(!f || !f->active || f->failed)return false;
++ if(unsupported){Pe2Reject(f);return false;}
++ Pe2Vertex v[3]={a,b,c};
++ for(int i=0;i<3;++i)if(v[i].x < -2048 || v[i].x>2047 ||
++  v[i].y < -2048 || v[i].y>2047 || v[i].u<0 || v[i].u>255 ||
++  v[i].v<0 || v[i].v>255 || v[i].r<0 || v[i].r>255 ||
++  v[i].g<0 || v[i].g>255 || v[i].b<0 || v[i].b>255){Pe2Reject(f);return false;}
++ int64_t area=(int64_t)(b.x-a.x)*(c.y-a.y)-(int64_t)(b.y-a.y)*(c.x-a.x);
++ if(!area)return true;
++ Pe2Vertex anchor=b.x<=a.x?(c.x<=b.x?c:b):(c.x<a.x?c:a);
++ if(area<0){Pe2Vertex t=b;b=c;c=t;area=-area;}
++ /* Match native truncated gradients and leftmost-vertex half-unit bias.
++  * Quarter samples extend the native integer-position attribute plane. */
++ const int av[5]={a.r,a.g,a.b,a.u,a.v},bv[5]={b.r,b.g,b.b,b.u,b.v};
++ const int cv[5]={c.r,c.g,c.b,c.u,c.v};
++ const int origin[5]={anchor.r,anchor.g,anchor.b,anchor.u,anchor.v};
++ int64_t step_x[5],step_y[5];
++ for(int i=0;i<5;++i){
++  step_x[i]=((int64_t)(bv[i]-av[i])*(c.y-a.y)-(int64_t)(cv[i]-av[i])*(b.y-a.y))*4096/area;
++  step_y[i]=((int64_t)(cv[i]-av[i])*(b.x-a.x)-(int64_t)(bv[i]-av[i])*(c.x-a.x))*4096/area;
++ }
++ int minx=a.x<b.x?a.x:b.x;if(c.x<minx)minx=c.x;
++ int maxx=a.x>b.x?a.x:b.x;if(c.x>maxx)maxx=c.x;
++ int miny=a.y<b.y?a.y:b.y;if(c.y<miny)miny=c.y;
++ int maxy=a.y>b.y?a.y:b.y;if(c.y>maxy)maxy=c.y;
++ minx=(minx-f->page_x)*f->scale;maxx=(maxx-f->page_x)*f->scale;
++ miny=(miny-f->page_y)*f->scale;maxy=(maxy-f->page_y)*f->scale;
++ if(minx<f->sx0)minx=f->sx0;if(miny<f->sy0)miny=f->sy0;
++ if(maxx>f->sx1)maxx=f->sx1;if(maxy>f->sy1)maxy=f->sy1;
++ for(int y=miny;y<maxy;++y)for(int x=minx;x<maxx;++x){
++  int units=2*f->scale;
++  int x4=f->page_x*units+x*2+1,y4=f->page_y*units+y*2+1;
++  int64_t wa=Pe2Edge(b,c,x4,y4,units),wb=Pe2Edge(c,a,x4,y4,units),wc=Pe2Edge(a,b,x4,y4,units);
++  if(wa<0 || (!wa&&!Pe2Top(b,c)) || wb<0 || (!wb&&!Pe2Top(c,a)) ||
++     wc<0 || (!wc&&!Pe2Top(a,b)))continue;
++  int attributes[5];
++  for(int i=0;i<5;++i){
++   /* Rational sample positions preserve the native truncated 12-bit plane.
++    * Floor then 8-bit wrap equals the original power-of-two unsigned path. */
++   int64_t value=(int64_t)(origin[i]*4096+2048)*units+
++       (x4-anchor.x*units)*step_x[i]+(y4-anchor.y*units)*step_y[i];
++   attributes[i]=Pe2Attribute(value,units*4096);
++  }
++  int r=gouraud?attributes[0]:a.r,g=gouraud?attributes[1]:a.g;
++  int blue=gouraud?attributes[2]:a.b;
++  /* Phase is absolute native VRAM, never page-local or scaled output XY.
++   * Both subpixel lanes retain the containing native pixel's matrix cell. */
++  int native_x=f->page_x+x/f->scale,native_y=f->page_y+y/f->scale;
++  int d=do_dither && gouraud ? Pe2Dither(native_x,native_y) : 0;
++  uint16_t texel=Pe2PackDither(r,g,blue,d);
++  if(sample){
++   texel=sample(context,attributes[3],attributes[4],r,g,blue,native_x,native_y);
++   if(!PE2_SAMPLE_VISIBLE(texel))continue;}
++  if(Pe2Write(paint,&f->pixels[y*f->w+x],texel,sample!=NULL))f->drawn=true;
++ }
++ return true;
++}
++/* Axis-aligned native sprites have integer UV origins and unit texel steps.
++ * Quarter/three-quarter destination samples share floor(local position): no
++ * fractional source detail is supplied by this API. Horizontal grid stretching
++ * is deliberately rejected by the caller rather than inventing UV phase. */
++__attribute__((used,retain)) bool Pe2Rectangle(Pe2Frame *f,int ox,int oy,int w,int h,
++ int u,int v,uint16_t color,Pe2Sample sample,void *ctx,Pe2Paint paint,bool unsupported){
++ if(!f || !f->active || f->failed)return false;
++ if(unsupported || ox < -2048 || ox>2047 || oy < -2048 || oy>2047 ||
++    w>32767 || h>32767){Pe2Reject(f);return false;}
++ if(w<=0 || h<=0)return true;
++ int x0=(ox-f->page_x)*f->scale,y0=(oy-f->page_y)*f->scale;
++ int x1=x0+w*f->scale,y1=y0+h*f->scale;
++ if(x0<f->sx0)x0=f->sx0;if(y0<f->sy0)y0=f->sy0;
++ if(x1>f->sx1)x1=f->sx1;if(y1>f->sy1)y1=f->sy1;
++ for(int y=y0;y<y1;++y)for(int x=x0;x<x1;++x){
++  uint16_t c=color;
++  if(sample){
++   int local_x4=(f->page_x-ox)*f->scale+x;
++   int local_y4=(f->page_y-oy)*f->scale+y;
++   c=sample(ctx,(u+local_x4/f->scale)&255,(v+local_y4/f->scale)&255,
++       local_x4,local_y4,f->scale);
++   ++f->material_total;
++   if(!PE2_SAMPLE_VISIBLE(c))continue;
++  }
++  if(Pe2Write(paint,&f->pixels[y*f->w+x],c,sample!=NULL)){
++   f->drawn=true;
++   if(sample && PE2_MATERIAL_USED)++f->material_covered;
++  }
++ }
++ return true;
++}
++
++__attribute__((used,retain)) const uint16_t *Pe2Output(Pe2Frame *f,int page_x,int page_y,int w,int h){
++ if(!f || !f->active || f->failed || !f->drawn)return NULL;
++ if(w<=0 || w>320 || h<=0 || h>240){Pe2RejectReason(f,PE2_PAGE);return NULL;}
++ if(page_x!=f->page_x || page_y!=f->page_y || w*f->scale!=f->w || h*f->scale!=f->h){
++  Pe2RejectReason(f,PE2_PAGE);return NULL;}
++ return f->pixels;
++}
++#endif
+diff --git a/psyz/src/platform/cpu-widescreen.h b/psyz/src/platform/cpu-widescreen.h
+new file mode 100644
+index 0000000..755d12e
+--- /dev/null
++++ b/psyz/src/platform/cpu-widescreen.h
+@@ -0,0 +1,235 @@
++/* SPDX-License-Identifier: MIT
++ * CPU presentation-only wide drawing. Original protocol is supplied by GPU
++ * dispatch; no replacement camera, texture authority or canonical write path.
++ * Unsqueezed coordinates are algebraically equivalent to the GPU pivot:
++ * x' = x - shift (centred layers use shift=0), crop about width/2.
++ */
++#ifndef PE_CPU_WIDESCREEN_H
++#define PE_CPU_WIDESCREEN_H
++#include <SDL3/SDL_stdinc.h>
++#ifdef PE_PS5
++#define WIDE_WIDTH 432
++#define WIDE_HEIGHT 240
++#define WIDE_PIXELS ((size_t)WIDE_WIDTH*WIDE_HEIGHT*64)
++_Static_assert(WIDE_PIXELS*3<=24u*1024u*1024u,"wide RGB arena cap");
++/* Existing normal sample+RGB arenas and wide 2*sample+RGB: <80 MiB,
++ * including five 128 KiB rounding tails. SDL/atlas decoder heap is separate. */
++_Static_assert(PE2_MAX_PIXELS*5+WIDE_PIXELS*7+5*0x20000<=80u*1024u*1024u,"render arena budget");
++typedef struct {
++ PeRenderBuffer memory;
++ uint16_t *pixels;
++ int x,y,nw,nh,w,h,scale;
++ bool active,failed,drawn;
++ unsigned long long samples,extensions;
++} WidePage;
++static WidePage wide_pages[2];
++static struct {int slot,shift;bool centred,field;double qx,qy;} wide_context={-1};
++static int (*wide_extension)(unsigned,unsigned,unsigned,unsigned,unsigned,uint16_t*);
++void SoftwareRasterizer_SetExtensionSampler(int (*fn)(unsigned,unsigned,unsigned,unsigned,unsigned,uint16_t*)) {wide_extension=fn;}
++void SoftwareRasterizer_WideReject(void) {
++ for(int i=0;i<2;++i)if(wide_pages[i].active)wide_pages[i].failed=true;
++}
++void SoftwareRasterizer_WideReset(void) {
++ wide_context.slot=-1;wide_extension=NULL;
++ for(int i=0;i<2;++i){wide_pages[i].active=false;wide_pages[i].failed=true;
++  if(PeRenderRelease(&wide_pages[i].memory))memset(&wide_pages[i],0,sizeof(WidePage));}
++ (void)PeRenderRelease(&wide_rgb);
++}
++void SoftwareRasterizer_WideBegin(int slot,int x,int y,int w,int h,int scale) {
++ if(slot<0 || slot>1)return;
++ WidePage *f=&wide_pages[slot];f->active=false;f->failed=false;f->drawn=false;
++ f->samples=f->extensions=0;
++ /* Independent native display pages, never a 640x480*8 heap canvas. */
++ if(!Pe2ScaleValid(scale) || x<0 || y<0 || w<=0 || w>320 || h<=0 || h>240 ||
++    x>1024-w || y>512-h)return;
++ f->x=x;f->y=y;f->nw=w;f->nh=h;f->scale=scale;
++ f->w=WIDE_WIDTH*scale;f->h=h*scale;
++ if(!PeRenderReserve(&f->memory,WIDE_PIXELS*2))return;
++ f->pixels=f->memory.data;
++ /* Black outside native columns. Seed retained native pixels without inventing
++  * side art. All new foreground/background writes are then ordered together. */
++ int margin=(WIDE_WIDTH-w)/2;
++ for(int py=0;py<f->h;++py)for(int px=0;px<f->w;++px){
++  int nx=px/scale-margin;
++  f->pixels[(size_t)py*f->w+px]=nx>=0 && nx<w?vram[(y+py/scale)*VRAM_W+x+nx]:0;
++ }
++ f->active=true;
++}
++void SoftwareRasterizer_WideContext(int slot,int centred,int field,int shift,float qx,float qy) {
++ wide_context.slot=slot;wide_context.centred=centred!=0;wide_context.field=field!=0;
++ wide_context.shift=shift;wide_context.qx=qx;wide_context.qy=qy;
++}
++static WidePage *WideDrawPage(void) {
++ if(wide_context.slot<0 || wide_context.slot>1)return NULL;
++ WidePage *f=&wide_pages[wide_context.slot];
++ if(!grid_source || !grid_target || grid_source>4096 || grid_target>4096){f->failed=true;return NULL;}
++ if(!f->active || f->failed)return NULL;
++ /* The context is refreshed for every primitive, not inherited across layers
++  * or display pages. Offscreen texture draws have no wide destination. */
++ if(draw_area_start.y<f->y || draw_area_end.y>=f->y+f->nh ||
++    draw_area_start.x<f->x || draw_area_end.x>=f->x+f->nw)return NULL;
++ return f;
++}
++static double WideDX(void){return (wide_context.field?wide_context.qx:0)-(wide_context.centred?0:wide_context.shift);}
++static double WideDY(void){return wide_context.field?wide_context.qy:0;}
++static double WideX(WidePage *f,double x){return (x-f->x+(WIDE_WIDTH-f->nw)*0.5+WideDX())*f->scale;}
++static double WideY(WidePage *f,double y){return (y-f->y+WideDY())*f->scale;}
++static void WideClip(WidePage *f,int *x0,int *y0,int *x1,int *y1) {
++ int l=0,r=f->w;
++ if(draw_area_start.x>f->x || draw_area_end.x<f->x+f->nw-1){
++  l=(int)SDL_floor(WideX(f,draw_area_start.x));
++  r=(int)SDL_ceil(WideX(f,draw_area_end.x+1));
++ }
++ int t=(int)SDL_floor(WideY(f,draw_area_start.y));
++ int b=(int)SDL_ceil(WideY(f,draw_area_end.y+1));
++ *x0=CLAMP(*x0,CLAMP(l,0,f->w),CLAMP(r,0,f->w));
++ *x1=CLAMP(*x1,CLAMP(l,0,f->w),CLAMP(r,0,f->w));
++ *y0=CLAMP(*y0,CLAMP(t,0,f->h),CLAMP(b,0,f->h));
++ *y1=CLAMP(*y1,CLAMP(t,0,f->h),CLAMP(b,0,f->h));
++}
++static void WideClear(PS1_RECT *r,uint16_t color) {
++ for(int i=0;i<2;++i){WidePage *f=&wide_pages[i];if(!f->active || f->failed)continue;
++  int x0=CLAMP((r->x-f->x+(WIDE_WIDTH-f->nw)/2)*f->scale,0,f->w);
++  int x1=CLAMP((r->x+r->w-f->x+(WIDE_WIDTH-f->nw)/2)*f->scale,0,f->w);
++  if(r->x<=f->x && r->x+r->w>=f->x+f->nw){x0=0;x1=f->w;}
++  int y0=CLAMP((r->y-f->y)*f->scale,0,f->h),y1=CLAMP((r->y+r->h-f->y)*f->scale,0,f->h);
++  for(int y=y0;y<y1;++y)for(int x=x0;x<x1;++x){uint16_t *d=&f->pixels[(size_t)y*f->w+x];
++   if(!preserve_masked || !(*d&0x8000))*d=color;}
++ }
++}
++typedef struct {double x,y;} WidePoint;
++static double WideEdge(WidePoint a,WidePoint b,double x,double y){return (b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);}
++static bool WideTop(WidePoint a,WidePoint b){return b.y<a.y || (b.y==a.y && b.x>a.x);}
++static void WideTriangle(SwVertex a,SwVertex b,SwVertex c,bool textured,bool raw,
++ bool semi,bool gouraud,u16 tpage,u16 clut,bool centered,bool owned_line) {
++ WidePage *f=WideDrawPage();if(!f)return;
++ if((centered && !owned_line) || (textured && !Pe2TextureDisjoint(a,b,c,tpage,clut))){f->failed=true;return;}
++ /* Match the original full-screen fade/flash expansion before the pivot. */
++ if(!textured && !centered){
++  int lo=Min3(a.x,b.x,c.x),hi=Max3(a.x,b.x,c.x);
++  if(lo<=f->x && hi>=f->x+f->nw){
++   int margin=(f->nw+5)/6+abs(wide_context.shift)+(wide_context.field?3:0);
++   SwVertex *v[3]={&a,&b,&c};for(int i=0;i<3;++i){
++    if(v[i]->x==lo)v[i]->x-=margin;else if(v[i]->x==hi)v[i]->x+=margin;
++   }
++  }
++ }
++ WidePoint q[3]={{WideX(f,a.x+a.fx),WideY(f,a.y)},
++  {WideX(f,b.x+b.fx),WideY(f,b.y)},{WideX(f,c.x+c.fx),WideY(f,c.y)}};
++ double area=WideEdge(q[0],q[1],q[2].x,q[2].y);if(!area)return;
++ if(area<0){SwVertex t=b;b=c;c=t;WidePoint v=q[1];q[1]=q[2];q[2]=v;area=-area;}
++ int x0=(int)SDL_floor(SDL_min(q[0].x,SDL_min(q[1].x,q[2].x)));
++ int x1=(int)SDL_ceil(SDL_max(q[0].x,SDL_max(q[1].x,q[2].x)));
++ int y0=(int)SDL_floor(SDL_min(q[0].y,SDL_min(q[1].y,q[2].y)));
++ int y1=(int)SDL_ceil(SDL_max(q[0].y,SDL_max(q[1].y,q[2].y)));
++ WideClip(f,&x0,&y0,&x1,&y1);
++ const int av[5]={a.r,a.g,a.b,a.u,a.v},bv[5]={b.r,b.g,b.b,b.u,b.v},cv[5]={c.r,c.g,c.b,c.u,c.v};
++ SwVertex anchor=b.x<=a.x?(c.x<=b.x?c:b):(c.x<a.x?c:a);
++ const int base[5]={anchor.r,anchor.g,anchor.b,anchor.u,anchor.v};
++ /* Attribute planes are native source-grid fixed point, prior to horizontal
++  * placement. Undo the rational grid rather than using truncated native XY. */
++ double ratio=(double)grid_source/grid_target;
++ double ax=draw_offset.x+(a.x+a.fx-draw_offset.x)*ratio;
++ double bx=draw_offset.x+(b.x+b.fx-draw_offset.x)*ratio;
++ double cx=draw_offset.x+(c.x+c.fx-draw_offset.x)*ratio;
++ double anchor_x=draw_offset.x+(anchor.x+anchor.fx-draw_offset.x)*ratio;
++ double na=(bx-ax)*(c.y-a.y)-(b.y-a.y)*(cx-ax);
++ int64_t dx[5]={0},dy[5]={0};
++ if(!centered && na)for(int i=0;i<5;++i){
++  dx[i]=(int64_t)(((bv[i]-av[i])*(double)(c.y-a.y)-(cv[i]-av[i])*(double)(b.y-a.y))*4096/na);
++  dy[i]=(int64_t)(((cv[i]-av[i])*(bx-ax)-(bv[i]-av[i])*(cx-ax))*4096/na);
++ }
++ for(int y=y0;y<y1;++y)for(int x=x0;x<x1;++x){
++  double wa=WideEdge(q[1],q[2],x+0.5,y+0.5),wb=WideEdge(q[2],q[0],x+0.5,y+0.5),wc=WideEdge(q[0],q[1],x+0.5,y+0.5);
++  if(wa<0 || (!wa&&!WideTop(q[1],q[2])) || wb<0 || (!wb&&!WideTop(q[2],q[0])) || wc<0 || (!wc&&!WideTop(q[0],q[1])))continue;
++  double nx=(x+0.5)/f->scale+f->x-(WIDE_WIDTH-f->nw)*0.5-WideDX();
++  double ny=(y+0.5)/f->scale+f->y-WideDY();
++  double native_x=draw_offset.x+(nx-draw_offset.x)*ratio;
++  int attrs[5];for(int i=0;i<5;++i)attrs[i]=centered?(int)((wa*av[i]+wb*bv[i]+wc*cv[i])/area):
++   ((int64_t)SDL_floor((base[i]*4096.0+2048+(native_x-anchor_x)*dx[i]+(ny-anchor.y)*dy[i])/4096.0)&255);
++  int r=gouraud?attrs[0]:a.r,g=gouraud?attrs[1]:a.g,blue=gouraud?attrs[2]:a.b;
++  bool blend=semi;u16 color;
++  if(textured){u16 texel=SampleTexture(attrs[3],attrs[4],tpage,clut);if(!texel)continue;
++   blend=semi && (texel&0x8000);color=ShadeTexel(texel,r,g,blue,raw,(int)SDL_floor(nx),(int)SDL_floor(ny),SoftwareDither() && !raw);
++  }else{int d=SoftwareDither() && gouraud?dither[((int)SDL_floor(ny))&3][((int)SDL_floor(nx))&3]:0;
++   color=PackColor((r+d)>>3,(g+d)>>3,(blue+d)>>3,false);}
++  if(NativeDestinationWrite(&f->pixels[(size_t)y*f->w+x],color,blend,(tpage>>5)&3,set_mask_bit,preserve_masked)){f->drawn=true;++f->samples;}
++ }
++}
++static void WideSprite(const SwVertex *a,int w,int source_w,int h,int u,int v,
++ bool textured,bool raw,bool semi,u16 clut) {
++ WidePage *f=WideDrawPage();if(!f)return;
++ SwVertex end=*a;end.x+=w;end.y+=h;
++ if(pe2_sprite_mode_unsupported || (textured && !wide_extension && !Pe2TextureDisjoint(*a,end,end,cur_tpage,clut))){f->failed=true;return;}
++ if(wide_extension && (!textured || source_w!=16 || h!=16)){f->failed=true;return;}
++ double ox=WideX(f,a->x+a->fx),oy=WideY(f,a->y);
++ double dw=(double)source_w*grid_target/grid_source;
++ if(!textured && a->x<=f->x && a->x+w>=f->x+f->nw){ox=0;dw=(double)WIDE_WIDTH;}
++ if(dw<=0 || h<=0)return;
++ int x0=(int)SDL_ceil(ox-0.5),x1=(int)SDL_ceil(ox+dw*f->scale-0.5);
++ int y0=(int)SDL_ceil(oy-0.5),y1=(int)SDL_ceil(oy+h*f->scale-0.5);
++ WideClip(f,&x0,&y0,&x1,&y1);
++ for(int y=y0;y<y1;++y)for(int x=x0;x<x1;++x){
++  double tx=(x+0.5-ox)*source_w/(dw*f->scale),ty=(y+0.5-oy)/f->scale;
++  int px=(int)SDL_floor(tx),py=(int)SDL_floor(ty);if(px<0 || px>=source_w || py<0 || py>=h)continue;
++  u16 color;bool blend=semi;
++  if(textured){u16 texel;
++   if(wide_extension){unsigned lx=CLAMP((int)((tx-px)*f->scale),0,f->scale-1),ly=CLAMP((int)((ty-py)*f->scale),0,f->scale-1);
++    if(!wide_extension(px,py,lx,ly,f->scale,&texel))continue;
++    ++f->extensions;
++   }else{texel=SampleTexture(u+px,v+py,cur_tpage,clut);if(!texel)continue;
++    if(material_sample && source_w==16 && h==16 && twin_and_x==255 && twin_and_y==255 && !twin_or_x && !twin_or_y){
++     u16 samples[4];if(material_sample(px,py,texel,samples)){
++      int sx=CLAMP((int)((tx-px)*2),0,1),sy=CLAMP((int)((ty-py)*2),0,1);
++      texel=(samples[sy*2+sx]&0x7fff)|(texel&0x8000);}
++    }
++   }
++   blend=semi && (texel&0x8000);color=ShadeTexel(texel,a->r,a->g,a->b,raw,a->x+px,a->y+py,false);
++  }else color=PackColor(a->r>>3,a->g>>3,a->b>>3,false);
++  if(NativeDestinationWrite(&f->pixels[(size_t)y*f->w+x],color,blend,(cur_tpage>>5)&3,set_mask_bit,preserve_masked)){f->drawn=true;++f->samples;}
++ }
++}
++static void WideLine(SwVertex a,SwVertex b,bool semi,u16 tpage) {
++ WidePage *f=WideDrawPage();if(!f)return;
++ double ratio=(double)grid_target/grid_source;
++ /* Choose the original line's major axis before the horizontal grid. Its
++  * endpoint extension and pixel thickness then follow that same grid. */
++ double dx=SDL_fabs((b.x+b.fx)-(a.x+a.fx))/ratio;
++ int dy=abs(b.y-a.y);
++ if(dx==0 && dy==0){WideSprite(&a,1,1,1,0,0,false,false,semi,0);return;}
++ int ox,oy,ex,ey;
++ if(dx>=dy){ox=0;oy=1;ex=b.x+b.fx>=a.x+a.fx?1:-1;ey=0;}
++ else{ox=1;oy=0;ex=0;ey=b.y>=a.y?1:-1;}
++ SwVertex q0=a,q1=b,q2=b,q3=a;
++ q1.x+=ex;q1.fx+=ex*(ratio-1);q1.y+=ey;
++ q2.x+=ex+ox;q2.fx+=(ex+ox)*(ratio-1);q2.y+=ey+oy;
++ q3.x+=ox;q3.fx+=ox*(ratio-1);q3.y+=oy;
++ WideTriangle(q0,q1,q2,false,false,semi,true,tpage,0,true,true);
++ WideTriangle(q0,q2,q3,false,false,semi,true,tpage,0,true,true);
++}
++unsigned char *SoftwareRasterizer_WideOutput(int x,int y,int w,int h,int scale,int *ow,int *oh) {
++ for(int i=0;i<2;++i){WidePage *f=&wide_pages[i];
++  if(!f->active || f->failed || !f->drawn || f->x!=x || f->y!=y || f->nw!=w || f->nh!=h || f->scale!=scale)continue;
++  if(!PeRenderReserve(&wide_rgb,WIDE_PIXELS*3))return NULL;
++  unsigned char *out=wide_rgb.data;
++  for(size_t n=0;n<(size_t)f->w*f->h;++n){u16 c=f->pixels[n];
++   out[n*3]=((c&31)<<3)|((c&31)>>2);out[n*3+1]=(((c>>5)&31)<<3)|(((c>>5)&31)>>2);out[n*3+2]=(((c>>10)&31)<<3)|(((c>>10)&31)>>2);}
++  *ow=f->w;*oh=f->h;return out;
++ }
++ return NULL;
++}
++#else
++void SoftwareRasterizer_WideReject(void) {}
++void SoftwareRasterizer_WideReset(void) {}
++#define WideTriangle(...) ((void)0)
++#define WideSprite(...) ((void)0)
++#define WideLine(...) ((void)0)
++#define WideClear(...) ((void)0)
++#endif
++static bool WideOpcodeSupported(int code) {
++ switch(code&~2){case 0x20:case 0x28:case 0x24:case 0x25:case 0x2c:case 0x2d:
++ case 0x30:case 0x38:case 0x34:case 0x35:case 0x3c:case 0x3d:
++ case 0x60:case 0x68:case 0x70:case 0x78:case 0x64:case 0x65:case 0x6c:case 0x6d:
++ case 0x74:case 0x75:case 0x7c:case 0x7d:return true;default:return false;}
++}
++#endif
+diff --git a/psyz/src/platform/pe-ps5-render-buffer.h b/psyz/src/platform/pe-ps5-render-buffer.h
+new file mode 100644
+index 0000000..a22fd0c
+--- /dev/null
++++ b/psyz/src/platform/pe-ps5-render-buffer.h
+@@ -0,0 +1,39 @@
++/* SPDX-License-Identifier: MIT */
++#ifndef PE_PS5_RENDER_BUFFER_H
++#define PE_PS5_RENDER_BUFFER_H
++#include <stdint.h>
++#include <stddef.h>
++#include <stdbool.h>
++#ifdef PE_PS5
++extern int sceKernelAllocateMainDirectMemory(size_t,size_t,int,intptr_t*);
++extern int sceKernelMapDirectMemory(void**,size_t,int,int,intptr_t,size_t);
++extern int sceKernelReleaseDirectMemory(intptr_t,size_t);
++extern int sceKernelMunmap(void*,size_t);
++typedef struct {void *data;size_t bytes;intptr_t physical;bool allocated;} PeRenderBuffer;
++static void PeRenderError(const char *stage,int error,size_t bytes){
++ static unsigned reports;
++ if(reports++<16)ERRORF("PS5 geometry direct memory %s failed code=0x%x bytes=%zu",stage,(unsigned)error,bytes);
++}
++static bool PeRenderRelease(PeRenderBuffer *b){
++ if(b->data){int r=sceKernelMunmap(b->data,b->bytes);if(r){PeRenderError("unmap",r,b->bytes);return false;}b->data=NULL;}
++ if(b->allocated){int r=sceKernelReleaseDirectMemory(b->physical,b->bytes);if(r){PeRenderError("release",r,b->bytes);return false;}b->allocated=false;}
++ b->bytes=0;b->physical=0;return true;
++}
++/* Fixed bounded arenas, allocated once on first use. Never grow or replace a
++ * live mapping. A failed cleanup retains its handle for teardown retry. */
++static bool PeRenderReserve(PeRenderBuffer *b,size_t bytes){
++ const size_t align=0x20000,limit=24u*1024u*1024u;
++ if(!bytes || bytes>limit)return false;
++ if(b->data)return b->bytes>=bytes;
++ if(b->allocated)return false;
++ bytes=(bytes+align-1)&~(align-1);
++ intptr_t physical=0;
++ int r=sceKernelAllocateMainDirectMemory(bytes,align,3,&physical);
++ if(r){PeRenderError("allocate",r,bytes);return false;}
++ b->physical=physical;b->bytes=bytes;b->allocated=true;
++ void *mapped=NULL;r=sceKernelMapDirectMemory(&mapped,bytes,0x33,0,physical,align);
++ if(r || !mapped){PeRenderError("map",r?r:-1,bytes);PeRenderRelease(b);return false;}
++ b->data=mapped;INFOF("PS5 geometry direct memory ready bytes=%zu",bytes);return true;
++}
++#endif
++#endif
+diff --git a/psyz/src/platform/rasterizer.h b/psyz/src/platform/rasterizer.h
+index e8772c9..67afbcb 100644
+--- a/psyz/src/platform/rasterizer.h
++++ b/psyz/src/platform/rasterizer.h
+@@ -28,5 +28,25 @@ typedef struct {
+ extern const DrawBackend software_rasterizer;
+ void SoftwareRasterizer_Reset(void);
+ const u16* SoftwareRasterizer_GetVram(void);
++void SoftwareRasterizer_InvalidateMaterial(void);
++void SoftwareRasterizer_MaterialCoverage(unsigned long long *covered,unsigned long long *total);
++void SoftwareRasterizer_SetMaterialSampler(
++    int (*sample)(unsigned,unsigned,uint16_t,uint16_t[4]));
+ 
+ #endif
++
++void SoftwareRasterizer_Begin2x(int,int,int,int,int);
++unsigned char *SoftwareRasterizer_Alloc2x(int,int,int,int,int);
++void SoftwareRasterizer_FreeGeometry(void);
++void SoftwareRasterizer_ReleaseGeometryFrame(void *pixels);
++int SoftwareRasterizer_GeometryReason(void);
++
++void SoftwareRasterizer_Reject2x(void);
++
++/* CPU wide pages never alias canonical VRAM or the ordinary geometry epoch. */
++void SoftwareRasterizer_WideBegin(int slot,int x,int y,int w,int h,int scale);
++void SoftwareRasterizer_WideContext(int slot,int centred,int field,int shift,float qx,float qy);
++void SoftwareRasterizer_WideReset(void);
++void SoftwareRasterizer_WideReject(void);
++unsigned char *SoftwareRasterizer_WideOutput(int x,int y,int w,int h,int scale,int *ow,int *oh);
++void SoftwareRasterizer_SetExtensionSampler(int (*sample)(unsigned,unsigned,unsigned,unsigned,unsigned,uint16_t*));
+diff --git a/psyz/src/platform/sdl3_common.h b/psyz/src/platform/sdl3_common.h
+index bb163f7..f1e22fa 100644
+--- a/psyz/src/platform/sdl3_common.h
++++ b/psyz/src/platform/sdl3_common.h
+@@ -808,6 +808,10 @@ int Psyz_SetGamepadBinding_SDL3(unsigned button, int binding) {
+ static unsigned int PadRead_Gamepad(struct Gamepad* g) {
+     if (!g || !g->dev)
+         return 0;
++#ifdef PE_PS5_PLUGINS
++    extern int pe_ps5_mods_capture_pad(SDL_Gamepad *);
++    if (pe_ps5_mods_capture_pad(g->dev)) return 0;
++#endif
+     unsigned int result = 0;
+     for (unsigned i = 0; i < 16; ++i) {
+         int binding = gamepad_p1[i];
+@@ -904,10 +908,17 @@ static void BuildPadFrame(int port, PsyzControllerKind kind, char* buf) {
+         unsigned char rx = 0x80, ry = 0x80, lx = 0x80, ly = 0x80;
+         if (gamepads[port].dev) {
+             SDL_Gamepad* d = gamepads[port].dev;
++#ifdef PE_PS5_PLUGINS
++            extern int pe_ps5_mods_capture_pad(SDL_Gamepad *);
++            if (!pe_ps5_mods_capture_pad(d)) {
++#endif
+             rx = AxisToByte(SDL_GetGamepadAxis(d, SDL_GAMEPAD_AXIS_RIGHTX));
+             ry = AxisToByte(SDL_GetGamepadAxis(d, SDL_GAMEPAD_AXIS_RIGHTY));
+             lx = AxisToByte(SDL_GetGamepadAxis(d, SDL_GAMEPAD_AXIS_LEFTX));
+             ly = AxisToByte(SDL_GetGamepadAxis(d, SDL_GAMEPAD_AXIS_LEFTY));
++#ifdef PE_PS5_PLUGINS
++            }
++#endif
+         }
+         buf[4] = (char)rx;
+         buf[5] = (char)ry;
+diff --git a/psyz/src/platform/sdl3_gpu.c b/psyz/src/platform/sdl3_gpu.c
+index 0a73009..98b8d74 100644
+--- a/psyz/src/platform/sdl3_gpu.c
++++ b/psyz/src/platform/sdl3_gpu.c
+@@ -13,6 +13,9 @@
+ #include "rasterizer.h"
+ static bool headless_renderer;
+ static bool hidden_gpu_renderer;
++#ifdef PE_PS5
++static bool ps5_interactive_software;
++#endif
+ static bool UseSoftwareBackend(void);
+ #define PSYZ_SOFTWARE_ROUTING
+ #include "sdl3_draw.h"
+@@ -66,6 +69,33 @@ typedef struct {
+ 
+ static SDL_GPUDevice* device = NULL;
+ static bool swapchain_ok = false;
++/* Sticky until process restart. A failed SDL submission is consumed even when
++ * Vulkan fails before queue admission, or after admission during presentation.
++ * Never cancel/retry that pointer or destroy its dependency graph. */
++static bool gpu_failed, gpu_retirement_uncertain;
++static char gpu_first_error[512];
++static SDL_GPUCommandBuffer *quarantined_cmd;
++static SDL_GPUFence *quarantined_fence;
++int Psyz_GpuFailed(void) { return gpu_failed; }
++const char *Psyz_GpuFirstError(void) { return gpu_first_error; }
++int Psyz_GpuRetirementUncertain(void) { return gpu_retirement_uncertain; }
++
++extern void CPE_GPUTrace(const char *, long long, unsigned long long, unsigned long long) __attribute__((weak));
++#define GPU_TRACE(s,r,a,b) do { if (CPE_GPUTrace) CPE_GPUTrace(s,r,a,b); } while (0)
++static bool GpuFail(const char *stage, bool uncertain) {
++    gpu_retirement_uncertain |= uncertain;
++    if (!gpu_failed) {
++        SDL_snprintf(gpu_first_error, sizeof(gpu_first_error), "%s: %s", stage, SDL_GetError());
++        gpu_failed = true;
++        GPU_TRACE(gpu_first_error, -1, uncertain, 0);
++        ERRORF("GPU stopped; first error=%s; retirement_uncertain=%d", gpu_first_error, gpu_retirement_uncertain);
++        /* Existing SDL event loop receives an explicit terminal request; the
++         * public sticky API remains authoritative if event enqueue fails. */
++        SDL_Event event = {0}; event.type = SDL_EVENT_QUIT;
++        SDL_PushEvent(&event);
++    }
++    return false;
++}
+ static SDL_GPUTexture* vram_render = NULL;
+ static SDL_GPUTexture* rgb24_display = NULL;
+ static SDL_GPUTexture* presentation_display = NULL;
+@@ -79,6 +109,34 @@ static SDL_GPUSampler* vram_sampler = NULL;
+ static SDL_GPUTexture* scaled_vram_render = NULL;
+ /* Physical raster scale; public resolution excludes the SSAA factor. */
+ static unsigned internal_res = 1;
++/* Source-private CPU configuration: independent of GPU resolution/PGXP/HD. */
++static unsigned cpu_geometry_scale=1,cpu_geometry_effective=1;
++static uint64_t cpu_geometry_frames[9],cpu_geometry_reasons[8];
++static unsigned cpu_geometry_summaries;
++static bool CpuGeometryScaleValid(unsigned s){return s==1 || s==2 || s==4 || s==6 || s==8;}
++int Psyz_CpuGeometryAvailable(void);
++int Psyz_CpuGeometryConfigure(unsigned scale);
++unsigned Psyz_CpuGeometryRequested(void){return cpu_geometry_scale;}
++unsigned Psyz_CpuGeometryEffective(void){return cpu_geometry_effective;}
++uint64_t Psyz_CpuGeometryFrames(unsigned scale){return scale<9?cpu_geometry_frames[scale]:0;}
++uint64_t Psyz_CpuGeometryFallbacks(unsigned reason){return reason<8?cpu_geometry_reasons[reason]:0;}
++static void CpuGeometryCount(unsigned effective,unsigned reason) {
++ cpu_geometry_effective=effective;
++ if(cpu_geometry_frames[effective]!=UINT64_MAX)++cpu_geometry_frames[effective];
++ if(reason && reason<8 && cpu_geometry_reasons[reason]!=UINT64_MAX)++cpu_geometry_reasons[reason];
++ uint64_t total=0;for(unsigned i=1;i<9;++i)total+=cpu_geometry_frames[i]/600;
++ if((cpu_geometry_summaries<8 || total>=cpu_geometry_summaries-7)) {
++  ++cpu_geometry_summaries;
++  INFOF("CPU geometry requested=%u effective=%u frames native=%llu 2=%llu 4=%llu 6=%llu 8=%llu reasons unsupported=%llu bounds=%llu allocation=%llu page=%llu config=%llu rgb24=%llu empty=%llu; ordered field materials (2x samples), canonical VRAM textures",
++   cpu_geometry_scale,effective,(unsigned long long)cpu_geometry_frames[1],
++   (unsigned long long)cpu_geometry_frames[2],(unsigned long long)cpu_geometry_frames[4],
++   (unsigned long long)cpu_geometry_frames[6],(unsigned long long)cpu_geometry_frames[8],
++   (unsigned long long)cpu_geometry_reasons[1],(unsigned long long)cpu_geometry_reasons[2],
++   (unsigned long long)cpu_geometry_reasons[3],(unsigned long long)cpu_geometry_reasons[4],
++   (unsigned long long)cpu_geometry_reasons[5],(unsigned long long)cpu_geometry_reasons[6],
++   (unsigned long long)cpu_geometry_reasons[7]);
++ }
++}
+ static bool antialiasing, set_antialiasing;
+ static bool model_filtering, set_model_filtering;
+ static SDL_GPUTexture* antialias_display;
+@@ -273,21 +331,39 @@ PsyzOverlayRenderCB_SDL3GPU Psyz_OverlayRender_SDL3GPU(
+ }
+ 
+ static SDL_GPUCommandBuffer* AcquireCmd(void) {
++    if (gpu_failed || !device) return NULL;
+     if (!pending_cmd) {
+         command_descriptors = 0;
+         pending_cmd = SDL_AcquireGPUCommandBuffer(device);
+         if (!pending_cmd) {
+-            ERRORF("SDL_AcquireGPUCommandBuffer: %s", SDL_GetError());
++            GpuFail("SDL_AcquireGPUCommandBuffer", false);
+         }
+     }
+     return pending_cmd;
+ }
+ 
+-static void SubmitCmd(void) {
++static bool SubmitCmd(void) {
++    if (gpu_failed) return false;
+     if (pending_cmd) {
+-        SDL_SubmitGPUCommandBuffer(pending_cmd);
+-        pending_cmd = NULL;
++        SDL_GPUCommandBuffer *cmd = pending_cmd;
++        pending_cmd = NULL; /* consumed by SDL on both results */
++        if (!SDL_SubmitGPUCommandBuffer(cmd)) {
++            quarantined_cmd = cmd; /* evidence only; never dereference */
++            return GpuFail("SDL_SubmitGPUCommandBuffer", true);
++        }
+     }
++    return true;
++}
++static bool RetireGpu(void) {
++    if (gpu_retirement_uncertain) return false;
++    if (!SubmitCmd()) {
++        /* Acquisition failure can leave a previously recorded buffer. Do not
++         * erase or reclaim that graph on a terminal backend failure. */
++        gpu_retirement_uncertain = true;
++        return false;
++    }
++    if (!SDL_WaitForGPUIdle(device)) return GpuFail("SDL_WaitForGPUIdle", true);
++    return true;
+ }
+ 
+ int Psyz_GpuGetSpriteAtlasesEnabled(void) {return sprite_atlases_enabled;}
+@@ -299,13 +375,14 @@ void Psyz_GpuSetSpriteAtlasesEnabled(int enabled) {
+     }
+ }
+ 
++static void CpuMaterialReset(void);
+ void Psyz_GpuResetSpriteAtlases(void) {
++    if (UseSoftwareBackend()) { CpuMaterialReset(); return; }
+     if (!device || UseSoftwareBackend()) return;
+     /* A room transition may still have queued draws reading the old cells.
+      * Retire those reads before another room uploads into the same storage. */
+     Draw_FlushBuffer();
+-    SubmitCmd();
+-    SDL_WaitForGPUIdle(device);
++    if (!RetireGpu()) return; /* preserve all atlas keys/cells on uncertainty */
+     sprite_atlas_count=0;
+     sprite_atlas_cells=0;
+     sprite_atlas_bytes=0;
+@@ -331,8 +408,11 @@ static SDL_Surface *LoadHdImage(const char *filename) {
+     SDL_free(data);return surface;
+ }
+ 
++#include "cpu-material-adapter.h"
++
+ int Psyz_GpuLoadSpriteAtlas(uint64_t key, const char *filename) {
+-    if (!key || !filename || !device || UseSoftwareBackend()) return 0;
++    if (UseSoftwareBackend()) return CpuMaterialLoad(key,filename);
++    if (gpu_failed || !key || !filename || !device || UseSoftwareBackend()) return 0;
+     for (unsigned i=0;i<sprite_atlas_count;++i)
+         if (sprite_atlases[i].key==key) return 1;
+     const char *extension=SDL_strrchr(filename,'.');
+@@ -414,8 +494,9 @@ int Psyz_GpuLoadSpriteAtlas(uint64_t key, const char *filename) {
+ 
+ void Psyz_GpuSelectSpriteAtlas(uint64_t key, unsigned cell) {
+     next_sprite_atlas=NULL;
+-    next_sprite_extension=(cell&0x800000u)!=0;cell&=0x7fffffu;
+-    if (UseSoftwareBackend()) return;
++    next_sprite_extension=(cell&0x800000u)!=0;
++    if (UseSoftwareBackend()) { CpuMaterialSelect(key,cell); return; }
++    cell&=0x7fffffu;
+     for (unsigned i=0;i<sprite_atlas_count;++i) {
+         SpriteAtlas *atlas=&sprite_atlases[i];
+         if (atlas->key==key && cell<atlas->columns*atlas->rows) {
+@@ -453,6 +534,7 @@ static SDL_GPUCommandBuffer* ReserveDrawDescriptors(unsigned count) {
+ static SDL_GPUFence* frame_fences[MAX_FRAMES_IN_FLIGHT];
+ static unsigned frame_fence_idx = 0;
+ static void SubmitFrame(void) {
++    if (gpu_failed) return;
+     if (!pending_cmd) {
+         return;
+     }
+@@ -462,11 +544,15 @@ static void SubmitFrame(void) {
+     }
+     SDL_GPUFence** fence = &frame_fences[frame_fence_idx];
+     if (*fence) {
+-        SDL_WaitForGPUFences(device, true, fence, 1);
++        if (!SDL_WaitForGPUFences(device, true, fence, 1)) {
++            GpuFail("frame SDL_WaitForGPUFences", true); return;
++        }
+         SDL_ReleaseGPUFence(device, *fence);
+     }
+-    *fence = SDL_SubmitGPUCommandBufferAndAcquireFence(pending_cmd);
++    SDL_GPUCommandBuffer *cmd = pending_cmd;
+     pending_cmd = NULL;
++    *fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
++    if (!*fence) { quarantined_cmd = cmd; GpuFail("frame submit/fence", true); return; }
+     frame_fence_idx = (frame_fence_idx + 1) % MAX_FRAMES_IN_FLIGHT;
+ }
+ static void ReleaseFrameFences(void) {
+@@ -479,17 +565,20 @@ static void ReleaseFrameFences(void) {
+ }
+ 
+ static bool SubmitCmdAndWait(void) {
++    if (gpu_failed) return false;
+     if (!pending_cmd) {
+         return true;
+     }
+-    SDL_GPUFence* fence =
+-        SDL_SubmitGPUCommandBufferAndAcquireFence(pending_cmd);
++    SDL_GPUCommandBuffer *cmd = pending_cmd;
+     pending_cmd = NULL;
+-    if (!fence)
+-        return false;
+-    bool completed = SDL_WaitForGPUFences(device, true, &fence, 1);
++    SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
++    if (!fence) { quarantined_cmd = cmd; return GpuFail("submit/fence", true); }
++    if (!SDL_WaitForGPUFences(device, true, &fence, 1)) {
++        quarantined_fence = fence;
++        return GpuFail("SDL_WaitForGPUFences", true);
++    }
+     SDL_ReleaseGPUFence(device, fence);
+-    return completed;
++    return true;
+ }
+ 
+ static SDL_GPUShader* CreateShader(
+@@ -513,7 +602,9 @@ static SDL_GPUShader* CreateShader(
+         .num_uniform_buffers = num_uniform_buffers,
+     };
+     SDL_GPUShader* shader = SDL_CreateGPUShader(device, &info);
++    GPU_TRACE("psyz_shader_created", shader ? 0 : -1, code_len, stage);
+     if (!shader) {
++        GpuFail("resource initialization", false);
+         ERRORF("SDL_CreateGPUShader: %s", SDL_GetError());
+     }
+     return shader;
+@@ -790,7 +881,55 @@ static bool CreateGpuResources(void) {
+     return shaders_ok && pipe_clear;
+ }
+ 
++#ifdef PE_PS5
++/* Snapshot before later boot/audio calls can replace SDL's thread error. */
++static char ps5_platform_init_error[1024];
++int Psyz_PS5PlatformReady(void) {
++    return !gpu_failed && is_platform_init_successful &&
++#ifdef PE_PS5_GPU_NATIVE
++           device && sdl3_window && swapchain_ok && vram_render;
++ #else
++           (!ps5_interactive_software || sdl3_window != NULL);
++ #endif
++}
++const char *Psyz_PS5PlatformInitError(void) {
++    return ps5_platform_init_error[0] ? ps5_platform_init_error :
++           "platform did not complete initialization";
++}
++#endif
++
++static SDL_GPUDevice *CreatePsyzGpuDevice(void) {
++#ifdef PE_PS5
++    SDL_PropertiesID props = SDL_CreateProperties();
++    if (!props) return NULL;
++    SDL_GPUDevice *created = NULL;
++    if (SDL_SetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_SPIRV_BOOLEAN, true) &&
++        SDL_SetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_DEBUGMODE_BOOLEAN, false) &&
++        SDL_SetBooleanProperty(props, CPE_PROP_GPU_DEVICE_CREATE_PS5_RADV_NONCONFORMANT_BOOLEAN, true)) {
++        GPU_TRACE("ps5_radv_nonconformant_opt_in_requested", 0, 1, 0);
++        created = SDL_CreateGPUDeviceWithProperties(props);
++    }
++    /* Preserve the actual creation/property error across property teardown. */
++    char first[512];
++    if (!created) SDL_strlcpy(first, SDL_GetError(), sizeof(first));
++    SDL_DestroyProperties(props);
++    if (!created) SDL_SetError("%s", first);
++    return created;
++#else
++    return SDL_CreateGPUDevice(
++#if defined(_WIN32)
++        SDL_GPU_SHADERFORMAT_DXIL,
++#elif defined(__APPLE__)
++        SDL_GPU_SHADERFORMAT_MSL,
++#else
++        SDL_GPU_SHADERFORMAT_SPIRV,
++#endif
++        false, NULL);
++#endif
++}
++
+ bool InitPlatform() {
++    if (gpu_failed) return false;
+     if (is_platform_initialized) {
+         return is_platform_init_successful;
+     }
+@@ -798,10 +937,49 @@ bool InitPlatform() {
+ 
+     const char* headless = SDL_getenv("PSYZ_HEADLESS");
+     headless_renderer = headless && strcmp(headless, "1") == 0;
++#if defined(PE_PS5) && !defined(PE_PS5_GPU_NATIVE)
++    if (headless && strcmp(headless, "gpu") == 0) {
++        SDL_strlcpy(ps5_platform_init_error,
++                    "PS5 GPU headless mode is unavailable in the software build",
++                    sizeof(ps5_platform_init_error));
++        ERRORF("%s", ps5_platform_init_error);
++        return false;
++    }
++    ps5_interactive_software = !headless_renderer;
++    if (ps5_interactive_software) {
++    // PE_PS5 software presentation uses the existing CPU PS1 rasterizer.
++    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD | SDL_INIT_AUDIO)) {
++        SDL_strlcpy(ps5_platform_init_error, SDL_GetError(),
++                    sizeof(ps5_platform_init_error));
++        ERRORF("SDL_Init: %s", ps5_platform_init_error);
++        return false;
++    }
++    sdl3_window = SDL_CreateWindow(window_title, 640, 480, 0);
++    if (!sdl3_window || !SDL_GetWindowSurface(sdl3_window)) {
++        SDL_strlcpy(ps5_platform_init_error, SDL_GetError(),
++                    sizeof(ps5_platform_init_error));
++        ERRORF("PS5 software window: %s", ps5_platform_init_error);
++        return false;
++    }
++    headless_renderer = true; // routes primitives to the software rasterizer
++    hidden_gpu_renderer = false;
++    SoftwareRasterizer_Reset();
++    vsync_mode = PSYZ_VSYNC_OFF; // common timing code paces the CPU renderer
++    Sdl3Common_TimingInit();
++    is_window_visible = true;
++    is_platform_init_successful = true;
++    return true;
++    }
++#endif
+     hidden_gpu_renderer = headless && strcmp(headless, "gpu") == 0;
+     if (headless_renderer) {
+-        if (!SDL_Init(SDL_INIT_EVENTS))
++        if (!SDL_Init(SDL_INIT_EVENTS)) {
++#ifdef PE_PS5
++            SDL_strlcpy(ps5_platform_init_error, SDL_GetError(),
++                        sizeof(ps5_platform_init_error));
++#endif
+             return false;
++        }
+         SoftwareRasterizer_Reset();
+         vsync_mode = PSYZ_VSYNC_LIMITLESS;
+         Sdl3Common_TimingInit();
+@@ -814,15 +992,8 @@ bool InitPlatform() {
+         return false;
+     }
+ 
+-    device = SDL_CreateGPUDevice(
+-#if defined(_WIN32)
+-        SDL_GPU_SHADERFORMAT_DXIL,
+-#elif defined(__APPLE__)
+-        SDL_GPU_SHADERFORMAT_MSL,
+-#else
+-        SDL_GPU_SHADERFORMAT_SPIRV,
+-#endif
+-        false, NULL);
++    GPU_TRACE("requested_SDL_GPU_SPIRV", 0, internal_res, 0);
++    device = CreatePsyzGpuDevice();
+     if (!device) {
+         ERRORF("SDL_CreateGPUDevice: %s", SDL_GetError());
+         return false;
+@@ -859,6 +1030,11 @@ bool InitPlatform() {
+     swapchain_ok = !hidden_gpu_renderer &&
+                    SDL_ClaimWindowForGPUDevice(device, sdl3_window);
+     if (!swapchain_ok && !hidden_gpu_renderer) {
++ #ifdef PE_PS5_GPU_NATIVE
++        SDL_strlcpy(ps5_platform_init_error, SDL_GetError(), sizeof(ps5_platform_init_error));
++        ERRORF("Native GPU swapchain unavailable: %s", ps5_platform_init_error);
++        return false;
++ #endif
+         WARNF("no swapchain, presentation disabled: %s", SDL_GetError());
+     }
+ 
+@@ -881,9 +1057,34 @@ bool InitPlatform() {
+ static bool UseSoftwareBackend(void) {
+     if (!is_platform_initialized)
+         InitPlatform();
++#ifdef PE_PS5
++    /* CPU mode remains CPU even when initialization failed. Readiness is
++     * reported separately; never route a failed CPU boot to GPU. */
++    return ps5_interactive_software || headless_renderer;
++#else
+     return headless_renderer;
++#endif
+ }
+ 
++int Psyz_CpuGeometryAvailable(void) {
++#ifdef PE_PS5
++ return is_platform_init_successful && ps5_interactive_software && sdl3_window;
++#else
++ return 0;
++#endif
++}
++int Psyz_CpuGeometryConfigure(unsigned scale) {
++ if(!CpuGeometryScaleValid(scale))return -1;
++ /* Before initialization retain a valid request. Ready-gating is repeated by
++  * the presenter and Host_ApplyOptions after Boot_InitSystem. */
++#ifdef PE_PS5
++ if(is_platform_initialized && !Psyz_CpuGeometryAvailable() && scale!=1)return -1;
++ if(scale!=cpu_geometry_scale)SoftwareRasterizer_Reject2x();
++ cpu_geometry_scale=scale;return 0;
++#else
++ return scale==1?0:-1;
++#endif
++}
+ static bool PlatformBackend_SetDriverVsync(bool enable) {
+     if (!device || !swapchain_ok) {
+         return false;
+@@ -1084,6 +1285,17 @@ static SDL_GPUTransferBuffer *title_transfer;
+ static unsigned title_texture_width, title_texture_height;
+ static bool title_present_active;
+ 
++/* CPU title enhancement is explicitly opt-in and never grants GPU atlas support. */
++static bool Ps5CpuTitleEnabled(void) {
++#ifdef PE_PS5
++    const char *enabled=SDL_getenv("PE_PS5_HD_TITLE");
++    return ps5_interactive_software && !headless_renderer && sdl3_window &&
++           is_platform_init_successful && enabled && !strcmp(enabled,"1");
++#else
++    return false;
++#endif
++}
++
+ int Psyz_VideoSetRgb24Backdrop(const char *filename, const unsigned char *reference,
+                              int width, int height, int top, int bottom) {
+     if (filename && reference && (width<=0 || width>1024 || height<=0 || top<0 || bottom<0 ||
+@@ -1096,7 +1308,7 @@ int Psyz_VideoSetRgb24Backdrop(const char *filename, const unsigned char *refere
+     if (title_output) SDL_DestroySurface(title_output);
+     title_image=title_base=title_output=NULL;
+     free(title_reference);title_reference=NULL;title_path[0]=0;title_hash=0;
+-    if (!filename || !reference || UseSoftwareBackend()) return 0;
++    if (!filename || !reference || (UseSoftwareBackend() && !Ps5CpuTitleEnabled())) return 0;
+     if (width<=0 || width>1024 || height<=0 || top<0 || bottom<0 ||
+         height>512 || top>512-height || bottom>512-height-top || strlen(filename)>=sizeof(title_path)) return -1;
+     SDL_Surface *source=LoadHdImage(filename);
+@@ -1114,9 +1326,10 @@ int Psyz_VideoSetRgb24Backdrop(const char *filename, const unsigned char *refere
+ }
+ 
+ static SDL_Surface *BuildTitleDisplay(const u8 *rgb) {
+-    if (!sprite_atlases_enabled || !title_image || display_size.x!=title_width || display_size.y!=title_height) return NULL;
++    if ((!sprite_atlases_enabled && !Ps5CpuTitleEnabled()) || !title_image || display_size.x!=title_width || display_size.y!=title_height) return NULL;
+     unsigned n=SDL_clamp((unsigned)(title_image->h/title_height),1u,4u);
+-    unsigned h=title_height*n,w=widescreen?(h*16u+8u)/9u:title_width*n;
++    const bool title_wide=widescreen && !Ps5CpuTitleEnabled();
++    unsigned h=title_height*n,w=title_wide?(h*16u+8u)/9u:title_width*n;
+     if (!title_output || title_output->w!=(int)w || title_output->h!=(int)h) {
+         if (title_base) SDL_DestroySurface(title_base);
+         if (title_output) SDL_DestroySurface(title_output);
+@@ -1128,14 +1341,20 @@ static SDL_Surface *BuildTitleDisplay(const u8 *rgb) {
+             title_base=title_output=NULL;return NULL;
+         }
+         SDL_Rect source={0,0,title_image->w,title_image->h};
+-        if (!widescreen) {source.w=SDL_min(source.w,source.h*4/3);source.x=(title_image->w-source.w)/2;}
++        if (!title_wide) {
++            source.w=SDL_min(source.w,source.h*4/3);source.x=(title_image->w-source.w)/2;
++            if (Ps5CpuTitleEnabled()) {
++                source.h=SDL_min(source.h,source.w*3/4);
++                source.y=(title_image->h-source.h)/2;
++            }
++        }
+         if (!SDL_BlitSurfaceScaled(title_image,&source,title_base,NULL,SDL_SCALEMODE_LINEAR)) return NULL;
+         title_hash=0;
+     }
+     uint64_t hash=UINT64_C(14695981039346656037);
+     for (size_t i=0;i<(size_t)title_width*title_height*3;++i) hash=(hash^rgb[i])*UINT64_C(1099511628211);
+     if (title_hash==hash) return title_output;
+-    SDL_BlitSurface(title_base,NULL,title_output,NULL);
++    if (!SDL_BlitSurface(title_base,NULL,title_output,NULL)) return NULL;
+     int margin=((int)w-title_width*(int)n)/2;
+     for (int y=0;y<title_height;++y) for (int x=0;x<title_width;++x) {
+         size_t at=((size_t)y*title_width+x)*3;
+@@ -1367,8 +1586,151 @@ static SDL_GPUBlitRegion PrescaleWidescreen(
+             SDL_clamp((Uint32)SDL_lroundf((y1 - y0) * (float)ky), 1u, ph - py)};
+ }
+ 
++
++#ifdef PE_PS5
++/* Unsqueezed CPU equivalent of WidescreenFieldStep. Quantize at the actual
++ * destination grid; retain the fractional remainder for presentation. */
++static void CpuWideStep(int picture,int scale,float *qx,float *qy) {
++ *qx=*qy=0;if(picture<0 || !ws_picture[picture].field)return;
++ float base=(float)(ws_picture[picture].camera_x+ws_picture[picture].shift);
++ *qx=SDL_roundf((ws_picture[picture].ex-base)*scale)/scale+base;
++ *qy=SDL_roundf(ws_picture[picture].ey*scale)/scale;
++}
++static void CpuWideContext(void) {
++ int slot=WidescreenDraw()?WidescreenDrawPicture():-1;float qx=0,qy=0;
++ CpuWideStep(slot,(int)cpu_geometry_scale,&qx,&qy);
++ SoftwareRasterizer_WideContext(slot,ws_centred,ws_field,WidescreenDrawShift(),qx,qy);
++}
++static bool CpuWideRects(int scale,int sw,int sh,SDL_Surface *dst,SDL_Rect *src,SDL_Rect *target) {
++ int picture=-1;for(int i=0;i<2;++i)if(ws_picture[i].y==display_area.y)picture=i;
++ if(picture<0)return false;
++ float aspect=GetCurrentGameAspectRatio(display_size.x,display_size.y);
++ if(!(aspect>0))return false;
++ float half=WidescreenViewHalf(aspect),centre=display_size.x*0.5f;
++ float qx,qy;CpuWideStep(picture,scale,&qx,&qy);
++ float rx=ws_picture[picture].field?ws_picture[picture].ex-qx:0;
++ float ry=ws_picture[picture].field?ws_picture[picture].ey-qy:0;
++ float ends=ws_picture[picture].ends_move?ws_picture[picture].ex:0;
++ int shift=ws_picture[picture].shift;
++ float vl=centre+shift-half,vr=centre+shift+half;
++ float l=SDL_max(vl,ws_picture[picture].left+ends),r=SDL_min(vr,ws_picture[picture].right+ends);
++ if(ws_picture[picture].left>=ws_picture[picture].right || r<=l)return false;
++ WndSize win={dst->w,dst->h};*target=FitGameToWindow(16.0f/9.0f,win);
++ int dx0=target->x+(int)SDL_lroundf((l-vl)/(2*half)*target->w);
++ int dx1=target->x+(int)SDL_lroundf((r-vl)/(2*half)*target->w);
++ int margin=(432-display_size.x)/2;
++ int sx0=(int)SDL_lroundf((l-shift-rx+margin)*scale);
++ int sx1=(int)SDL_lroundf((r-shift-rx+margin)*scale);
++ // Native GPU trims one game row at each edge for fractional vertical motion.
++ int sy0=(int)SDL_lroundf((1-ry)*scale),sy1=(int)SDL_lroundf((display_size.y-1-ry)*scale);
++ sx0=SDL_clamp(sx0,0,sw);sx1=SDL_clamp(sx1,0,sw);
++ sy0=SDL_clamp(sy0,0,sh);sy1=SDL_clamp(sy1,0,sh);
++ *src=(SDL_Rect){sx0,sy0,sx1-sx0,sy1-sy0};target->x=dx0;target->w=dx1-dx0;
++ return src->w>0 && src->h>0 && target->w>0;
++}
++static void CpuWideSummary(int ready,int reason) {
++ static Uint64 last;static unsigned long long prepared,fallback;
++ if(ready)++prepared;else ++fallback;
++ Uint64 now=SDL_GetTicks();if(now-last<10000)return;last=now;
++ INFOF("CPU wide requested=%d prepared=%llu fallback=%llu last_reason=%d room_span=%d:%d/%d:%d scale_requested=%u (prepared is successful blit, limited native0.8 pack rooms; unsupported uses canonical)",
++ widescreen,prepared,fallback,reason,ws_picture[0].left,ws_picture[0].right,ws_picture[1].left,ws_picture[1].right,cpu_geometry_scale);
++}
++#endif
+ static void PlatformBackend_Present(void) {
++    if (gpu_failed) return;
+     if (UseSoftwareBackend()) {
++#ifdef PE_PS5
++        // Reuse existing 15-bit VRAM and RGB24 conversion for display.
++        if (ps5_interactive_software && sdl3_window && !present_skip) {
++            SDL_Surface *dst = SDL_GetWindowSurface(sdl3_window);
++            if (dst) {
++                SDL_FillSurfaceRect(dst, NULL, 0);
++                if (disp_on) {
++                    int w, h;
++                    unsigned char *pixels=NULL;
++                    unsigned scale=Psyz_CpuGeometryAvailable()?cpu_geometry_scale:1;
++                    int raster_enabled=scale>1 || CpuMaterialEnabled();
++                    bool wide_ready=false;
++                    unsigned effective=1,reason=0;
++                    if(widescreen && !display_rgb24) {
++                        pixels=SoftwareRasterizer_WideOutput(display_area.x,display_area.y,display_size.x,display_size.y,(int)scale,&w,&h);
++                        if(pixels){wide_ready=true;effective=scale;}else reason=1;
++                    }
++                    if(!widescreen && !display_rgb24 && raster_enabled) {
++                        pixels=SoftwareRasterizer_Alloc2x(
++                            display_area.x,display_area.y,display_size.x,display_size.y,(int)scale);
++                        if(pixels){w=display_size.x*(int)scale;h=display_size.y*(int)scale;effective=scale;}
++                        else reason=SoftwareRasterizer_GeometryReason();
++                    }
++                    if(CpuMaterialEnabled() && !display_rgb24) {
++                        unsigned long long covered=0,total=0;
++                        SoftwareRasterizer_MaterialCoverage(&covered,&total);
++                        if(pixels && covered)CmCount(&cm_present);else CmCount(&cm_fallback);
++                        CpuMaterialSummary(0);
++                    }
++                    if(raster_enabled && display_rgb24)reason=6;
++                    if(!pixels)pixels=Psyz_VideoAllocCapturedFrame(&w,&h);
++                    /* Canonical current display page seeds the NEXT epoch.
++                     * Unsupported current epochs always present canonical 1x. */
++                    SoftwareRasterizer_Begin2x(display_area.x,display_area.y,
++                        display_size.x,display_size.y,raster_enabled && !display_rgb24?(int)scale:0);
++                    if (pixels && w > 0 && h > 0) {
++                        SDL_Surface *enhanced=display_rgb24 && Ps5CpuTitleEnabled()
++                            ? BuildTitleDisplay(pixels) : NULL;
++                        SDL_Surface *src=enhanced ? enhanced :
++                            SDL_CreateSurfaceFrom(w,h,SDL_PIXELFORMAT_RGB24,pixels,w*3);
++                        /* A high-resolution SDL wrapper can fail independently
++                         * of the pixel allocation. Retry only the canonical
++                         * frame, never a smaller falsely-labelled geometry size. */
++                        if(!src && (effective>1 || wide_ready)) {
++                            wide_ready=false;
++                            SoftwareRasterizer_ReleaseGeometryFrame(pixels);pixels=Psyz_VideoAllocCapturedFrame(&w,&h);
++                            effective=1;reason=3;
++                            if(pixels && w>0 && h>0)
++                                src=SDL_CreateSurfaceFrom(w,h,SDL_PIXELFORMAT_RGB24,pixels,w*3);
++                        }
++                        if (src) {
++                            /* Display only: never modify native VRAM or captured pixels.
++                             * Classic 4:3 title fits the real surface, including letterbox. */
++                            WndSize win={dst->w,dst->h};
++                            SDL_Rect target=FitGameToWindow(GetCurrentGameAspectRatio(display_size.x,display_size.y),win);
++                            SDL_Rect wide_src={0,0,w,h};
++                            if(wide_ready && !CpuWideRects((int)scale,w,h,dst,&wide_src,&target)) {
++                                // Geometry without a valid room crop must not be called wide.
++                                wide_ready=false;effective=1;reason=4;
++                                SDL_DestroySurface(src);SoftwareRasterizer_ReleaseGeometryFrame(pixels);
++                                pixels=Psyz_VideoAllocCapturedFrame(&w,&h);
++                                src=pixels?SDL_CreateSurfaceFrom(w,h,SDL_PIXELFORMAT_RGB24,pixels,w*3):NULL;
++                                target=FitGameToWindow(GetCurrentGameAspectRatio(display_size.x,display_size.y),win);
++                            }
++                            if (enhanced) {
++                                if ((int64_t)dst->w*3 > (int64_t)dst->h*4) {
++                                    target.w=dst->h*4/3;target.x=(dst->w-target.w)/2;
++                                } else {
++                                    target.h=dst->w*3/4;target.y=(dst->h-target.h)/2;
++                                }
++                            }
++                            if(src && SDL_BlitSurfaceScaled(src,wide_ready?&wide_src:NULL,dst,&target,
++                                enhanced ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST)) {
++                                CpuGeometryCount(effective,reason);
++                                if(widescreen)CpuWideSummary(wide_ready,reason);
++                            }
++                            /* enhanced belongs to the backdrop cache, never this frame. */
++                            if (!enhanced) SDL_DestroySurface(src);
++                        }
++                    }
++                    SoftwareRasterizer_ReleaseGeometryFrame(pixels);
++                }
++#ifdef PE_PS5_PLUGINS
++                /* Presentation only: captured PS1 frames stay game-only. */
++                extern void pe_ps5_mods_present(SDL_Surface *);
++                pe_ps5_mods_present(dst);
++#endif
++                if (!SDL_UpdateWindowSurface(sdl3_window))
++                    ERRORF("PS5 present: %s", SDL_GetError());
++            }
++        }
++#endif
+         finish_time = SDL_GetPerformanceCounter();
+         return;
+     }
+@@ -1400,7 +1762,8 @@ static void PlatformBackend_Present(void) {
+             sc_h = ws_capture_height;
+         } else if (!SDL_WaitAndAcquireGPUSwapchainTexture(
+                        cmd, sdl3_window, &swapchain, &sc_w, &sc_h)) {
+-            WARNF("SDL_WaitAndAcquireGPUSwapchainTexture: %s", SDL_GetError());
++            GpuFail("SDL_WaitAndAcquireGPUSwapchainTexture", true);
++            return; /* retain the acquired graph; no silent unseen advance */
+         }
+         if (swapchain) {
+             if (!disp_on) {
+@@ -1570,19 +1933,24 @@ static void PlatformBackend_Present(void) {
+ }
+ 
+ static void QuitPlatform(void) {
++    SoftwareRasterizer_SetMaterialSampler(NULL);
++    CpuMaterialReset();
+     Sdl3Common_Shutdown();
+     if (device) {
+-        /* Retire acquired command buffers before destroying their device,
+-         * including work not submitted by a frame presentation yet. */
+-        SubmitCmdAndWait();
++        /* Retire before overlay destroy, window release, SDL_Quit or any GPU
++         * dependency destruction. Failure preserves the entire graph. */
++        if (!RetireGpu()) {
++            is_platform_init_successful = false;
++            ERRORF("GPU cleanup quarantined; first=%s; no device/window/overlay destruction", gpu_first_error);
++            return;
++        }
+         Draw_ResetBuffer();
+     }
+     if (overlay_destroy_cb) {
+         overlay_destroy_cb();
+     }
+     if (device) {
+-        SDL_WaitForGPUIdle(device);
+-        ReleaseFrameFences();
++        ReleaseFrameFences(); /* global idle already established */
+         if (sprite_atlas_texture) SDL_ReleaseGPUTexture(device,sprite_atlas_texture);
+         sprite_atlas_texture=NULL;sprite_atlas_cells=0;
+         sprite_atlas_count=0;sprite_atlas_bytes=0;next_sprite_atlas=NULL;
+@@ -1686,6 +2054,7 @@ static void QuitPlatform(void) {
+         sdl3_window = NULL;
+         is_window_visible = false;
+     }
++    SoftwareRasterizer_FreeGeometry();
+     SDL_Quit();
+     is_platform_initialized = false;
+     is_platform_init_successful = false;
+@@ -1905,7 +2274,8 @@ unsigned char* Psyz_VideoAllocRenderedFrame(int* w, int* h) {
+     SDL_EndGPUCopyPass(copy);
+     if (!SubmitCmdAndWait()) {
+         free(pixels);
+-        SDL_ReleaseGPUTransferBuffer(device, transfer);
++        /* transfer remains referenced by an uncertain submitted readback. */
++        if (!gpu_retirement_uncertain) SDL_ReleaseGPUTransferBuffer(device, transfer);
+         return NULL;
+     }
+     const u8* rgba = SDL_MapGPUTransferBuffer(device, transfer, false);
+@@ -1948,6 +2318,10 @@ unsigned Psyz_VideoGetInternalResolution(void) {
+ }
+ 
+ int Psyz_VideoSetInternalResolution(unsigned multiplier) {
++    if (gpu_failed) return -1;
++#if defined(PE_PS5) && !defined(PE_PS5_GPU_NATIVE)
++    if (multiplier != 1) return -1;
++#endif
+     if (multiplier < 1) {
+         return -1;
+     }
+@@ -1968,6 +2342,10 @@ int Psyz_VideoGetGeometryCorrection(void) {
+ }
+ 
+ int Psyz_VideoSetGeometryCorrection(int enabled) {
++    if (gpu_failed) return -1;
++#if defined(PE_PS5) && !defined(PE_PS5_GPU_NATIVE)
++    if (enabled && !Psyz_CpuGeometryAvailable()) return -1;
++#endif
+     set_geometry_correction = enabled != 0;
+     if (sdl3_window && is_platform_init_successful) {
+         ApplyPendingInternalRes();
+@@ -1979,6 +2357,10 @@ int Psyz_VideoSetGeometryCorrection(int enabled) {
+ }
+ 
+ int Psyz_VideoSetAntialiasing(int enabled) {
++    if (gpu_failed) return -1;
++#if defined(PE_PS5) && !defined(PE_PS5_GPU_NATIVE)
++    if (enabled) return -1;
++#endif
+     set_antialiasing = enabled != 0;
+     if (sdl3_window && is_platform_init_successful)
+         ApplyPendingInternalRes();
+@@ -1986,6 +2368,10 @@ int Psyz_VideoSetAntialiasing(int enabled) {
+ }
+ int Psyz_VideoGetAntialiasing(void) { return set_antialiasing; }
+ int Psyz_VideoSetModelFiltering(int enabled) {
++    if (gpu_failed) return -1;
++#if defined(PE_PS5) && !defined(PE_PS5_GPU_NATIVE)
++    if (enabled) return -1;
++#endif
+     set_model_filtering = enabled != 0;
+     if (sdl3_window && is_platform_init_successful)
+         ApplyPendingInternalRes();
+@@ -1997,9 +2383,16 @@ int Psyz_VideoSetModelFiltering(int enabled) {
+ int Psyz_VideoGetModelFiltering(void) { return set_model_filtering; }
+ 
+ int Psyz_VideoSetWidescreen(int enabled) {
++#if defined(PE_PS5) && !defined(PE_PS5_GPU_NATIVE)
++    if (enabled) return -1;
++#endif
+     if ((enabled != 0) != widescreen) {
+         Draw_FlushBuffer();
+         widescreen = enabled != 0;
++#ifdef PE_PS5
++        SoftwareRasterizer_WideReset();
++        INFOF("CPU experimental wide=%d; room-span bounded crop; native0.8 pack extends limited rooms",widescreen);
++#endif
+         ws_picture[0].y = ws_picture[1].y = -1;
+         ws_centred = false;
+     }
+@@ -2091,6 +2484,10 @@ static void SetWidescreenPicture(int buffer_y, int left, int right, bool field,
+     ws_picture[slot].ex = field ? dx - (exact_shift - shift) : 0.0f;
+     ws_picture[slot].ey = field ? dy : 0.0f;
+     ws_picture[slot].camera_x = camera_x;
++#ifdef PE_PS5
++    if(widescreen && !display_rgb24)SoftwareRasterizer_WideBegin(slot,display_area.x,buffer_y,
++        display_size.x,display_size.y,(int)cpu_geometry_scale);
++#endif
+ }
+ 
+ static void ApplyDisplayPendingChanges() {
+@@ -2135,8 +2532,14 @@ void Draw_Reset() {
+ }
+ 
+ void Draw_DisplayEnable(unsigned int on) {
+-    if (UseSoftwareBackend())
++    if (UseSoftwareBackend()) {
++#ifdef PE_PS5
++        /* Interactive software presentation still obeys the PS1 display mask. */
++        if (ps5_interactive_software)
++            disp_on = on;
++#endif
+         return;
++    }
+     disp_on = on;
+     if (on) {
+         ApplyDisplayPendingChanges();
+@@ -2144,6 +2547,8 @@ void Draw_DisplayEnable(unsigned int on) {
+ }
+ 
+ void Draw_DisplayArea(unsigned int x, unsigned int y) {
++    if (UseSoftwareBackend() && (x!=(unsigned)display_area.x || y!=(unsigned)display_area.y))
++        SoftwareRasterizer_Reject2x();
+     /* A buffer's picture span lasts until the display leaves it: the next
+      * frame drawn there sets a new one, or draws without one (all shown). */
+     if ((int)y != display_area.y) {
+@@ -2169,6 +2574,8 @@ void Draw_DisplayHorizontalRange(unsigned int start, unsigned int end) {
+ }
+ 
+ void Draw_DisplayVerticalRange(unsigned int start, int unsigned end) {
++    if (UseSoftwareBackend() && (int)(end-start)!=set_disp_vert)
++        SoftwareRasterizer_Reject2x();
+     set_disp_vert = (int)(end - start);
+     display_size.y = set_disp_vert * (display_double_height ? 2 : 1);
+     if (UseSoftwareBackend())
+@@ -2177,6 +2584,7 @@ void Draw_DisplayVerticalRange(unsigned int start, int unsigned end) {
+ }
+ 
+ void Draw_SetDisplayMode(DisplayMode* mode) {
++    if (UseSoftwareBackend()) SoftwareRasterizer_Reject2x();
+     display_rgb24 = mode->rgb24;
+     // TODO the interlace flag is ignored
+     if (mode->reversed) {
+@@ -2264,9 +2672,29 @@ static void SetPolygonAttributes(Vertex* vertices) {
+         }
+     }
+ }
++/* A future ownership-aware software consumer calls Take exactly once before
++ * dispatch; these wrappers expose real data without enabling presentation. */
++int Psyz_CpuMaterialSample2x(unsigned px,unsigned py,uint16_t native,uint16_t out[4]) {
++    return CpuMaterialSample2x(cpu_material_next,px,py,native,out);
++}
++void Psyz_CpuMaterialEndPrimitive(void) { (void)CpuMaterialTake(); }
++
+ int Draw_PushPrim(u_long* packets, int max_len) {
+-    if (UseSoftwareBackend())
+-        return software_rasterizer.push_prim(packets, max_len);
++    if (UseSoftwareBackend()) {
++        #ifdef PE_PS5
++        CpuWideContext();
++        if(next_sprite_extension && (max_len<3 || (((unsigned)packets[0]>>24)&~3u)!=0x7cu))SoftwareRasterizer_WideReject();
++        SoftwareRasterizer_SetExtensionSampler(next_sprite_extension && max_len>=3 && (((unsigned)packets[0]>>24)&~3u)==0x7cu?CpuExtensionSample:NULL);
++#endif
++        SoftwareRasterizer_SetMaterialSampler(CpuMaterialEnabled() && !next_sprite_extension?Psyz_CpuMaterialSample2x:NULL);
++        int consumed=software_rasterizer.push_prim(packets,max_len);
++        Psyz_CpuMaterialEndPrimitive();
++        next_sprite_extension=false;
++#ifdef PE_PS5
++        SoftwareRasterizer_SetExtensionSampler(NULL);
++#endif
++        return consumed;
++    }
+     int len = max_len;
+     int code = (int)(*packets >> 24) & 0xFF;
+     bool isPoly = !(code & 0x40);
+@@ -2613,6 +3041,7 @@ int Draw_PushPrim(u_long* packets, int max_len) {
+ void Draw_SetAreaStart(int x, int y) {
+     if (UseSoftwareBackend()) {
+         software_rasterizer.area_start(x, y);
++        draw_area_start.x=x;draw_area_start.y=y;
+         return;
+     }
+     draw_area_start.x = x;
+@@ -2621,6 +3050,7 @@ void Draw_SetAreaStart(int x, int y) {
+ void Draw_SetAreaEnd(int x, int y) {
+     if (UseSoftwareBackend()) {
+         software_rasterizer.area_end(x, y);
++        draw_area_end.x=x;draw_area_end.y=y;
+         return;
+     }
+     draw_area_end.x = x;
+diff --git a/psyz/src/platform/sdl3_software.c b/psyz/src/platform/sdl3_software.c
+index e0527f5..b1d304e 100644
+--- a/psyz/src/platform/sdl3_software.c
++++ b/psyz/src/platform/sdl3_software.c
+@@ -4,6 +4,10 @@
+ #include <string.h>
+ #include "../internal.h"
+ #include "rasterizer.h"
++static bool pe2_sample_visible,pe2_material_used;
++#define PE2_MATERIAL_USED pe2_material_used
++#define PE2_SAMPLE_VISIBLE(value) (pe2_sample_visible)
++#include "cpu-raster2x.h"
+ 
+ typedef struct {
+     int x, y;
+@@ -13,6 +17,7 @@ typedef struct {
+     int x, y;
+     int u, v;
+     int r, g, b;
++    double fx; /* exact horizontal-grid fraction, presentation only */
+ } SwVertex;
+ 
+ #define SEMITRANSP 0x02
+@@ -22,6 +27,72 @@ typedef struct {
+ #define TRIANGLE 0x20
+ 
+ static u16 vram[VRAM_W * VRAM_H];
++static Pe2Frame raster2x;
++#ifdef PE_PS5
++static PeRenderBuffer geometry_rgb;
++static PeRenderBuffer wide_rgb;
++#endif
++void SoftwareRasterizer_ReleaseGeometryFrame(void *pixels){
++#ifdef PE_PS5
++ if(pixels && (pixels==geometry_rgb.data || pixels==wide_rgb.data))return;
++#endif
++ free(pixels);
++}
++void SoftwareRasterizer_Reject2x(void) { Pe2Reject(&raster2x); SoftwareRasterizer_WideReject(); }
++void SoftwareRasterizer_Begin2x(int x,int y,int w,int h,int scale) {
++    (void)Pe2Begin(&raster2x,scale,vram,VRAM_W,x,y,w,h);
++}
++void SoftwareRasterizer_FreeGeometry(void) {
++    SoftwareRasterizer_WideReset();
++#ifdef PE_PS5
++    raster2x.active=false;raster2x.failed=true;
++    bool rgb_ok=PeRenderRelease(&geometry_rgb),native_ok=PeRenderRelease(&raster2x.direct);
++    /* Drop the alias immediately after successful unmap, even when physical
++     * release or the independent RGB arena needs a later teardown retry. */
++    raster2x.pixels=raster2x.direct.data;
++    if(!raster2x.pixels)raster2x.capacity=0;
++    if(rgb_ok && native_ok)memset(&raster2x,0,sizeof(raster2x));
++#else
++    free(raster2x.pixels);memset(&raster2x,0,sizeof(raster2x));
++#endif
++}
++int SoftwareRasterizer_GeometryReason(void) {
++    return raster2x.reason ? raster2x.reason : PE2_EMPTY;
++}
++unsigned char *SoftwareRasterizer_Alloc2x(int x,int y,int w,int h,int scale) {
++    if(raster2x.scale!=scale){Pe2RejectReason(&raster2x,PE2_CONFIG);return NULL;}
++    const u16 *src=Pe2Output(&raster2x,x,y,w,h);
++    if(!src)return NULL;
++    size_t count=(size_t)raster2x.w*raster2x.h;
++    if(count>PE2_MAX_PIXELS){Pe2RejectReason(&raster2x,PE2_BOUNDS);return NULL;}
++#ifdef PE_PS5
++    unsigned char *out=PeRenderReserve(&geometry_rgb,PE2_MAX_PIXELS*3)?geometry_rgb.data:NULL;
++#else
++    unsigned char *out=malloc(count*3);
++#endif
++    if(!out){Pe2RejectReason(&raster2x,PE2_ALLOC);return NULL;}
++    for(size_t i=0;i<count;++i) {
++        u16 c=src[i];
++        out[i*3]=(unsigned char)(((c&31)<<3)|((c&31)>>2));
++        out[i*3+1]=(unsigned char)((((c>>5)&31)<<3)|(((c>>5)&31)>>2));
++        out[i*3+2]=(unsigned char)((((c>>10)&31)<<3)|(((c>>10)&31)>>2));
++    }
++    return out;
++}
++
++/* Ordered materials borrow the immediately following primitive selection.
++ * No independent shadow, heap frame, texture authority or final overpaint. */
++static int (*material_sample)(unsigned,unsigned,uint16_t,uint16_t[4]);
++void SoftwareRasterizer_InvalidateMaterial(void) {
++    /* No detached detail exists. Direct writes already synchronize geometry;
++     * atlas reset separately rejects the in-flight epoch before freeing art. */
++}
++void SoftwareRasterizer_SetMaterialSampler(
++    int (*sample)(unsigned,unsigned,uint16_t,uint16_t[4])) {material_sample=sample;}
++void SoftwareRasterizer_MaterialCoverage(unsigned long long *covered,unsigned long long *total) {
++    *covered=raster2x.material_covered;*total=raster2x.material_total;
++}
++
+ static bool dither_enabled;
+ 
+ static int SoftwareDither(void) {
+@@ -31,6 +102,7 @@ static Point draw_offset;
+ static Point draw_area_start;
+ static Point draw_area_end = {VRAM_W - 1, VRAM_H - 1};
+ static u16 cur_tpage;
++static bool pe2_sprite_mode_unsupported;
+ static u8 twin_and_x = 0xff;
+ static u8 twin_and_y = 0xff;
+ static u8 twin_or_x;
+@@ -62,14 +134,11 @@ static u16 PackColor(int r, int g, int b, bool mask) {
+                  (mask ? 0x8000 : 0));
+ }
+ 
+-static void WritePixel(int x, int y, u16 src, bool semi, int abr) {
+-    if (x < draw_area_start.x || x > draw_area_end.x || y < draw_area_start.y ||
+-        y > draw_area_end.y || x < 0 || x >= VRAM_W || y < 0 || y >= VRAM_H) {
+-        return;
+-    }
+-    u16* out = &vram[y * VRAM_W + x];
++/* Shared native RGB555 destination semantics; caller owns addressing. */
++static bool NativeDestinationWrite(u16 *out,u16 src,bool semi,int abr,
++    bool set_mask_bit,bool preserve_masked) {
+     if (preserve_masked && (*out & 0x8000)) {
+-        return;
++        return false;
+     }
+     if (semi) {
+         u16 dst = *out;
+@@ -105,6 +174,30 @@ static void WritePixel(int x, int y, u16 src, bool semi, int abr) {
+     }
+     *out =
+         (u16)((src & 0x7fff) | ((src | (set_mask_bit ? 0x8000 : 0)) & 0x8000));
++    return true;
++}
++
++static bool WritePixelSource(int x,int y,u16 src,bool semi,int abr,const u16 *material) {
++    if (x < draw_area_start.x || x > draw_area_end.x || y < draw_area_start.y ||
++        y > draw_area_end.y || x < 0 || x >= VRAM_W || y < 0 || y >= VRAM_H) {
++        return false;
++    }
++    u16* out = &vram[y * VRAM_W + x];
++    if (!NativeDestinationWrite(out,src,semi,abr,set_mask_bit,preserve_masked)) return false;
++    if(raster2x.active && !raster2x.failed && raster2x.scale==1 &&
++       x>=raster2x.page_x && x<raster2x.page_x+raster2x.w &&
++       y>=raster2x.page_y && y<raster2x.page_y+raster2x.h) {
++        u16 *destination=&raster2x.pixels[(y-raster2x.page_y)*raster2x.w+x-raster2x.page_x];
++        if(NativeDestinationWrite(destination,material?*material:src,semi,abr,set_mask_bit,preserve_masked)) {
++            raster2x.drawn=true;
++            if(material)++raster2x.material_covered;
++        }
++    }
++    return true;
++}
++
++static bool WritePixel(int x,int y,u16 src,bool semi,int abr) {
++    return WritePixelSource(x,y,src,semi,abr,NULL);
+ }
+ 
+ static u16 SampleTexture(int u, int v, u16 tpage, u16 clut) {
+@@ -165,9 +258,87 @@ static bool IsTopLeft(const SwVertex* a, const SwVertex* b) {
+     return dy < 0 || (dy == 0 && dx > 0);
+ }
+ 
++static int Pe2Dither(int x,int y) {return dither[y&3][x&3];}
++static u16 Pe2PackDither(int r,int g,int b,int d) {
++    return PackColor((r+d)>>3,(g+d)>>3,(b+d)>>3,false);
++}
++typedef struct {u16 tpage,clut;int r,g,b;bool raw;bool do_dither;bool material;} Pe2Texture;
++static u16 Pe2NativeSample(void *ctx,int u,int v,int local_x,int local_y,int scale) {
++    Pe2Texture *t=ctx;u16 texel=SampleTexture(u,v,t->tpage,t->clut);
++    bool visible=texel!=0;
++    pe2_material_used=false;
++    /* Native zero/STP and reference equality precede any art substitution.
++     * The atlas producer uses cell i per 16x16 sprite; px/py are sprite-local,
++     * not texture-page UV. API supplies four samples at atlas offsets 1 and 3
++     * inside each 4x4 source texel. Higher scales reuse those exact samples. */
++    if(texel && t->material && material_sample && scale>0) {
++        unsigned px=(unsigned)(local_x/scale),py=(unsigned)(local_y/scale);
++        u16 samples[4];
++        if(material_sample(px,py,texel,samples)) {
++            unsigned sx=(unsigned)(((local_x%scale)*2+1)/scale);
++            unsigned sy=(unsigned)(((local_y%scale)*2+1)/scale);
++            texel=(u16)((samples[sy*2+sx]&0x7fff)|(texel&0x8000));
++            pe2_material_used=true;
++        }
++    }
++    /* Test source zero before modulation: nonzero texels tinted black still write. */
++    pe2_sample_visible=visible;
++    if(!visible)return 0;
++    return ShadeTexel(texel,t->r,t->g,t->b,t->raw,0,0,false);
++}
++static u16 Pe2NativePolygonSample(void *ctx,int u,int v,int r,int g,int b,int x,int y) {
++    Pe2Texture *t=ctx;u16 texel=SampleTexture(u,v,t->tpage,t->clut);
++    /* Transparency precedes shading; a nonzero texel modulated to black writes.
++     * Raw texture bypasses all vertex RGB through the native shader. */
++    pe2_sample_visible=texel!=0;
++    if(!texel)return 0;
++    return ShadeTexel(texel,r,g,b,t->raw,x,y,t->do_dither && !t->raw);
++}
++/* Full possible 256x256 direct texture footprint, including X wrap.
++ * Compare against every potential canonical destination, not display alone.
++ * Windowing can only reduce this footprint. No snapshots or feedback from 2x. */
++static bool Pe2TextureDisjoint(SwVertex a,SwVertex b,SwVertex c,u16 tpage,u16 clut) {
++    int x0=CLAMP(Min3(a.x,b.x,c.x),0,1023);
++    int x1=CLAMP(Max3(a.x,b.x,c.x),0,1023);
++    int y0=CLAMP(Min3(a.y,b.y,c.y),0,511);
++    int y1=CLAMP(Max3(a.y,b.y,c.y),0,511);
++    int ty=((tpage>>4)&1)*256,tx=(tpage&15)*64;
++    int depth=(tpage>>7)&3;
++    if(depth==3)return false;
++    /* Include all possible packed words, then the entire wrapped CLUT. */
++    if(!(y1<ty || y0>ty+255)) {
++        int words=256>>(2-depth);
++        for(int u=0;u<words;++u){int x=(tx+u)&1023;if(x>=x0 && x<=x1)return false;}
++    }
++    if(depth<2) {
++        int cy=(clut>>6)&511,cx=(clut&63)*16;
++        if(cy>=y0 && cy<=y1)for(int i=0;i<(depth?256:16);++i) {
++            int x=(cx+i)&1023;if(x>=x0 && x<=x1)return false;
++        }
++    }
++    return true;
++}
++#include "cpu-widescreen.h"
++
+ static void RasterTriangle(
+     SwVertex a, SwVertex b, SwVertex c, bool textured, bool raw_texture,
+-    bool semi, bool gouraud, u16 tpage, u16 clut, bool centered) {
++    bool semi, bool gouraud, u16 tpage, u16 clut, bool centered, bool owned_line) {
++    if(!owned_line)WideTriangle(a,b,c,textured,raw_texture,semi,gouraud,tpage,clut,centered,owned_line);
++    if(raster2x.active && !raster2x.failed && raster2x.scale>1) {
++        Pe2Scissor(&raster2x,draw_area_start.x,draw_area_start.y,
++                   draw_area_end.x,draw_area_end.y);
++        Pe2Vertex pa={a.x,a.y,a.u,a.v,a.r,a.g,a.b};
++        Pe2Vertex pb={b.x,b.y,b.u,b.v,b.r,b.g,b.b};
++        Pe2Vertex pc={c.x,c.y,c.u,c.v,c.r,c.g,c.b};
++        Pe2Texture source={tpage,clut,a.r,a.g,a.b,raw_texture,SoftwareDither()!=0};
++        if(centered && owned_line && !textured && gouraud) {
++            (void)Pe2CenteredLineTriangle(&raster2x,pa,pb,pc,SoftwareDither()!=0,
++                (Pe2Paint){semi,set_mask_bit,preserve_masked,(tpage>>5)&3,NativeDestinationWrite});
++        } else (void)Pe2Triangle(&raster2x,pa,pb,pc,
++            gouraud,SoftwareDither()!=0,textured?Pe2NativePolygonSample:NULL,&source,
++            (Pe2Paint){semi,set_mask_bit,preserve_masked,(tpage>>5)&3,NativeDestinationWrite},
++            (textured && (((tpage>>7)&3)==3 || !Pe2TextureDisjoint(a,b,c,tpage,clut))) || centered);
++    }
+     SwVertex anchor = b.x <= a.x ? (c.x <= b.x ? c : b) : (c.x < a.x ? c : a);
+     int64_t area =
+         (int64_t)(b.x - a.x) * (c.y - a.y) - (int64_t)(b.y - a.y) * (c.x - a.x);
+@@ -281,6 +452,7 @@ static SwVertex VertexXY(u32 word, u32 color) {
+         v.x = draw_offset.x +
+               (v.x - draw_offset.x) * (int)grid_target / (int)grid_source;
+     }
++    v.fx = (double)Sign11(word)*(double)grid_target/(double)grid_source + draw_offset.x-v.x;
+     v.r = color & 0xff;
+     v.g = (color >> 8) & 0xff;
+     v.b = (color >> 16) & 0xff;
+@@ -288,9 +460,19 @@ static SwVertex VertexXY(u32 word, u32 color) {
+ }
+ 
+ static void DrawLine(SwVertex a, SwVertex b, bool semi, u16 tpage) {
++    WideLine(a,b,semi,tpage);
+     int dx = abs(b.x - a.x);
+     int dy = abs(b.y - a.y);
+     if (!dx && !dy) {
++        if(raster2x.active && !raster2x.failed && raster2x.scale>1) {
++            Pe2Scissor(&raster2x,draw_area_start.x,draw_area_start.y,
++                       draw_area_end.x,draw_area_end.y);
++            /* Native single point: first endpoint RGB, no dither, each owned
++             * destination lane independently observes ABR and mask policy. */
++            (void)Pe2Rectangle(&raster2x,a.x,a.y,1,1,0,0,
++                PackColor(a.r>>3,a.g>>3,a.b>>3,false),NULL,NULL,
++                (Pe2Paint){semi,set_mask_bit,preserve_masked,(tpage>>5)&3,NativeDestinationWrite},false);
++        }
+         WritePixel(a.x, a.y, PackColor(a.r >> 3, a.g >> 3, a.b >> 3, false),
+                    semi, (tpage >> 5) & 3);
+         return;
+@@ -317,13 +499,31 @@ static void DrawLine(SwVertex a, SwVertex b, bool semi, u16 tpage) {
+     q2.y += ey + oy;
+     q3.x += ox;
+     q3.y += oy;
+-    RasterTriangle(q0, q1, q2, false, false, semi, true, tpage, 0, true);
+-    RasterTriangle(q0, q2, q3, false, false, semi, true, tpage, 0, true);
++    RasterTriangle(q0, q1, q2, false, false, semi, true, tpage, 0, true, true);
++    RasterTriangle(q0, q2, q3, false, false, semi, true, tpage, 0, true, true);
+ }
+ 
+ static void RasterSprite(
+     const SwVertex* origin, int w, int source_w, int h, int u, int v,
+     bool textured, bool raw_texture, bool semi, u16 clut) {
++    WideSprite(origin,w,source_w,h,u,v,textured,raw_texture,semi,clut);
++#ifdef PE_PS5
++    if(wide_extension)return; /* extension has no canonical primitive */
++#endif
++    if(raster2x.active && !raster2x.failed && raster2x.scale>1) {
++        Pe2Scissor(&raster2x,draw_area_start.x,draw_area_start.y,
++                   draw_area_end.x,draw_area_end.y);
++        SwVertex end=*origin;end.x+=w>0?w-1:0;end.y+=h>0?h-1:0;
++        Pe2Texture source={cur_tpage,clut,origin->r,origin->g,origin->b,raw_texture,false,
++            textured && w==16 && source_w==16 && h==16 &&
++            twin_and_x==255 && twin_and_y==255 && !twin_or_x && !twin_or_y};
++        bool unsupported=pe2_sprite_mode_unsupported || w!=source_w ||
++            (textured && !Pe2TextureDisjoint(*origin,end,end,cur_tpage,clut));
++        (void)Pe2Rectangle(&raster2x,origin->x,origin->y,w,h,u,v,
++            PackColor(origin->r>>3,origin->g>>3,origin->b>>3,false),
++            textured?Pe2NativeSample:NULL,&source,
++            (Pe2Paint){semi,set_mask_bit,preserve_masked,(cur_tpage>>5)&3,NativeDestinationWrite},unsupported);
++    }
+     int abr = (cur_tpage >> 5) & 3;
+     for (int py = 0; py < h; py++) {
+         int y = origin->y + py;
+@@ -353,13 +553,34 @@ static void RasterSprite(
+                 color = PackColor(
+                     origin->r >> 3, origin->g >> 3, origin->b >> 3, false);
+             }
+-            WritePixel(x, y, color, blend, abr);
++
++            u16 material_color=0;const u16 *replacement=NULL;
++            if(raster2x.active && !raster2x.failed && raster2x.scale==1 && textured) {
++                ++raster2x.material_total;
++                if(material_sample && w==16 && source_w==16 && h==16 &&
++                   !pe2_sprite_mode_unsupported && twin_and_x==255 && twin_and_y==255 &&
++                   !twin_or_x && !twin_or_y) {
++                    u16 samples[4];
++                    u16 basis=SampleTexture(u+px,v+py,cur_tpage,clut);
++                    if(material_sample((unsigned)px,(unsigned)py,basis,samples)) {
++                        /* Native pixel center selects the lower/right 2x lane. */
++                        material_color=ShadeTexel((samples[3]&0x7fff)|(basis&0x8000),
++                            origin->r,origin->g,origin->b,raw_texture,x,y,false);
++                        replacement=&material_color;
++                    }
++                }
++            }
++            WritePixelSource(x,y,color,blend,abr,replacement);
+         }
+     }
+ }
+ 
+ static void Software_Reset(void) {
++    SoftwareRasterizer_WideReject();
++    Pe2Reject(&raster2x); SoftwareRasterizer_WideReject();
++    SoftwareRasterizer_InvalidateMaterial();
+     cur_tpage = 0;
++    pe2_sprite_mode_unsupported=false;
+     draw_offset = (Point){0, 0};
+     draw_area_start = (Point){0, 0};
+     draw_area_end = (Point){VRAM_W - 1, VRAM_H - 1};
+@@ -369,6 +590,7 @@ static void Software_Reset(void) {
+ static void Software_SetTexpageMode(ParamDrawTexpageMode* p) {
+     u16 mode = *(u16*)p;
+     cur_tpage = mode & 0x1ff;
++    pe2_sprite_mode_unsupported=p->tex_flip_x || p->tex_flip_y || p->tex_y_extra_vram;
+     dither_enabled = (mode & 0x200) != 0;
+ }
+ 
+@@ -408,12 +630,15 @@ static void Software_SetMask(int bit0, int bit1) {
+ }
+ 
+ static void Software_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
++    SoftwareRasterizer_InvalidateMaterial();
+     u16 color = PackColor(r >> 3, g >> 3, b >> 3, set_mask_bit);
++    WideClear(rect,color);
+     int x0 = CLAMP(rect->x, 0, VRAM_W);
+     int y0 = CLAMP(rect->y, 0, VRAM_H);
+     int x1 = CLAMP(rect->x + rect->w, 0, VRAM_W);
+     int y1 = CLAMP(rect->y + rect->h, 0, VRAM_H);
+     for (int y = y0; y < y1; y++) {
++        Pe2ClearSpan(&raster2x,x0,y,x1-x0,color,preserve_masked);
+         for (int x = x0; x < x1; x++) {
+             u16* p = &vram[y * VRAM_W + x];
+             if (!preserve_masked || !(*p & 0x8000)) {
+@@ -424,6 +649,8 @@ static void Software_ClearImage(PS1_RECT* rect, u_char r, u_char g, u_char b) {
+ }
+ 
+ static void Software_LoadImage(PS1_RECT* rect, u_long* data) {
++    SoftwareRasterizer_WideReject();
++    SoftwareRasterizer_InvalidateMaterial();
+     if (rect->w <= 0 || rect->h <= 0) {
+         return;
+     }
+@@ -433,6 +660,8 @@ static void Software_LoadImage(PS1_RECT* rect, u_long* data) {
+         for (int y = 0; y < rect->h; y++) {
+             memcpy(&vram[(rect->y + y) * VRAM_W + rect->x], &src[y * rect->w],
+                    (size_t)rect->w * sizeof(u16));
++            Pe2CanonicalSpan(&raster2x,rect->x,rect->y+y,rect->w,
++                &vram[(rect->y+y)*VRAM_W+rect->x]);
+         }
+         return;
+     }
+@@ -442,6 +671,7 @@ static void Software_LoadImage(PS1_RECT* rect, u_long* data) {
+             int vy = rect->y + y;
+             if ((unsigned)vx < VRAM_W && (unsigned)vy < VRAM_H) {
+                 vram[vy * VRAM_W + vx] = src[y * rect->w + x];
++                Pe2CanonicalSpan(&raster2x,vx,vy,1,&vram[vy*VRAM_W+vx]);
+             }
+         }
+     }
+@@ -473,6 +703,8 @@ static void Software_StoreImage(PS1_RECT* rect, u_long* data) {
+ }
+ 
+ static void Software_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
++    SoftwareRasterizer_WideReject();
++    SoftwareRasterizer_InvalidateMaterial();
+     int src_x = CLAMP(rect->x, 0, VRAM_W - 1);
+     int src_y = CLAMP(rect->y, 0, VRAM_H - 1);
+     int dst_x = CLAMP((int)x, 0, VRAM_W - 1);
+@@ -489,14 +721,40 @@ static void Software_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
+     for (int row = 0; row < h; row++) {
+         memmove(&vram[(dst_y + row) * VRAM_W + dst_x],
+                 &vram[(src_y + row) * VRAM_W + src_x], (size_t)w * sizeof(u16));
++        Pe2CanonicalSpan(&raster2x,dst_x,dst_y+row,w,
++            &vram[(dst_y+row)*VRAM_W+dst_x]);
+     }
+ }
+ 
+ static int Software_PushPrim(u_long* words, int max_len) {
+     if (max_len <= 0) {
++        Pe2Reject(&raster2x); SoftwareRasterizer_WideReject();
+         return 0;
+     }
+     int code = (int)(words[0] >> 24);
++    /* Only native F2/F3/F4/G2/G3/G4 opcodes, plus their semi variants.
++     * Validate the complete packet before any shadow or canonical line write.
++     * 0x44/0x54 and raw/reserved variants remain unsupported. */
++    bool supported_line=code==0x40 || code==0x42 || code==0x48 || code==0x4a ||
++        code==0x4c || code==0x4e || code==0x50 || code==0x52 ||
++        code==0x58 || code==0x5a || code==0x5c || code==0x5e;
++    if(supported_line) {
++        int points=((code>>2)&3)+1;if(points==1)points=2;
++        bool padding=(code&0x0c)!=0;
++        int required=1+points+(points-1)*((code&0x10)!=0)+padding;
++        if(max_len<required || (padding && words[required-1]!=0x55555555u)) {
++            Pe2Reject(&raster2x); SoftwareRasterizer_WideReject();return max_len<required?max_len:required;
++        }
++        if(grid_source!=grid_target)Pe2Reject(&raster2x);
++    }
++    /* Flat/Gouraud triangle/quad, supported lines and existing sprite packets only.
++     * All unsupported commands poison the entire epoch, never a partial mix. */
++    if(!supported_line && code!=0x20 && code!=0x28 && code!=0x24 && code!=0x25 && code!=0x2c && code!=0x2d &&
++       code!=0x30 && code!=0x38 && code!=0x34 && code!=0x35 && code!=0x3c && code!=0x3d &&
++       code!=0x60 && code!=0x68 && code!=0x70 && code!=0x78 &&
++       code!=0x64 && code!=0x65 && code!=0x6c && code!=0x6d &&
++       code!=0x74 && code!=0x75 && code!=0x7c && code!=0x7d)
++        {Pe2Reject(&raster2x); if(!WideOpcodeSupported(code))SoftwareRasterizer_WideReject();}
+     bool textured = (code & TEXTURED) != 0;
+     bool gouraud = (code & GOURAUD) != 0;
+     bool semi = (code & SEMITRANSP) != 0;
+@@ -507,6 +765,7 @@ static int Software_PushPrim(u_long* words, int max_len) {
+     if (polygon && (code & TRIANGLE)) {
+         int count = (code & EXTRA_VERTEX) ? 4 : 3;
+         int required = 1 + count * (1 + textured) + (count - 1) * gouraud;
++        if(max_len<required){Pe2Reject(&raster2x); SoftwareRasterizer_WideReject();}
+         if (max_len < required) {
+             return max_len;
+         }
+@@ -531,10 +790,10 @@ static int Software_PushPrim(u_long* words, int max_len) {
+             }
+         }
+         RasterTriangle(v[0], v[1], v[2], textured, raw_texture, semi, gouraud,
+-                       tpage, clut, false);
++                       tpage, clut, false, false);
+         if (count == 4) {
+             RasterTriangle(v[1], v[3], v[2], textured, raw_texture, semi,
+-                           gouraud, tpage, clut, false);
++                           gouraud, tpage, clut, false, false);
+         }
+         return at;
+     }
+@@ -546,6 +805,7 @@ static int Software_PushPrim(u_long* words, int max_len) {
+         }
+         int required = 1 + points + (points - 1) * gouraud + padding;
+         if (max_len < required) {
++            Pe2Reject(&raster2x); SoftwareRasterizer_WideReject();
+             return max_len;
+         }
+         SwVertex prev = {0};
+@@ -567,6 +827,7 @@ static int Software_PushPrim(u_long* words, int max_len) {
+     }
+     if ((code & 0x60) == 0x60) {
+         int required = 2 + textured + ((code & 0x18) == 0);
++        if(max_len<required){Pe2Reject(&raster2x); SoftwareRasterizer_WideReject();}
+         if (max_len < required) {
+             return max_len;
+         }
+@@ -611,6 +872,7 @@ static int Software_PushPrim(u_long* words, int max_len) {
+ }
+ 
+ void SoftwareRasterizer_Reset(void) {
++    SoftwareRasterizer_InvalidateMaterial();
+     memset(vram, 0, sizeof(vram));
+     Software_Reset();
+     grid_source = grid_target = 1;
+diff --git a/psyz/src/psyz/libcard.c b/psyz/src/psyz/libcard.c
+index 97c2664..76b4b7e 100644
+--- a/psyz/src/psyz/libcard.c
++++ b/psyz/src/psyz/libcard.c
+@@ -18,7 +18,11 @@ static inline int validate_chan(long chan) {
+ }
+ 
+ void _bu_init(void) {
+-#ifdef _MSC_VER
++#ifdef PE_PS5
++    char path[4096];
++    Psyz_AdjustPath(path, "bu00:*", sizeof(path));
++    Psyz_AdjustPath(path, "bu10:*", sizeof(path));
++#elif defined(_MSC_VER)
+     NOT_IMPLEMENTED;
+ #elif __MINGW32__
+     mkdir("bu00");
