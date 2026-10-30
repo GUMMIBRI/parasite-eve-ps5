@@ -112,3 +112,6 @@ checking, not Sony certification. Do not send eboot.bin to a payload server.
 Application assets resolve under /app0; preserve the existing /data/parasite-eve
 config/discs/cards/save policy. Do not publish retail assets or local SDK/binaries
 with source changes. No package/install/deployment follows from these commands.
+
+Optional -AllocationLog requires both -ApplicationTooling and -StartupLog and a fresh application output. It observes linked malloc/calloc/realloc failures and requests of at least 256KiB without replacing the allocator, changing returns/errno, or retrying. Logging is bounded to 128 attempted messages and can omit concurrent events. It does not measure total heap usage, shared-library internal allocations or establish a firmware heap limit. INPUTS.json records the mode and selected diagnostic source hashes; STARTUP-LOG.json also records AllocationLog.
+

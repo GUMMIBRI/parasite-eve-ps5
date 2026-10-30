@@ -32,6 +32,34 @@ static void SDLCALL sdl_log(void *userdata, int category, SDL_LogPriority priori
     (void)userdata;
     stage("SDL category=%d priority=%d: %s\n", category, (int)priority, message);
 }
+#ifdef PE_APPLICATION_SERVICE_DIAGNOSTICS
+/* Observe real backend calls without repeating initialization or changing
+ * service ownership. Raw returns do not prove firmware support. */
+int __real_sceUserServiceInitialize(void *);
+int __wrap_sceUserServiceInitialize(void *params) {
+    stage("before sceUserServiceInitialize\n");
+    int result = __real_sceUserServiceInitialize(params);
+    stage("after sceUserServiceInitialize result=0x%08x\n", (unsigned)result);
+    return result;
+}
+#define SERVICE_WRAP(name) \
+    int __real_##name(void); \
+    int __wrap_##name(void) { \
+        stage("before " #name "\n"); \
+        int result = __real_##name(); \
+        stage("after " #name " result=0x%08x\n", (unsigned)result); \
+        return result; \
+    }
+SERVICE_WRAP(scePadInit)
+SERVICE_WRAP(sceSystemServiceHideSplashScreen)
+int __real_sceVideoOutOpen(int, int, int, const void *);
+int __wrap_sceVideoOutOpen(int user, int type, int index, const void *params) {
+    stage("before sceVideoOutOpen user=0x%x type=%d index=%d\n", (unsigned)user, type, index);
+    int result = __real_sceVideoOutOpen(user, type, index, params);
+    stage("after sceVideoOutOpen result=0x%08x\n", (unsigned)result);
+    return result;
+}
+#endif
 int __real_main(int, char **);
 int __wrap_main(int argc, char **argv) {
     const char *path = "/data/parasite-eve/startup.log";
@@ -130,3 +158,4 @@ VOID_WRAP(Boot_InitGameState)
 VOID_WRAP(Boot_InitSubsystems)
 INT_WRAP(Asset_OpenPeImage)
 INT_WRAP(Scene_LoadSceneData)
+
