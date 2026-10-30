@@ -15,3 +15,5 @@ Historical shader command arrays keep the same flags, argument order and source/
 The historical game documentation examples inside the source patch use `$env:CMAKE_EXE` and `$env:NINJA_EXE` instead of one developer's tool installation paths. Their documentation-only output SHA is adjusted explicitly in the source manifest; its prior reviewed hash remains in `reviewedHistoricalAfter`. No compiled source hunk or shader byte is changed by this documentation normalization.
 
 The public build does not require a particular developer account, helper, credential or account API. An optional caller-supplied `capacityGuard` supports local policy; project automation continues to supply its actual main guard. No account probing, model inference, download or runtime execution is part of this recipe.
+
+Input-integrity scope is defined by the listed file/tree manifests, not every file on a caller's machine. Caller CMake/Ninja identity is recorded (optionally caller-pinned); surrounding host installations remain outside that scope. INPUT-PREFLIGHT.json contains the caller's actual local paths and should be kept with local evidence rather than blindly published.

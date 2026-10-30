@@ -319,6 +319,16 @@
       "path": "deps/ps5-payload-sdk/target/lib/libSceVideoOut.so",
       "sha256": "5a6ea69630dd290e9c5973d53dd665b62aa07e4c7cffb17b8b73715c0d5a9470",
       "bytes": 22760
+    },
+    {
+      "path": "deps/llvm/bin/llvm-ranlib.exe",
+      "sha256": "5a1e07b68014f7ee864dd595e84c4fcbaf27adb46efb71783bbeebff9c5e5f82",
+      "bytes": 31028224
+    },
+    {
+      "path": "deps/llvm/bin/llvm-readelf.exe",
+      "sha256": "ee82ad5fe6e10577d84a14693f1919f9d111631903e0f75e51b7e89ee34c8bee",
+      "bytes": 6142976
     }
   ],
   "note": "Retained legally public dependency bytes checked; Mesa itself is not rebuilt"
