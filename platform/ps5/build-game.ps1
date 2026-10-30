@@ -15,12 +15,18 @@ param(
  [switch]$StartupLog,
  [switch]$AllocationLog,
  [switch]$DebugSymbols,
+ [switch]$Plugins,
  [string]$ApplicationTooling
 )
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=(Resolve-Path "$PSScriptRoot/../..").Path
 $buildConfiguration=if($DebugSymbols){'RelWithDebInfo'}else{'Release'}
+if($Plugins -and !$SourceRoot){throw 'Plugins requires SourceRoot prepared with -IncludePS5Plugins'}
+if($Plugins){
+ $pluginCheck=& "$PSScriptRoot/integrate-plugins.ps1" -Root $SourceRoot -Tree Game -CheckOnly
+ if($pluginCheck.Changed){throw 'SourceRoot lacks plugin integration; prepare with -IncludePS5Plugins'}
+}
 # Never relabel an existing build or reuse objects with a different debug mode.
 if($Resume){
  $resumeInputs=Join-Path $Resume 'INPUTS.json'
@@ -28,6 +34,8 @@ if($Resume){
  $resumeProvenance=Get-Content -LiteralPath $resumeInputs -Raw | ConvertFrom-Json
  $previousConfiguration=if($resumeProvenance.PSObject.Properties.Name -contains 'BuildConfiguration'){$resumeProvenance.BuildConfiguration}else{'Release'}
  if($previousConfiguration -ne $buildConfiguration){throw 'Resume build configuration changed; use a fresh output or retain DebugSymbols'}
+ $previousPlugins=($resumeProvenance.PSObject.Properties.Name -contains 'Plugins') -and $resumeProvenance.Plugins
+ if([bool]$previousPlugins -ne [bool]$Plugins){throw 'Resume plugin mode changed; use a fresh output'}
 }
 if($AllocationLog -and (!$ApplicationTooling -or !$StartupLog)){throw 'AllocationLog requires ApplicationTooling and StartupLog'}
 if($ApplicationTooling -and $StartupLog -and $Resume){throw 'Application diagnostics require a fresh output to preserve CRT instrumentation provenance'}
@@ -135,7 +143,8 @@ try{
  if($LASTEXITCODE -ne 0){throw 'Cannot read selected PsyZ GPU source'}
  [IO.File]::WriteAllText($gpuOriginal,($gpuText -join "`n")+"`n")
  & "$PSScriptRoot/patch-game.ps1" -Stage $stage -OriginalSource $gpuOriginal
- $inputFiles=@('CMakeLists.txt','cmake/ps5/game.cmake','platform/ps5/build-game.ps1','platform/ps5/patch-game.ps1','src/main/boot/main.c')
+ if($Plugins){& "$PSScriptRoot/integrate-plugins.ps1" -Root $stage -Tree PsyZ | Out-Null}
+ $inputFiles=@('CMakeLists.txt','cmake/ps5/game.cmake','platform/ps5/build-game.ps1','platform/ps5/patch-game.ps1','platform/ps5/integrate-plugins.ps1','platform/ps5/plugin-source.json','src/main/boot/main.c')
  if($StartupLog){$inputFiles+='platform/ps5/startup-log.c'}
  if($ApplicationTooling -and $StartupLog){$inputFiles+='platform/ps5/application-startup-log.c'}
  if($AllocationLog){$inputFiles+='platform/ps5/application-allocation-log.c'}
@@ -149,8 +158,8 @@ try{
   } | ConvertTo-Json -Depth 3 | Set-Content "$out/CANDIDATE-SOURCES.json"
   Copy-Item -LiteralPath (Join-Path (Split-Path $gameSource) 'CANDIDATE.json') -Destination "$out/CANDIDATE.json"
  }
- @{BuildConfiguration=$buildConfiguration; DebugSymbols=[bool]$DebugSymbols; PsyZRevision=$pin; StartupLog=[bool]$StartupLog; AllocationLog=[bool]$AllocationLog; ApplicationABI=[bool]$ApplicationTooling; GameRevision=(& git -C $root rev-parse HEAD); SourceRoot=$gameSource; UpstreamCandidate=$candidate; SDL3Prefix=$SDL3Prefix; SDL3Source=$SDL3Source; SDL3Build=$SDL3Build; SDL3CoreSHA256=(Get-FileHash "$SDL3Source/src/SDL.c").Hash; SDL3ConfigSHA256=(Get-FileHash "$SDL3Build/include-config-release/build_config/SDL_build_config.h").Hash; SDL3LibrarySHA256=(Get-FileHash "$SDL3Prefix/lib/libSDL3.a").Hash; Files=@($inputs)} | ConvertTo-Json -Depth 8 | Set-Content "$out/INPUTS.json"
- Run $CMake @('-S',$gameSource,'-B',"$out/b",'-G','Ninja',"-DCMAKE_MAKE_PROGRAM=$Ninja", "-DCMAKE_TOOLCHAIN_FILE=$Sdk/toolchain/prospero.cmake", "-DPS5_PAYLOAD_SDK=$Sdk", "-DCMAKE_AR=$LlvmBin/llvm-ar.exe", "-DCMAKE_RANLIB=$LlvmBin/llvm-ranlib.exe", "-DSDL3_DIR=$SDL3Prefix/lib/cmake/SDL3", "-DPE_PS5_SDL3_SOURCE=$SDL3Source", "-DPE_PS5_SDL3_BUILD=$SDL3Build", "-DPSYZ_DIR=$stage", "-DPE_PS5_LLVM_BIN=$LlvmBin", '-DCMAKE_VERBOSE_MAKEFILE=OFF', '-DPE_PS5_GAME=ON','-DBUILD_TESTING=OFF',"-DCMAKE_BUILD_TYPE=$buildConfiguration",'-DCMAKE_C_FLAGS=-std=gnu11')
+ @{Plugins=[bool]$Plugins; BuildConfiguration=$buildConfiguration; DebugSymbols=[bool]$DebugSymbols; PsyZRevision=$pin; StartupLog=[bool]$StartupLog; AllocationLog=[bool]$AllocationLog; ApplicationABI=[bool]$ApplicationTooling; GameRevision=(& git -C $root rev-parse HEAD); SourceRoot=$gameSource; UpstreamCandidate=$candidate; SDL3Prefix=$SDL3Prefix; SDL3Source=$SDL3Source; SDL3Build=$SDL3Build; SDL3CoreSHA256=(Get-FileHash "$SDL3Source/src/SDL.c").Hash; SDL3ConfigSHA256=(Get-FileHash "$SDL3Build/include-config-release/build_config/SDL_build_config.h").Hash; SDL3LibrarySHA256=(Get-FileHash "$SDL3Prefix/lib/libSDL3.a").Hash; Files=@($inputs)} | ConvertTo-Json -Depth 8 | Set-Content "$out/INPUTS.json"
+ Run $CMake @('-S',$gameSource,'-B',"$out/b",'-G','Ninja',"-DCMAKE_MAKE_PROGRAM=$Ninja", "-DCMAKE_TOOLCHAIN_FILE=$Sdk/toolchain/prospero.cmake", "-DPS5_PAYLOAD_SDK=$Sdk", "-DCMAKE_AR=$LlvmBin/llvm-ar.exe", "-DCMAKE_RANLIB=$LlvmBin/llvm-ranlib.exe", "-DSDL3_DIR=$SDL3Prefix/lib/cmake/SDL3", "-DPE_PS5_SDL3_SOURCE=$SDL3Source", "-DPE_PS5_SDL3_BUILD=$SDL3Build", "-DPSYZ_DIR=$stage", "-DPE_PS5_LLVM_BIN=$LlvmBin", '-DCMAKE_VERBOSE_MAKEFILE=OFF', '-DPE_PS5_GAME=ON',"-DPE_PS5_PLUGINS=$(if($Plugins){'ON'}else{'OFF'})",'-DBUILD_TESTING=OFF',"-DCMAKE_BUILD_TYPE=$buildConfiguration",'-DCMAKE_C_FLAGS=-std=gnu11')
  if($ApplicationTooling){
   $native=(Resolve-Path -LiteralPath $ApplicationTooling).Path.Replace('\','/')
   foreach($file in @('app_crt.cpp','ps5-pie.ld','app-symbols.map')){
