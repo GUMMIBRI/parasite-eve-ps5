@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <SDL3/SDL.h>
 
 #include "pe_collection.h"
 #include "pe_mod_host.h"
@@ -75,22 +76,58 @@ void pe_profile_set_worn(const char *key) { snprintf(s_worn, sizeof s_worn, "%s"
 
 void pe_profile_clear(void) { s_count = 0; s_worn[0] = 0; s_dirty = 1; }
 void pe_profile_changed(void) { s_dirty = 1; }
-void pe_profile_tick(void) { if (s_dirty) pe_profile_save(); }
+/* Negative means unsaved after an I/O failure: no per-frame retry storm.
+ * A new profile change (dirty=1) or explicit save retries normally. */
+void pe_profile_tick(void) { if (s_dirty > 0) pe_profile_save(); }
 
 void pe_profile_save(void) {
-    char path[1100];
-    FILE *f;
-    int i;
-    s_dirty = 0;
-    if (pe_mod_path(path, sizeof path, PE_FILE) != 0 || !(f = fopen(path, "w"))) return;
-    fprintf(f, "# Parasite Eve Collection: unlocks kept across every game.\n"
-               "# creature <key> <bits: 1 met, 2 weaknesses, 4 loot> <kills> <bits looked at>; costume <key> = owned; worn <key>\n");
-    if (s_worn[0]) fprintf(f, "worn %s\n", s_worn);
-    for (i = 0; i < s_count; ++i) {
-        if (s_rec[i].type == R_CREATURE) fprintf(f, "creature %s %u %u %u\n", s_rec[i].key, s_rec[i].bits, s_rec[i].kills, s_rec[i].seen);
-        else fprintf(f, "costume %s\n", s_rec[i].key);
+    char path[1100], temporary[1200], line[256], error[256];
+    int i, n, ok;
+    SDL_IOStream *f;
+    /* Keep the previous file authoritative until all staged output is closed. */
+    s_dirty = -1;
+    if (pe_mod_path(path, sizeof path, PE_FILE) != 0) {
+        pe_mod_log("pe_collection", "cannot resolve collection profile; changes remain in memory");
+        return;
     }
-    fclose(f);
+    n = snprintf(temporary, sizeof temporary, "%s.%llu.tmp", path,
+                 (unsigned long long)SDL_GetTicksNS());
+    if (n < 0 || (size_t)n >= sizeof temporary) return;
+    f = SDL_IOFromFile(temporary, "wbx");
+    if (!f) {
+        pe_mod_log("pe_collection", "cannot stage collection profile: %s", SDL_GetError());
+        return;
+    }
+    const char *header = "# Parasite Eve Collection: unlocks kept across every game.\n"
+        "# creature <key> <bits: 1 met, 2 weaknesses, 4 loot> <kills> <bits looked at>; costume <key> = owned; worn <key>\n";
+    ok = SDL_WriteIO(f, header, strlen(header)) == strlen(header);
+    if (ok && s_worn[0]) {
+        n = snprintf(line, sizeof line, "worn %s\n", s_worn);
+        ok = n > 0 && (size_t)n < sizeof line && SDL_WriteIO(f, line, (size_t)n) == (size_t)n;
+    }
+    for (i = 0; ok && i < s_count; ++i) {
+        if (s_rec[i].type == R_CREATURE)
+            n = snprintf(line, sizeof line, "creature %s %u %u %u\n", s_rec[i].key,
+                         (unsigned)s_rec[i].bits, (unsigned)s_rec[i].kills, (unsigned)s_rec[i].seen);
+        else n = snprintf(line, sizeof line, "costume %s\n", s_rec[i].key);
+        ok = n > 0 && (size_t)n < sizeof line && SDL_WriteIO(f, line, (size_t)n) == (size_t)n;
+    }
+    if (ok && !SDL_FlushIO(f)) ok = 0;
+    if (!ok) SDL_strlcpy(error, SDL_GetError(), sizeof error);
+    if (!SDL_CloseIO(f)) {
+        if (ok) SDL_strlcpy(error, SDL_GetError(), sizeof error);
+        ok = 0;
+    }
+    if (ok && !SDL_RenamePath(temporary, path)) {
+        SDL_strlcpy(error, SDL_GetError(), sizeof error);
+        ok = 0;
+    }
+    if (!ok) {
+        SDL_RemovePath(temporary); /* Only the file this call successfully created. */
+        pe_mod_log("pe_collection", "cannot save collection profile; previous file kept: %s", error);
+        return;
+    }
+    s_dirty = 0;
 }
 
 /* ---- the psxrecomp build's pe_collection.dat, imported once ---- */
@@ -132,9 +169,9 @@ void pe_profile_load(void) {
     FILE *f;
     s_count = 0;
     s_worn[0] = 0;
+    s_dirty = 0;
     if (pe_mod_path(path, sizeof path, PE_FILE) != 0 || !(f = fopen(path, "r"))) {
         if (pe_import_v1()) pe_profile_save();
-        s_dirty = 0;
         return;
     }
     while (fgets(line, sizeof line, f)) {
