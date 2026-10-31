@@ -2392,10 +2392,121 @@ index c2c5d86..87d9870 100644
      Render_ResetHdWidescreen();
      Psyz_GpuResetSpriteAtlases();
 diff --git a/src/main/render/mesh_list.c b/src/main/render/mesh_list.c
-index 9e7c9b2..a6596ed 100644
+index 9e7c9b2..6d1ac52 100644
 --- a/src/main/render/mesh_list.c
 +++ b/src/main/render/mesh_list.c
-@@ -169,8 +169,10 @@ void Render_CommitWidescreenPicture(int slot, int buffer_y) {
+@@ -49,20 +49,27 @@ typedef union RenderLinkAddress {
+  * tile (a wall's last tiles hold a few columns of picture and the rest
+  * transparent), which showed as a black strip at that side. The edge
+  * columns' bands come from the whole tiles, so the picture never reaches past
+- * them. */
++ * them. A band may end before the others where its picture ends in black:
++ * the stored pictures leave out tiles inside their black areas (M235's
++ * corridor has a few in the dark above its walls), and the 4:3 screen shows
++ * those gaps black too, so the other bands carry on past them. */
+ #define WS_FIRST_X (-112)
+ #define WS_COLUMNS 544
+ #define WS_BANDS 14
+ static struct {
+     u16 bands[WS_COLUMNS]; /* picture: from the tiles' texels */
+     u16 tiled[WS_COLUMNS]; /* whole linked tiles: for the screen's edge */
++    u16 lit[WS_COLUMNS];   /* picture that is not black: a band can't end next to it */
+     int tiles;
+ } s_WidescreenCover[2];
+ 
+-/* Whether the tile's texel (i, j) holds picture (is not transparent), read
+- * from PsyZ's VRAM copy; -1 when the copy cannot tell (not uploaded, drawn
+- * over, 15-bit page...). Opaque black counts as picture: dark rooms store
+- * real black past the screen. */
++/* Darkest picture a band may end on: every 5-bit channel at most this. */
++#define WS_DARK 2
++
++/* Whether the tile's texel (i, j) holds picture, read from PsyZ's VRAM copy:
++ * 0 transparent, 1 black (or nearly), 2 any other colour; -1 when the copy
++ * cannot tell (not uploaded, drawn over, 15-bit page...). Opaque black counts
++ * as picture: dark rooms store real black past the screen. */
+ static int Render_WidescreenTexel(const RenderTilePacket *sprite, const RenderTexturePagePacket *page,
+                                   int i, int j) {
+     const unsigned char *known;
+@@ -92,11 +99,16 @@ static int Render_WidescreenTexel(const RenderTilePacket *sprite, const RenderTe
+     }
+     if (!known[at]) return -1;
+     c = vram[at];
+-    return c != 0;
++    if (c == 0) return 0;
++    return (c & 31) <= WS_DARK && ((c >> 5) & 31) <= WS_DARK && ((c >> 10) & 31) <= WS_DARK ? 1 : 2;
+ }
+ 
+ static void Render_AddWidescreenTile(int slot, int x, int y, const RenderTilePacket *sprite,
+                                      const RenderTexturePagePacket *page) {
++    /* Only columns next to the screen's edge or past it are asked whether
++     * they are black, so the tiles inside it stop at their first picture. */
++    int edge = x < 1 || x + 16 > 319;
++    unsigned lit = 0;
+     int first = 16;
+     int last = 0;
+     int band;
+@@ -112,11 +124,13 @@ static void Render_AddWidescreenTile(int slot, int x, int y, const RenderTilePac
+             if (texel < 0) {
+                 first = 0;
+                 last = 16;
++                lit = 0xFFFF;
+                 i = j = 16;
+             } else if (texel) {
+                 first = i < first ? i : first;
+                 last = i + 1;
+-                break;
++                if (texel > 1) lit |= 1u << i;
++                if (texel > 1 || !edge) break;
+             }
+         }
+     }
+@@ -128,6 +142,8 @@ static void Render_AddWidescreenTile(int slot, int x, int y, const RenderTilePac
+             s_WidescreenCover[slot].tiled[column - WS_FIRST_X] |= (u16)(1u << band);
+             if (column >= x + first && column < x + last)
+                 s_WidescreenCover[slot].bands[column - WS_FIRST_X] |= (u16)(1u << band);
++            if (lit & (1u << (column - x)))
++                s_WidescreenCover[slot].lit[column - WS_FIRST_X] |= (u16)(1u << band);
+         }
+     }
+     s_WidescreenCover[slot].tiles++;
+@@ -142,19 +158,28 @@ static u16 Render_WidescreenEdgeBands(int slot, int first) {
+     return rows;
+ }
+ 
++/* Whether the next column out keeps the picture going: some of the bands
++ * still open have picture there, and every band that stops there ends on
++ * black in the column before it. */
++static int Render_WidescreenNextColumn(int slot, u16 *open, int column, int previous) {
++    u16 have = s_WidescreenCover[slot].bands[column - WS_FIRST_X] & *open;
++
++    if (have == 0 || (*open & ~have & s_WidescreenCover[slot].lit[previous - WS_FIRST_X]) != 0) return 0;
++    *open = have;
++    return 1;
++}
++
+ void Render_GetWidescreenPicture(int slot, int *left, int *right) {
+-    u16 edge;
++    u16 open;
+ 
+     *left = 0;
+     *right = 320;
+     if (s_WidescreenCover[slot].tiles == 0) return;
+-    edge = Render_WidescreenEdgeBands(slot, 0);
+-    while (edge != 0 && *left > -RENDER_WIDESCREEN_MARGIN &&
+-           (s_WidescreenCover[slot].bands[*left - 1 - WS_FIRST_X] & edge) == edge)
++    open = Render_WidescreenEdgeBands(slot, 0);
++    while (*left > -RENDER_WIDESCREEN_MARGIN && Render_WidescreenNextColumn(slot, &open, *left - 1, *left))
+         --*left;
+-    edge = Render_WidescreenEdgeBands(slot, 312);
+-    while (edge != 0 && *right < 320 + RENDER_WIDESCREEN_MARGIN &&
+-           (s_WidescreenCover[slot].bands[*right - WS_FIRST_X] & edge) == edge)
++    open = Render_WidescreenEdgeBands(slot, 312);
++    while (*right < 320 + RENDER_WIDESCREEN_MARGIN && Render_WidescreenNextColumn(slot, &open, *right, *right - 1))
+         ++*right;
+ }
+ 
+@@ -169,8 +194,10 @@ void Render_CommitWidescreenPicture(int slot, int buffer_y) {
      if (buffer_y >= 0 && Psyz_VideoGetWidescreen()) {
          int left, right;
          Render_GetWidescreenPicture(slot, &left, &right);
@@ -2561,3 +2672,52 @@ index 1c688aa..7efca61 100644
  static void Pgxp_ComposeBoneMatrix(const PgxpBoneMatrix *parent,
                                     const PgxpBoneMatrix *source,
                                     double tx, double ty, double tz,
+diff --git a/src/main/battle/attack.c b/src/main/battle/attack.c
+index 0634d71..3d7a402 100644
+--- a/src/main/battle/attack.c
++++ b/src/main/battle/attack.c
+@@ -272,10 +272,15 @@ s8 g_EvasionReaction;
+  * weapon category and the reaction in the core flags; an unresolved one
+  * opens the floating panel.
+  * The steal path reaches this through jump cross-jumping into the
+- * single-target copy, as in retail. */
++ * single-target copy, as in retail.
++ * A target killed earlier in the same volley can already have released its
++ * core when the next shot's timer fires. Retail then writes to PS1 address 1,
++ * which is mapped kernel RAM; here there is nothing left to mark. */
+ static inline void ApplyEvasionOutcome(BattleEntity *target)
+ {
+     EnemyCombatant *core = target->core;
++    if (core == NULL)
++        return;
+     if (g_EvasionOutcome.status == 1)
+     {
+         EnemyCoreFlagBits *bits = (EnemyCoreFlagBits *)&core->coreFlags;
+@@ -316,7 +321,8 @@ void Battle_ResolveHitOnTimer(void)
+         {
+             BattleEntity *thief = selectedSlot->actor;
+             Asset_Find08Alt(0x46D, 0, thief->renderObject.target_x, thief->renderObject.target_y, thief->renderObject.target_z);
+-            if (g_ActiveActor->action->turnWord & 0x6000)
++            /* A released target has nothing left to steal. */
++            if ((g_ActiveActor->action->turnWord & 0x6000) && thief->core != NULL)
+             {
+                 stealMode = (((EnemyCombatant *)selectedSlot->actor->core)->statusFlags2 >> 0xC) & 3;
+                 switch (stealMode)
+diff --git a/src/overlays/room_lib/mirror_model.c b/src/overlays/room_lib/mirror_model.c
+index db23aea..afb8a20 100644
+--- a/src/overlays/room_lib/mirror_model.c
++++ b/src/overlays/room_lib/mirror_model.c
+@@ -119,6 +119,13 @@ void RoomEffect_MirrorNoOp6(void) {}
+ 
+ void RoomEffect_ModelBind(FieldActor *actor, FieldActor *owner, int x0, int z0, int x1, int z1)
+ {
++    /* M319's script gives Aya's reflection a line tilted about 2.5 degrees
++     * (z -902 to -1004) in front of a straight painted mirror, so her
++     * reflection slides sideways the further she stands from it. Straighten
++     * it at its middle depth; no other room uses this line. */
++    if (x0 == 1123 && z0 == -902 && x1 == -1169 && z1 == -1004) {
++        z0 = z1 = -953;
++    }
+     actor->render_object.animation_state = 5;
+     actor->render_object.reflection_owner = owner;
+     actor->mirror_line.x0 = (u16)x0;
