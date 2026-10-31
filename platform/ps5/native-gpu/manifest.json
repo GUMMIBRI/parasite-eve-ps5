@@ -24,12 +24,12 @@
     {
       "component": "game",
       "path": "patches/game.patch",
-      "sha256": "a8e7d3e816fcdaa79c80da004fee717c05cee36f8e9f6197dcce5dcead715ff9"
+      "sha256": "4f1c8afe69e4d3ba79c1780ec9114d3936b0943a88e6b903f94643cd2d876719"
     },
     {
       "component": "psyz",
       "path": "patches/psyz.patch",
-      "sha256": "61d539a7939a6e182c7e636663afc17bb1235f7fcff4cced64b302d24c1a518b"
+      "sha256": "62cfb9f5cfb565387545911fd0663b804034e451c5f1d784f18a4892cebf42ad"
     },
     {
       "component": "sdl",
@@ -76,8 +76,31 @@
       "added": true,
       "size": 14830,
       "before": null,
-      "after": "6407abb5150c593a3bf0dec7048a74934da4d99b2de55e48e5141e76a2012dac",
-      "reviewedHistoricalAfter": "256e221c34ffe1686a2b4d30783230f23d119d03e322a0a229930828cd5b68b6"
+      "after": "256e221c34ffe1686a2b4d30783230f23d119d03e322a0a229930828cd5b68b6"
+    },
+    {
+      "component": "game",
+      "path": "include/pe1/geom_state.h",
+      "added": false,
+      "size": 17179,
+      "before": "70bb74d07a49a8933292994a5bf03f7f0ae5819e2ea9108a57068dd41e7cea10",
+      "after": "7db8430e99ee47cd827d237908cd5ca495d1d0f74d516cae5d71a3ff0cc25a3c"
+    },
+    {
+      "component": "game",
+      "path": "include/pe1/model_fill_lighting.h",
+      "added": true,
+      "size": 707,
+      "before": null,
+      "after": "b8fd83f0ef662d47252813b860a6711d9ec3050b8dfb6e8651944a1c06cb620f"
+    },
+    {
+      "component": "game",
+      "path": "include/pe1/render_object.h",
+      "added": false,
+      "size": 32827,
+      "before": "a8f164c657cbbedd320c77be31f49f48088838758ac051b35fbbecb64f13dfae",
+      "after": "ddf3f42327b79869cbf5b225a05c3cd71a1ec2955a6d3577032551dbbc9f2b58"
     },
     {
       "component": "game",
@@ -97,11 +120,19 @@
     },
     {
       "component": "game",
+      "path": "mods/host/pe_mod_menu.h",
+      "added": false,
+      "size": 5374,
+      "before": "9be1250f1839627a16e127eb669bbb8c04b9281b2a59d7c9814c3589df5a387a",
+      "after": "9fceed68f376e075fc95b3dd576a274b0a5bc6d10c610d7b4ea91c6079f46636"
+    },
+    {
+      "component": "game",
       "path": "mods/host/pe_mod_panel.c",
       "added": false,
-      "size": 21332,
+      "size": 22510,
       "before": "d0998d41110f5a1d9ff5d84af5ec6342e443ba86571d7c9dd60eff395e485c39",
-      "after": "ef0d47eb54a226847ae996cccfa6f310b40681cb08294eb38599d30a523434c7"
+      "after": "b2b1d70b06f8144333d3239cfc30e6dedc1578b15c4436025dc8b2c4cef37342"
     },
     {
       "component": "game",
@@ -155,25 +186,57 @@
       "component": "game",
       "path": "src/main/boot/main.c",
       "added": false,
-      "size": 136112,
+      "size": 140296,
       "before": "1b43b1264a57cc201a275fc619137e8907ed2cb73072760f15f5ab67209d6e8c",
-      "after": "43af006c08011ff4f48356c7ed34e20bb39369a716b0f72c32c4423c1fc2b8d1"
+      "after": "69c4cd90c995f4a3c869079b8b6d243f82030ee60946da03b752b19147e47320"
     },
     {
       "component": "game",
       "path": "src/main/boot/settings_overlay.h",
       "added": false,
-      "size": 53566,
+      "size": 57263,
       "before": "27325339465873edfc2d481dfdd78c42283fc8d4ce9dda6f7990a6a92271cc87",
-      "after": "8766d0fde5fa4c1290a9eaba1687ef915c56299f08513085254b06aa83fbdd8d"
+      "after": "d6173dadbc68d746e76e3bc9913f94d233bd60299a430878958d08bc4c1be1fd"
+    },
+    {
+      "component": "game",
+      "path": "src/main/entity/frame_update.c",
+      "added": false,
+      "size": 22855,
+      "before": "bebcfc8d708930a770605ac21d501fc58041291aa791e006de8679191dc5a1b9",
+      "after": "8f7cb666333486f34b03f64013cbe21facf690b8637d4997bd445bf1c356edc9"
     },
     {
       "component": "game",
       "path": "src/main/render/mesh_entry.c",
       "added": false,
-      "size": 16436,
+      "size": 17225,
       "before": "a88011d5bb52f906f46629d4e583d7a46e9f55f51825ab86fcdc847a39bc3344",
-      "after": "2094532e0efcb40c338cd444a706d3bbcf7d6b8f4b624cd6101d659ad1bbd787"
+      "after": "8fa2633ef8177dc02b140ed253311db434c920a15fb574a0be256e83c19272f8"
+    },
+    {
+      "component": "game",
+      "path": "src/main/render/mesh_list.c",
+      "added": false,
+      "size": 34068,
+      "before": "2992c19ce77a5629afcb7574bfa5d47014ac74b7e734245b89c53cefcab9e4b1",
+      "after": "fb790a267e5ec1b5b98dff294ecbc1a8a1754abdbbdff785589a8a66c64c4ccd"
+    },
+    {
+      "component": "game",
+      "path": "src/main/render/model_fill_lighting.c",
+      "added": true,
+      "size": 2752,
+      "before": null,
+      "after": "9cd81a95057dfa9a2af0d3c75aedc16d71690190ef0e3c28378237d97d16365b"
+    },
+    {
+      "component": "game",
+      "path": "src/main/render/object.c",
+      "added": false,
+      "size": 82355,
+      "before": "a281e3f408407c11c8a4daf07c06c5d6627e1f8b052254378abdc12c81b949b3",
+      "after": "0a4a7facabe2a63c67ad99e26ecf9ced7b16a5b569bf6b09c8f7ad8f4ef0390b"
     },
     {
       "component": "psyz",
@@ -185,11 +248,35 @@
     },
     {
       "component": "psyz",
+      "path": "psyz/include/psyz/gpu.h",
+      "added": false,
+      "size": 6059,
+      "before": "1a08cf9cbf5bd5c009f597e7d3043fea26b047be1a452fbed81411a20e7138aa",
+      "after": "d418df9c252744ad6d2992d87605d9c418c316cda955397f0e203403b78f6bd8"
+    },
+    {
+      "component": "psyz",
       "path": "psyz/include/psyz/overlay_sdl3_gpu.h",
       "added": false,
-      "size": 1580,
+      "size": 1952,
       "before": "13eacb473665eaab2b37501468f939a3ce38c1c25c0d130e7cfe74f0a49b4c06",
-      "after": "de198e0b2e44ac1f0549a811d1e7561e6943717ad76a5e934c4f077da532d73a"
+      "after": "f05d7826617cbc4b61f764a200aa2bb49a2fb01fc1f000af6054ca2008b32ed3"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/internal.h",
+      "added": false,
+      "size": 2654,
+      "before": "fc56e7fdf1a347465b49a5c7fe39599ee99e93a9b4d1065806524bef8fd28bd6",
+      "after": "3b997d6c287aefd87a5399331d34c940bb7427ba468a7ce9097cd50b72fc10c0"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/committed_presentation.h",
+      "added": true,
+      "size": 4053,
+      "before": null,
+      "after": "5a0cea5e5ea3af517d5d80204336f5884aca1e9937ebbc14dc196ed481d4184d"
     },
     {
       "component": "psyz",
@@ -217,11 +304,99 @@
     },
     {
       "component": "psyz",
+      "path": "psyz/src/platform/fsr1/cpe_fsr1.c",
+      "added": true,
+      "size": 5986,
+      "before": null,
+      "after": "bc7891798f92566c534233e38983d3a83321439254a40f339fa0a7c66e95bb29"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/fsr1/cpe_fsr1.h",
+      "added": true,
+      "size": 1466,
+      "before": null,
+      "after": "c7b3bd2bc7d4f36fe97aabac678d4f67bba75cb2b8b60d5ab371ed62f95f7c46"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/fsr1/shaders/fsr1_easu.frag",
+      "added": true,
+      "size": 719,
+      "before": null,
+      "after": "6d15bb256b7916c578fb635653da77cd9818afe8c9a72abb8298eccbe9116e78"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/fsr1/shaders/fsr1_rcas.frag",
+      "added": true,
+      "size": 672,
+      "before": null,
+      "after": "6a628d67be093c63414f067147f6488014fca7da1a7190e17c33d1dae59b95da"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/fsr1/shaders/fullscreen.vert",
+      "added": true,
+      "size": 222,
+      "before": null,
+      "after": "0679b971f50df475ff087db0e813049645b89c6cd138b8de3863e8a7822b75e2"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/fsr1/third_party/fsr1/ffx_a.h",
+      "added": true,
+      "size": 181915,
+      "before": null,
+      "after": "f60e2722fcd13989523b9164d776ab382b3692791767f3bf8bb19967f763f3fb"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/fsr1/third_party/fsr1/ffx_fsr1.h",
+      "added": true,
+      "size": 60310,
+      "before": null,
+      "after": "93c3922362ea7fc99cbcc698ca30c98de4f8c246d1fbb0b09e015ddef38ce3a5"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/fsr1/third_party/fsr1/LICENSE.txt",
+      "added": true,
+      "size": 1094,
+      "before": null,
+      "after": "db089274ce766da70f5b7d791029c3486f9f9e27c8c79c652689603d3192e802"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/movie_blur.frag",
+      "added": true,
+      "size": 702,
+      "before": null,
+      "after": "d6f3c99eff55ca69092a1030c9d7cf569b13211bc1aae737b2e47b662367376a"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/movie_blur.h",
+      "added": true,
+      "size": 6716,
+      "before": null,
+      "after": "ea978f8dcb26e526f87f2a8430935fb347cde2ee6604298e093917b9e9dc52d2"
+    },
+    {
+      "component": "psyz",
       "path": "psyz/src/platform/pe-ps5-render-buffer.h",
       "added": true,
       "size": 1969,
       "before": null,
       "after": "9196abb8ba90992fdc039855e3b6bb32e507ff4a2be233a2f9c9c4b285b55d44"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/present_fsr1.h",
+      "added": true,
+      "size": 4236,
+      "before": null,
+      "after": "3dd2f784968242dcdc31a2d78904ee335df3ac022822c107034cef7f0cea3d56"
     },
     {
       "component": "psyz",
@@ -235,17 +410,17 @@
       "component": "psyz",
       "path": "psyz/src/platform/sdl3_common.h",
       "added": false,
-      "size": 33512,
+      "size": 33669,
       "before": "ee759af279de9d0b4ffcc881647fb373ba5c76658fbb1071d9f7a17258f1a640",
-      "after": "7d6275a1c5a0a6d02895ac2300d5f6a739b1dab7575972c92311ff8cd8811f9f"
+      "after": "e6a519b755c8dfee483ccc243a0815e1fb6bf413193bc997a5a14876307bca0d"
     },
     {
       "component": "psyz",
       "path": "psyz/src/platform/sdl3_gpu.c",
       "added": false,
-      "size": 144480,
+      "size": 155650,
       "before": "f1c848057214c0330d03e01ee48149444e262c27b7d925460330785f83436184",
-      "after": "0094eb12fca531e812cf395bee764bc4acde3a59ce479a2c51c43c2a070b95ec"
+      "after": "3b97cc89d30fcdf013cc8d20197811b708d3fb5df33bc42ac1d0ae02e82b2fd6"
     },
     {
       "component": "psyz",
@@ -262,6 +437,14 @@
       "size": 3566,
       "before": "75d1d1c92c022aa7cfadc9cc93ca5942022b899847e33244516645680064a31b",
       "after": "6b56ac4249b7a9cdb36259ac31856456a9d5ceda0631bd0c5160722bdd8e5ea8"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/psyz/libgte.c",
+      "added": false,
+      "size": 171162,
+      "before": "d0303665e0424db31336205f513fae35d53b18db5ae3382917c3c42d963509f7",
+      "after": "0236c37506f7b3fb0fd10e77e92fa3d177503f31219a79d807950ed446103aca"
     },
     {
       "component": "sdl",
@@ -454,6 +637,40 @@
     "clear.vert",
     "clear.frag"
   ],
-  "target": "conformance-local-hd-20261030-a1",
-  "sourceHashNormalization": "UTF-8 CRLF to LF"
+  "target": "widescreen-card-loading-20261031-a1",
+  "sourceHashNormalization": "UTF-8 CRLF to LF",
+  "generatedExpected": [
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/fsr1/generated/fsr1_shaders.h",
+      "after": "c09a61ecab81471d2a8afe9bb0d4893c782d785bdc68bceb6450717b329a0eaa"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/movie_blur_shaders.h",
+      "after": "09abc4b8a49ce6114b3390b0053020487793f2eb065f655fbfdb26c024a05405"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/shaders/clear_frag_spv.h",
+      "after": "2b66cdee7cd591468d05665842e3242906f108ac2bc2b37cdbd78c8124931e0a"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/shaders/clear_vert_spv.h",
+      "after": "6f8d1d70b6d3f427ccad252cb317a4099885ec4bb7ca24d3a5cc4ceb101277da"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/shaders/psx_frag_spv.h",
+      "after": "385b2c4b29683cd03177f7fabc4654602bbcfe8c5e520e4a147cc590c7adb1a1"
+    },
+    {
+      "component": "psyz",
+      "path": "psyz/src/platform/shaders/psx_vert_spv.h",
+      "after": "768efd12c5e4d242307197031287740269436bafb5b2eff494dc83ecbe54519a"
+    }
+  ],
+  "selectedEboot": "11fd5508105667c7595186e6a3f1465f2894818d19848deabb65643f5ba70d80",
+  "excludedParticleEboot": "8af7f85c"
 }

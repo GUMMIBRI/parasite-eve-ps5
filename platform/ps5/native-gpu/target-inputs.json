@@ -70,6 +70,13 @@
       "files": 339,
       "bytes": 8072041,
       "treeSha256": "8410d4c670fdaa71a07dc45c17115407604cee780690254ab1b002fbf4bd5926"
+    },
+    {
+      "scope": "publicPrefix",
+      "path": "deps/radv-sdk/ps5-payload-sdk/target/include",
+      "files": 2752,
+      "bytes": 21899947,
+      "treeSha256": "140a7ee5891da0b72fa3954c2e0febb5d4474702019e923d6340f0f94f02bef0"
     }
   ]
 }

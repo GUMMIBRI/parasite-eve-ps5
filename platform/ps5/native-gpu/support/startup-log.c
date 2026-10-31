@@ -78,21 +78,21 @@ static int fs_trace(void) {
     }
 FS_INT_WRAP(stat, (const char *path, struct stat *info), (path, info), path)
 FS_INT_WRAP(mkdir, (const char *path, mode_t mode), (path, mode), path)
-DIR *__real_opendir(const char *);
+DIR *pe_game_opendir(const char *);
 DIR *__wrap_opendir(const char *path) {
     int trace = fs_trace();
     if (trace) stage("before fs opendir path=%.700s\n", path);
-    DIR *result = __real_opendir(path);
+    DIR *result = pe_game_opendir(path);
     int error = errno;
     if (trace) stage("after fs opendir null=%d errno=%d\n", result == NULL, error);
     errno = error;
     return result;
 }
-struct dirent *__real_readdir(DIR *);
+struct dirent *pe_game_readdir(DIR *);
 struct dirent *__wrap_readdir(DIR *dir) {
     int trace = fs_trace();
     int prior_error = errno;
-    struct dirent *result = __real_readdir(dir);
+    struct dirent *result = pe_game_readdir(dir);
     int error = errno;
     if (trace) stage("after fs readdir dir=%p null=%d prior_errno=%d errno=%d (null may be EOF)\n",
                      (void *)dir, result == NULL, prior_error, error);

@@ -269,5 +269,37 @@
       "sha256": "96fc51f0b4f432fe77d9b1b96826916ab882e1953c211e01854e479e8bb3853e",
       "bytes": 2764
     }
+  },
+  "nativeEffectsSources": [
+    {
+      "repo": "GPUOpen-Effects/FidelityFX-FSR",
+      "revision": "a21ffb8f6c13233ba336352bdff293894c706575",
+      "license": "MIT",
+      "scope": "Unmodified public AMD headers/license; project-authored GLSL/module glue; no assets",
+      "files": [
+        {
+          "path": "psyz/src/platform/fsr1/third_party/fsr1/ffx_a.h",
+          "sha256": "f60e2722fcd13989523b9164d776ab382b3692791767f3bf8bb19967f763f3fb",
+          "gitBlobSha1": "d04bff55cbe5f0c77af7a39d6a3452f2744dc6f4"
+        },
+        {
+          "path": "psyz/src/platform/fsr1/third_party/fsr1/ffx_fsr1.h",
+          "sha256": "93c3922362ea7fc99cbcc698ca30c98de4f8c246d1fbb0b09e015ddef38ce3a5",
+          "gitBlobSha1": "4e0b3d548553e61eedd384021409f24e3eb74de3"
+        },
+        {
+          "path": "psyz/src/platform/fsr1/third_party/fsr1/LICENSE.txt",
+          "sha256": "db089274ce766da70f5b7d791029c3486f9f9e27c8c79c652689603d3192e802",
+          "gitBlobSha1": "324cba594d11f918191907676a99deed2fea51d0"
+        }
+      ]
+    }
+  ],
+  "updateScope": {
+    "selectedBuild": "widescreen-card-loading-20261031-a1",
+    "selectedEboot": "11fd5508105667c7595186e6a3f1465f2894818d19848deabb65643f5ba70d80",
+    "excludedParticleEboot": "8af7f85c3c08f21a9018a1b4c63c958bb25776158a56ca45b4c9b1b1f4993a5c",
+    "retainedDependenciesRebuilt": false,
+    "publicationLicenseClearanceAsserted": false
   }
 }

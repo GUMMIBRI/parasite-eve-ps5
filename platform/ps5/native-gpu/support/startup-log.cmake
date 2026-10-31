@@ -43,3 +43,13 @@ target_sources(pe-startup-log PRIVATE "@ROOT@/game-support/gpu-trace.c")
 target_link_libraries(parasite-eve-pc PRIVATE --wrap=sceKernelAllocateDirectMemory --wrap=sceKernelReleaseDirectMemory)
 
 
+
+
+
+# Optional effects, independent default-off settings.
+target_sources(psyz PRIVATE "@ROOT@/psyz-src/psyz/src/platform/fsr1/cpe_fsr1.c")
+target_sources(parasite-eve-pc PRIVATE "@ROOT@/game-src/src/main/render/model_fill_lighting.c")
+
+# Matching public provider ABI isolated from game DIR layout.
+set(PE_NATIVE_DIRECTORY_PROVIDER_SYSROOT "@BASE@/deps/radv-sdk/ps5-payload-sdk/target")
+include("${CMAKE_CURRENT_LIST_DIR}/pe-native-directory.cmake")
