@@ -1,0 +1,38 @@
+{
+  "selectedBuild": "game-test-point7-owned-20261102-a1",
+  "selectedPrivateEboot": "58058fe6287667b980c1a19cc4542157119a183552ed09e99e147b34d29b9520",
+  "privateSourceCohort": "97b40f82c23218e69f2cff9900377a57b0d0be759afc3d361d31df500f2998e9",
+  "sourceRecords": 213,
+  "sdlMirrors": 40,
+  "auxiliaryInputs": 80,
+  "originalArchivePins": [
+    {
+      "name": "game",
+      "revision": "8c52cdde5d60ee52f00913517ffb593e9521bf2d",
+      "archive": "game.zip",
+      "archiveSha256": "61e4ecb0fd56a4f7a89cddf40c4ae362c4262f06698828c38d80661587c2b068"
+    },
+    {
+      "name": "psyz",
+      "revision": "db796262b2a696241ec8f3965ebbfbcbc45bfc30",
+      "archive": "psyz.zip",
+      "archiveSha256": "4a639c9dc1305ee4caa2b5efa9c9cf22c0b99d89e414f42d32d2448a57d9d8d8"
+    },
+    {
+      "name": "sdl",
+      "revision": "fa2c02bb6e21974a89ea9824bc53c9932abe5f9c",
+      "archive": "sdl.zip",
+      "archiveSha256": "7b36fe7f802450aa0c98af2e151159c6c8d0e28ea8b0e4356187a21c2d3680a1"
+    }
+  ],
+  "publicDifferences": [
+    "No private factory TOML or native asset index",
+    "Private seed fingerprint replaced by caller-supplied optional macro; default fail-closed",
+    "Public unsupported/link adapters retained",
+    "Generated public cohort deferred until actual build",
+    "Both PointSprite data initializers replaced by required local generated include; newly restored32 words absent, no original EXE fingerprint/offset/extraction proof"
+  ],
+  "gitExecuted": false,
+  "targetExecuted": false,
+  "omittedOriginalDataLicenseCleared": false
+}

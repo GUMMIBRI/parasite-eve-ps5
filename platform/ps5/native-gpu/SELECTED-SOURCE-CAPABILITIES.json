@@ -1,0 +1,92 @@
+{
+  "selectedBuild": "game-test-point7-owned-20261102-a1",
+  "selectedPrivateEboot": "58058fe6287667b980c1a19cc4542157119a183552ed09e99e147b34d29b9520",
+  "privateSourceCohort": "97b40f82c23218e69f2cff9900377a57b0d0be759afc3d361d31df500f2998e9",
+  "sourceOnly": true,
+  "platform": "PS5 native",
+  "fullPublicBuildRun": false,
+  "checkpoint": {
+    "pm": "PEPMID30",
+    "gpu": "PEVRAM06",
+    "gpuSchema": 6,
+    "fontInner": "PEDIAL02",
+    "fontOuter": "PEDIAL03",
+    "legacyVm": "PEFXVM04",
+    "legacyFx": "PELEGFX4",
+    "legacyBytes": 92160,
+    "theater": "PETCTX15",
+    "tasks": "PETASK13",
+    "startupModels": "PESTMD04",
+    "startupModelBytes": 31168,
+    "experimental": true,
+    "arbitraryFrame": false,
+    "crossProcess": false,
+    "runtimeCaptureQualified": false
+  },
+  "fonts": {
+    "styles": [
+      "Original",
+      "Modern IBM Plex",
+      "Retro Chakra Petch"
+    ],
+    "contextsIndependent": true
+  },
+  "menus": [
+    "Graphics",
+    "Mods",
+    "Save states",
+    "Cheats",
+    "Controls",
+    "System"
+  ],
+  "audioTab": false,
+  "privateFactorySettingsIncluded": false,
+  "laterOrbFlameIncluded": true,
+  "toast": {
+    "exactBuiltinFrameCallbackOnly": true,
+    "requiresIdle": true,
+    "wireChanged": false,
+    "captureSuccessQualified": false
+  },
+  "nativeMaterials": {
+    "sources": [
+      "P117 RoomM005 CrossFlare phase2 joints9/20 age<35",
+      "P115 OrbitFlareController",
+      "P109 RisingEmber state1",
+      "P118 exact M023 JointGlow first0x80 quad"
+    ],
+    "selectors": [
+      6,
+      7,
+      8
+    ],
+    "kinds": [
+      1,
+      2,
+      3
+    ],
+    "invalidSentinel": 4,
+    "atomicPackedWords": 11,
+    "maximumQuads": 8,
+    "maximumLights": 8,
+    "maximumArenaBytes": 512,
+    "originalPacketsRetained": true,
+    "originalModeAddsNone": true,
+    "defaultsChanged": false,
+    "newAssets": 0,
+    "newTextures": 0,
+    "newHeapAllocations": 0,
+    "appearanceOrAlligatorCoverageQualified": false
+  },
+  "pointSprite": {
+    "typedControls": [
+      0,
+      1,
+      2
+    ],
+    "requiredOwnerSuppliedWords": 54,
+    "newRetailTailWordsDistributed": 0,
+    "completePublicBuildWithoutInput": false,
+    "missingInputFailsClosed": true
+  }
+}
