@@ -1,18 +1,18 @@
 {
-  "selectedBuild": "game-test-theater-material-owned-20261102-a1",
-  "selectedPrivateEboot": "50b8c2403c4bcf552409fcd11cba4f58acee380afe4920b5b1174dee5b72fb19",
-  "privateSourceCohort": "1f64de225c3855c5b3a7e3250961f7360e189781d6a548413c92ee6065b3c64b",
+  "selectedBuild": "game-test-point7-owned-20261102-a1",
+  "selectedPrivateEboot": "58058fe6287667b980c1a19cc4542157119a183552ed09e99e147b34d29b9520",
+  "privateSourceCohort": "97b40f82c23218e69f2cff9900377a57b0d0be759afc3d361d31df500f2998e9",
   "sourceOnly": true,
   "platform": "PS5 native",
   "fullPublicBuildRun": false,
   "checkpoint": {
-    "pm": "PEPMID29",
+    "pm": "PEPMID30",
     "gpu": "PEVRAM06",
     "gpuSchema": 6,
     "fontInner": "PEDIAL02",
     "fontOuter": "PEDIAL03",
-    "legacyVm": "PEFXVM03",
-    "legacyFx": "PELEGFX3",
+    "legacyVm": "PEFXVM04",
+    "legacyFx": "PELEGFX4",
     "legacyBytes": 92160,
     "theater": "PETCTX15",
     "tasks": "PETASK13",
@@ -52,7 +52,8 @@
     "sources": [
       "P117 RoomM005 CrossFlare phase2 joints9/20 age<35",
       "P115 OrbitFlareController",
-      "P109 RisingEmber state1"
+      "P109 RisingEmber state1",
+      "P118 exact M023 JointGlow first0x80 quad"
     ],
     "selectors": [
       6,
@@ -76,5 +77,16 @@
     "newTextures": 0,
     "newHeapAllocations": 0,
     "appearanceOrAlligatorCoverageQualified": false
+  },
+  "pointSprite": {
+    "typedControls": [
+      0,
+      1,
+      2
+    ],
+    "requiredOwnerSuppliedWords": 54,
+    "newRetailTailWordsDistributed": 0,
+    "completePublicBuildWithoutInput": false,
+    "missingInputFailsClosed": true
   }
 }

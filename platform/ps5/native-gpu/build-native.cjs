@@ -8,6 +8,8 @@ const sdk=dep('deps/ps5-payload-sdk'),rsdk=dep('deps/radv-sdk/ps5-payload-sdk'),
 // mainCapacity is retained as an explicit config-key alias for existing local callers.
 function guard(){const file=config.capacityGuard||config.mainCapacity;if(!file)return;const g=JSON.parse(fs.readFileSync(file));const cutoff=g.stopUsedPercent===undefined?95:Number(g.stopUsedPercent),stamp=Date.parse(g.utc);if(!Number.isFinite(g.usedPercent)||g.usedPercent<0||!Number.isFinite(cutoff)||cutoff<=0||cutoff>95||g.usedPercent>=cutoff||!Number.isFinite(stamp)||Date.now()-stamp>3600000||stamp>Date.now()+60000)throw Error('Caller capacity guard is stale, invalid or at its stop threshold');}
 guard();if(!fs.existsSync(f('SOURCE-EXPORT.json')))throw Error('Run prepare-source.cjs first');
+// Required local owner data is validated before toolchain/dependency work.
+require('./generate-owner-point-script.cjs')(root,config.pointSpriteOwnerData);
 const integrity=require('./input-integrity.cjs');
 const verifiedTrees=integrity.verifyInputs(base,config.webpSource,own);
 const callerTools=integrity.inspectCallerTools(config);

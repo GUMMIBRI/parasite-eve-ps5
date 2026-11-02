@@ -345,6 +345,25 @@
 +void PeShadow_EndFrame(void);
 +int PeShadow_StateIdle(void); /* derived work only; selector needs readonly identity */
 +#endif
+--- /dev/null
++++ b/include/pe1/point_sprite_owner_data.h
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: MIT -- project-authored required-input boundary. */
++#ifndef PE_POINT_SPRITE_OWNER_DATA_H
++#define PE_POINT_SPRITE_OWNER_DATA_H
++#if defined(__has_include)
++# if __has_include("point_sprite_owner.inc")
++#  include "point_sprite_owner.inc"
++# else
++#  error "Owner-supplied PointSprite data required: run generate-owner-point-script.cjs; no retail tails are distributed."
++# endif
++#else
++# error "Compiler must support __has_include for the required owner input boundary."
++#endif
++#ifndef PE_POINT_SPRITE_SCRIPT_INITIALIZER
++# error "Required owner PointSprite initializer is absent; no fallback script is supplied."
++#endif
++#endif
 --- a/include/pe1/render_object.h
 +++ b/include/pe1/render_object.h
 @@ -666,6 +666,8 @@
@@ -10652,6 +10671,23 @@
      unsigned i;
      g_EntityFreePoolCount = 0;
      g_FieldActorListHead = 0;
+--- a/src/main/fieldfx/burst.c
++++ b/src/main/fieldfx/burst.c
+@@ -1,3 +1,4 @@
++#include "pe1/point_sprite_owner_data.h"
+ #include "common.h"
+ #include "pe1/akao/commands.h"
+ #include "pe1/battle.h"
+@@ -1391,7 +1392,8 @@
+ FieldActor *g_PointSpriteOwner;
+ FieldFxPointTriple g_PointSpriteActorPosition;
+ FieldFxSpriteState g_PointSpriteGroundRingSprite, g_PointSpriteState3, g_PointSpriteState4, g_PointSpriteStreakSprite, g_PointSpriteState0, g_PointSpriteState1;
+-int g_PointSpriteScript[22] = {4194304,268566528,269680641,270663682,65541,131076,65538,1245216,1310752,1376288,65537,131076,1048704,1114240,1179776,65536,131074,65539,65540,131080,65536,-1};
++/* Original USA script includes both conditional tails at words 22 and 38. */
++int g_PointSpriteScript[54] = PE_POINT_SPRITE_SCRIPT_INITIALIZER;
+ FieldFxHandler g_PointSpriteInitList[7] = {PointSprite_InitRisingStreak,FieldFx_InitRadialEntries,PointSprite_InitGroundRing,PointSprite_InitBillboard,FieldFx_InitScatteredParticles,PointSprite_InitOrientedFlash,(FieldFxHandler)(intptr_t)-1};
+ FieldFxHandler g_PointSpriteDrawList[7] = {PointSprite_DrawRisingStreak,FieldFx_ProcessInterleavedPoints,PointSprite_DrawGroundRing,PointSprite_DrawBillboardFlash,FieldFx_ProcessPointTriples,PointSprite_DrawOrientedFlash,(FieldFxHandler)(intptr_t)-1};
+ FieldFxHandler g_PointSpriteUpdateList[7] = {PointSprite_UpdateRisingStreak,PointSprite_UpdateRadialParticles,PointSprite_UpdateGroundRing,PointSprite_UpdateBillboardFlash,PointSprite_UpdateScatteredParticles,PointSprite_UpdateOrientedFlash,(FieldFxHandler)(intptr_t)-1};
 --- a/src/main/fieldfx/emitters.c
 +++ b/src/main/fieldfx/emitters.c
 @@ -1,3 +1,6 @@
@@ -11329,7 +11365,7 @@
 +#endif
 --- /dev/null
 +++ b/src/main/fieldfx/particle_mesh/pe_particle_render.c
-@@ -0,0 +1,443 @@
+@@ -0,0 +1,445 @@
 +/* Original project optional render-only tetrahedra. Original sprite stays. */
 +#include "pe1/particle_augment.h"
 +#include "pe1/game_state.h"
@@ -11354,6 +11390,7 @@
 +extern int g_ActiveDrawSlot;
 +extern FieldFxTaskProgram g_FieldFxTaskProgramCmd109;
 +extern FieldFxTaskProgram g_RoomM005Effects;
++extern FieldFxTaskProgram g_RoomM023Effects;
 +unsigned PeBattleParticle_FromFallingSprite(int,const RenderBouncingSprite*,unsigned,unsigned,PeParticleFace[4]);
 +enum{PARTICLE_TRIANGLE_BUDGET=64,PARTICLE_GROUP_BUDGET=32,PARTICLE_ANCHOR_BUDGET=256,PARTICLE_NO_GROUP=0xffffffffu};
 +typedef struct{RenderNativeTag tag;u8 r,g,b,code;s16 x0,y0,x1,y1,x2,y2;}ParticleTriangle;
@@ -11404,7 +11441,7 @@
 +void FieldFx_BeginCrossFlareGlow(int x,int y,int z,unsigned age,unsigned joint){cross_capture.active=g_FieldFxTaskContext&&g_FieldFxTaskContext->table==&g_RoomM005Effects.table&&particle_frame_open&&particle_slot==g_ActiveDrawSlot&&age<35&&(joint==9||joint==20);cross_capture.material_queued=0;cross_capture.x=x;cross_capture.y=y;cross_capture.z=z;cross_capture.age=age;cross_capture.joint=joint;cross_capture.program=117;}
 +void FieldFx_EndCrossFlareGlow(void){cross_capture.active=0;cross_capture.material_queued=0;}
 +void FieldFx_BeginAuthoredFlareGlow(unsigned program,int x,int y,int z,unsigned age,unsigned joint){
-+ cross_capture.active=particle_frame_open&&particle_slot==g_ActiveDrawSlot&&((program==115&&joint==0)||(program==118&&(joint==8||joint==16)));
++ cross_capture.active=particle_frame_open&&particle_slot==g_ActiveDrawSlot&&((program==115&&joint==0)||(program==118&&g_FieldFxTaskContext&&g_FieldFxTaskContext->table==&g_RoomM023Effects.table&&(joint==8||joint==16)));
 + cross_capture.x=x;cross_capture.y=y;cross_capture.z=z;cross_capture.age=age;cross_capture.joint=joint;cross_capture.program=program;cross_capture.material_queued=0;
 +}
 +void FieldFx_EndAuthoredFlareGlow(void){cross_capture.active=0;cross_capture.material_queued=0;}
@@ -11528,7 +11565,8 @@
 +/* Procedural body material: source-owned linked quad, no replacement/unlink.
 + * Both enhanced modes may add this material; pure replacement remains limited
 + * to the old families with exact original packet ownership. */
-+static int FieldFx_QueueParticleMaterial(const FieldStripPacket *src,unsigned depth,unsigned kind,unsigned age,unsigned long long generation,const unsigned tint[3]){
++static int FieldFx_QueueParticleMaterial(const FieldStripPacket *src,unsigned depth,unsigned kind,unsigned program,unsigned age,unsigned long long generation,const unsigned tint[3]){
++    if(!((kind==1&&(program==115||program==118))||(kind==2&&program==109)||(kind==3&&program==117)))return 0;
 +    if(!particle_enabled||!particle_frame_open||ember_count>=EMBER_GLOW_QUAD_BUDGET||depth>=4096||!generation||!ParticleMaterialReady())return 0;
 +    if(src->u0!=src->u2||src->u1!=src->u3||src->v0!=src->v1||src->v2!=src->v3||src->u1<=src->u0||src->v2<=src->v0)return 0;
 +    const s16 q[8]={src->x0,src->y0,src->x1,src->y1,src->x2,src->y2,src->x3,src->y3};
@@ -11540,7 +11578,7 @@
 +    if(!(pending.packet.r0|pending.packet.g0|pending.packet.b0))return 0;
 +    pending.depth=depth;pending.kind=kind==1?GLOW_ORB_MATERIAL:kind==2?GLOW_FLAME_MATERIAL:GLOW_CROSS_MATERIAL;pending.material_age=age&255u;pending.source_generation=generation;
 +    ember_queue[ember_count++]=pending;
-+    if(particle_material_logs++<24)SDL_Log("[Particle material] queued=%s source=%s mode=%d age=%u original-retained=1 atlas-allocations=0 pixels=unobserved",kind==1?"rounded-orb-body":kind==2?"animated-flame-body":"animated-crossflare-core",kind==1?"P115.OrbitFlareController":kind==2?"P109.RisingEmber.state1":"P117.CrossFlare",particle_enabled,age);
++    if(particle_material_logs++<24)SDL_Log("[Particle material] queued=%s source=%s mode=%d age=%u original-retained=1 atlas-allocations=0 pixels=unobserved",kind==1?"rounded-orb-body":kind==2?"animated-flame-body":"animated-crossflare-core",program==118?"P118.JointGlow":kind==1?"P115.OrbitFlareController":kind==2?"P109.RisingEmber.state1":"P117.CrossFlare",particle_enabled,age);
 +    return 1;
 +}
 +
@@ -11585,7 +11623,7 @@
 +    if(!accepted)return;
 +    if(analytic_flame){unsigned best=0;if(accepted==2){int64_t area0=(int64_t)(pending[0].packet.x1-pending[0].packet.x0)*(pending[0].packet.y2-pending[0].packet.y0)-(int64_t)(pending[0].packet.x2-pending[0].packet.x0)*(pending[0].packet.y1-pending[0].packet.y0);int64_t area1=(int64_t)(pending[1].packet.x1-pending[1].packet.x0)*(pending[1].packet.y2-pending[1].packet.y0)-(int64_t)(pending[1].packet.x2-pending[1].packet.x0)*(pending[1].packet.y1-pending[1].packet.y0);if(area0<0)area0=-area0;if(area1<0)area1=-area1;best=area1>area0;}
 +        FieldStripPacket material=pending[best].packet;material.r0=original->r0;material.g0=original->g0;material.b0=original->b0;
-+        if(FieldFx_QueueParticleMaterial(&material,pending[best].depth,2,ember_capture.age,flame_generation,flame_tint))return;
++        if(FieldFx_QueueParticleMaterial(&material,pending[best].depth,2,109,ember_capture.age,flame_generation,flame_tint))return;
 +        if(particle_enabled!=PE_PARTICLE_HYBRID)return;
 +    }
 +    memcpy(ember_queue+ember_count,pending,accepted*sizeof(*pending));ember_count+=accepted;
@@ -11644,7 +11682,7 @@
 +    unsigned prior_lights=particle_light_count;unsigned long long source_generation=0;
 +    unsigned light[3]={src->r0>127?255:src->r0*2,src->g0>127?255:src->g0*2,src->b0>127?255:src->b0*2};
 +    if(cross_capture.program!=117){
-+        if((!particle_lighting||particle_light_count>=PARTICLE_LIGHT_CAP||particle_light_fault||particle_light_applied)&&(particle_enabled!=PE_PARTICLE_HYBRID||ember_count>EMBER_GLOW_QUAD_BUDGET-2)&&!(cross_capture.program==115&&!cross_capture.material_queued&&ember_count<EMBER_GLOW_QUAD_BUDGET&&ParticleMaterialReady()))return;
++        if((!particle_lighting||particle_light_count>=PARTICLE_LIGHT_CAP||particle_light_fault||particle_light_applied)&&(particle_enabled!=PE_PARTICLE_HYBRID||ember_count>EMBER_GLOW_QUAD_BUDGET-2)&&!((cross_capture.program==115||cross_capture.program==118)&&!cross_capture.material_queued&&ember_count<EMBER_GLOW_QUAD_BUDGET&&ParticleMaterialReady()))return;
 +        unsigned tint[3];
 +        if(src->u0!=src->u2||src->u1!=src->u3||src->v0!=src->v1||src->v2!=src->v3||src->u1<src->u0||src->v2<src->v0||!Psyz_GpuAuthoredFlareTint(src->tpage,src->clut,src->u0,src->v0,(unsigned)src->u1-src->u0+1,(unsigned)src->v2-src->v0+1,tint))return;
 +        source_generation=Psyz_GpuAuthoredFlareGeneration();if(!source_generation)return;
@@ -11660,12 +11698,12 @@
 +    if(source_generation&&particle_light_count>prior_lights)particle_lights[prior_lights].source_generation=source_generation;
 +    if(particle_light_count>prior_lights&&cross_log_count<24){cross_log_count++;SDL_Log("[Theater VFX light admitted] program=%u phase=2 joint=%u queued-emitter=1 original-RGB-fade=1 model-pixels=unobserved",cross_capture.program,cross_capture.joint);}
 +    if(cross_capture.program==117&&!cross_capture.material_queued&&source_generation&&ParticleMaterialReady()){
-+        unsigned tint[3];if(Psyz_GpuParticleMaterialTint(3,src->tpage,src->clut,src->u0,src->v0,(unsigned)src->u1-src->u0+1,(unsigned)src->v2-src->v0+1,tint)&&FieldFx_QueueParticleMaterial(src,(unsigned)((ep-ot)/sizeof(RenderNativeTag)),3,cross_capture.age,source_generation,tint)){cross_capture.material_queued=1;return;}
++        unsigned tint[3];if(Psyz_GpuParticleMaterialTint(3,src->tpage,src->clut,src->u0,src->v0,(unsigned)src->u1-src->u0+1,(unsigned)src->v2-src->v0+1,tint)&&FieldFx_QueueParticleMaterial(src,(unsigned)((ep-ot)/sizeof(RenderNativeTag)),3,117,cross_capture.age,source_generation,tint)){cross_capture.material_queued=1;return;}
 +    }
-+    if(cross_capture.program==115&&!cross_capture.material_queued&&source_generation&&ParticleMaterialReady()){
-+        unsigned tint[3];if(Psyz_GpuParticleMaterialTint(1,src->tpage,src->clut,src->u0,src->v0,(unsigned)src->u1-src->u0+1,(unsigned)src->v2-src->v0+1,tint)&&FieldFx_QueueParticleMaterial(src,(unsigned)((ep-ot)/sizeof(RenderNativeTag)),1,cross_capture.age,source_generation,tint)){cross_capture.material_queued=1;return;}
++    if((cross_capture.program==115||cross_capture.program==118)&&!cross_capture.material_queued&&source_generation&&ParticleMaterialReady()){
++        unsigned tint[3];if(Psyz_GpuParticleMaterialTint(1,src->tpage,src->clut,src->u0,src->v0,(unsigned)src->u1-src->u0+1,(unsigned)src->v2-src->v0+1,tint)&&FieldFx_QueueParticleMaterial(src,(unsigned)((ep-ot)/sizeof(RenderNativeTag)),1,cross_capture.program,cross_capture.age,source_generation,tint)){cross_capture.material_queued=1;return;}
 +    }
-+    if(cross_capture.program==115&&cross_capture.material_queued)return;
++    if((cross_capture.program==115||cross_capture.program==118)&&cross_capture.material_queued)return;
 +    if(particle_enabled!=PE_PARTICLE_HYBRID||ember_count>EMBER_GLOW_QUAD_BUDGET-2||src->u0!=src->u2||src->u1!=src->u3||src->v0!=src->v1||src->v2!=src->v3||src->u1<src->u0||src->v2<src->v0)return;
 +    if(!Psyz_GpuCrossFlareSource(src->tpage,src->clut,src->u0,src->v0,(unsigned)src->u1-src->u0+1,(unsigned)src->v2-src->v0+1))return;
 +    const s16 xy[8]={src->x0,src->y0,src->x1,src->y1,src->x2,src->y2,src->x3,src->y3};int cx=((int)xy[0]+xy[2]+xy[4]+xy[6])/4,cy=((int)xy[1]+xy[3]+xy[5]+xy[7])/4;

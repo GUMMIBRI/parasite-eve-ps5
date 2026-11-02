@@ -318,10 +318,12 @@
     "privateTextureImagesOrIndexIncluded": false
   },
   "currentExport": {
-    "selectedBuild": "game-test-theater-material-owned-20261102-a1",
-    "selectedPrivateEboot": "50b8c2403c4bcf552409fcd11cba4f58acee380afe4920b5b1174dee5b72fb19",
-    "privateSourceCohort": "1f64de225c3855c5b3a7e3250961f7360e189781d6a548413c92ee6065b3c64b",
-    "scope": "PS5 source only",
+    "selectedBuild": "game-test-point7-owned-20261102-a1",
+    "selectedPrivateEboot": "58058fe6287667b980c1a19cc4542157119a183552ed09e99e147b34d29b9520",
+    "privateSourceCohort": "97b40f82c23218e69f2cff9900377a57b0d0be759afc3d361d31df500f2998e9",
+    "scope": "PS5 public logic/data-boundary adapter only",
+    "noOriginalRetailInputDistributed": true,
+    "noOriginalDataLicenseClearanceClaim": true,
     "retroFontLicense": "notices/OFL-ChakraPetch.txt",
     "noSeparatePcBuild": true
   }

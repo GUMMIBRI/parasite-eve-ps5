@@ -1,3 +1,4 @@
+#include "pe1/point_sprite_owner_data.h"
 /* SPDX-License-Identifier: MIT. Typed original FieldFxObject VM, no raw object/heap image. */
 #include "pe_state_legacy_fx.h"
 #include "pe_state_boundary.h"
@@ -269,7 +270,7 @@ if(g_FourLayerGlowSlotSizes[4]!=16)return 0;
 if(g_FourLayerGlowSlotSizes[5]!=48)return 0;
 if(g_FourLayerGlowSlotSizes[6]!=65535)return 0;
 d=(LegacyDesc){3,25,5,8,2056,7,g_FourLayerGlowScript,g_FourLayerGlowSlotSizes};break;}
-case 7:{static const int exact[22]={4194304,268566528,269680641,270663682,65541,131076,65538,1245216,1310752,1376288,65537,131076,1048704,1114240,1179776,65536,131074,65539,65540,131080,65536,-1};if(g_PmCmdHandlerTable[7]!=&g_PointSpriteClass||memcmp(exact,g_PointSpriteScript,sizeof exact))return 0;
+case 7:{static const int exact[54]=PE_POINT_SPRITE_SCRIPT_INITIALIZER;if(g_PmCmdHandlerTable[7]!=&g_PointSpriteClass||memcmp(exact,g_PointSpriteScript,sizeof exact))return 0;
 if(g_PointSpriteInitList[0]!=PointSprite_InitRisingStreak)return 0;
 if(g_PointSpriteInitList[1]!=FieldFx_InitRadialEntries)return 0;
 if(g_PointSpriteInitList[2]!=PointSprite_InitGroundRing)return 0;
@@ -298,7 +299,7 @@ if(g_PointSpriteSlotSizes[3]!=12)return 0;
 if(g_PointSpriteSlotSizes[4]!=200)return 0;
 if(g_PointSpriteSlotSizes[5]!=12)return 0;
 if(g_PointSpriteSlotSizes[6]!=65535)return 0;
-d=(LegacyDesc){7,22,5,2,2058,6,g_PointSpriteScript,g_PointSpriteSlotSizes};break;}
+d=(LegacyDesc){7,54,5,2,2058,6,g_PointSpriteScript,g_PointSpriteSlotSizes};break;}
 case 4:{static const int exact[18]={5177344,520945667,521011202,520224769,131072,821690368,2031616,6225920,1966080,1900544,65536,65537,65538,519831552,821100544,-3,820969472,-1};if(g_PmCmdHandlerTable[4]!=&g_BurstEffectBClass||memcmp(exact,g_BurstEffectBScript,sizeof exact))return 0;
 if(g_BurstEffectBInitList[0]!=BurstEffectB_InitTarget)return 0;
 if(g_BurstEffectBInitList[1]!=BurstEffectB_InitSparkCloud)return 0;
@@ -371,7 +372,7 @@ static int extended_context(FieldFxObject*,const PeWorldState*,const unsigned ch
 int PeStateLegacy_Context(FieldFxObject*object,const PeWorldState*w,const uint32_t targets[7],const unsigned char*in,unsigned char*out,int apply){
  if(!object||!targets||(!in&&!out)||(apply&&out)||!PeStateBoundary_AtCpuPoint())return 0;unsigned command=out?object->prefix.asset_type:rd(in+172);LegacyDesc d;if(!descriptor(command,&d))return 0;if(command<4||command==7)return extended_context(object,w,in,out,apply);
  if(apply&&!PeStateLegacy_Context(object,w,targets,in,0,0))return 0;
- if(out){memset(out,0,8192);memcpy(out,"PEFXVM03",8);}else if(memcmp(in,"PEFXVM03",8))return 0;
+ if(out){memset(out,0,8192);memcpy(out,"PEFXVM04",8);}else if(memcmp(in,"PEFXVM04",8))return 0;
  uint32_t owner=out?actor_id(object->prefix.actor):rd(in+8),wait=out?(uint32_t)(int32_t)object->state.wait:rd(in+12),pc=out?(uint32_t)(int32_t)object->state.pc:rd(in+16),next=out?(uint32_t)(int32_t)object->state.data_next:rd(in+20),count=out?(uint32_t)(int32_t)object->state.slot_count:rd(in+24),halted=out?(uint32_t)(int32_t)object->state.halted:rd(in+28);
  unsigned pcAllowed=pc==0||pc==d.idle||pc==d.words-1||(command==6&&(pc==12||pc==14));if(!owner_role(w,owner,apply)||!pcAllowed||wait>(command==6?2u:0u)||next>d.limit||next%d.unit||count>64||halted>1||((pc==d.words-1)!=(halted==1))||(wait&&pc!=12&&pc!=14))return 0;
  if(command==5&&!player_role(w,apply))return 0;
@@ -414,7 +415,7 @@ static int extended_globals(const PeWorldState*,const unsigned char*,const unsig
 int PeStateLegacy_WalkForWorld(const PeWorldState*w,const unsigned char*header,const unsigned char*in,unsigned char*out,int apply){
  if((!in&&!out)||(!out&&!header)||(out&&apply)||!g_PmSlotTable||!PeStateBoundary_AtCpuPoint())return 0;
  if(apply&&(!Psyz_StateAudioOwned()||!Psyz_StateKernelOwned()||!PeStateLegacy_WalkForWorld(w,header,in,0,0)||!PeStateLegacy_Constructed(w,header,in)))return 0;
- if(out){memset(out,0,PE_STATE_LEGACY_FX_BYTES);memcpy(out,"PELEGFX3",8);}else if(memcmp(in,"PELEGFX3",8))return 0;
+ if(out){memset(out,0,PE_STATE_LEGACY_FX_BYTES);memcpy(out,"PELEGFX4",8);}else if(memcmp(in,"PELEGFX4",8))return 0;
  uint64_t ids[3]={PeStateBoundary_Session(),PeStateBoundary_SceneEpoch(),PeStateAssets_Generation()};for(unsigned j=0;j<3;j++){if(out){wr(out+8+j*8,(uint32_t)ids[j]);wr(out+12+j*8,(uint32_t)(ids[j]>>32));}else if(rd(in+8+j*8)!=(uint32_t)ids[j]||rd(in+12+j*8)!=(uint32_t)(ids[j]>>32))return 0;}
  uint32_t targets[7];unsigned count=out?g_BattleActionActorCount:rd(in+76);if(count>7)return 0;for(unsigned j=0;j<7;j++){targets[j]=out?actor_id(g_BattleActionActors[j]):rd(in+48+j*4);if(targets[j]>14)return 0;if(out)wr(out+48+j*4,targets[j]);}unsigned length=0;while(length<7&&targets[length])length++;if(length==7||count>length)return 0;for(unsigned j=length;j<7;j++)if(targets[j])return 0;uint32_t live;if(!mask_for(w,apply,&live))return 0;for(unsigned j=0;j<count;j++)if(!(live&(1u<<(targets[j]-1))))return 0;if(out)wr(out+76,count);unsigned target=out?actor_id(g_BurstEffectCTarget):rd(in+80);if(target>14)return 0;if(out)wr(out+80,target);for(unsigned j=0;j<3;j++){uint32_t v=out?((u16*)&g_BurstEffectCTargetPosition)[j]:rd(in+84+j*4);if(v>65535)return 0;if(out)wr(out+84+j*4,v);}
  if(!sprite_walk(&g_BurstEffectCState,in?in+96:0,out?out+96:0,apply))return 0;
@@ -460,19 +461,37 @@ static int extended_payload(unsigned command,unsigned id,void*data,const unsigne
  }
  return 1;
 }
+/* Exact quiescent VM states from the complete original PointSprite script.
+ * Each wait stores the NEXT PC; end commands retain their own PC.  No pointer
+ * or additional payload is introduced by either original conditional tail. */
+static int point_vm_boundary(unsigned control,unsigned pc,unsigned wait,unsigned halted,const int32_t regs[16]){
+ static const unsigned stops[3][5]={{6,12,17,20,21},{25,31,33,36,37},{41,47,49,52,53}};
+ static const unsigned waits[5]={4,4,2,8,0};
+ if(control>2||halted>1)return 0;
+ unsigned stage=0;int32_t exact[16]={0};
+ if(pc==0){if(wait||halted)return 0;}
+ else {
+  while(stage<5&&stops[control][stage]!=pc)stage++;
+  if(stage==5||wait>(control&&stage==1?3u:waits[stage])||halted!=(stage==4))return 0;
+  exact[0]=(int32_t)control;
+  if(!control){if(stage>=1)exact[3]=exact[4]=exact[5]=32;if(stage>=2)exact[0]=exact[1]=exact[2]=128;}
+  else if(stage>=1){exact[0]=64;exact[control==1?1:2]=64;}
+ }
+ for(unsigned i=0;i<16;i++)if(regs[i]!=exact[i])return 0;
+ return 1;
+}
 static int extended_context(FieldFxObject*object,const PeWorldState*w,const unsigned char*in,unsigned char*out,int apply){
  unsigned command=out?object->prefix.asset_type:rd(in+172);LegacyDesc d;if(!descriptor(command,&d)||(command>3&&command!=7))return 0;
  if(apply&&!extended_context(object,w,in,0,0))return 0;
- if(out){memset(out,0,8192);memcpy(out,"PEFXVM03",8);}else if(memcmp(in,"PEFXVM03",8))return 0;
+ if(out){memset(out,0,8192);memcpy(out,"PEFXVM04",8);}else if(memcmp(in,"PEFXVM04",8))return 0;
  unsigned owner=out?actor_id(object->prefix.actor):rd(in+8),wait=out?(unsigned)object->state.wait:rd(in+12),pc=out?(unsigned)object->state.pc:rd(in+16),next=out?(unsigned)object->state.data_next:rd(in+20),count=out?(unsigned)object->state.slot_count:rd(in+24),halted=out?(unsigned)object->state.halted:rd(in+28);
  unsigned pcAllowed=pc==0||pc==d.words-1||pc==d.idle||(command==7&&(pc==12||pc==17||pc==20));
  unsigned maxWait=command!=7?0:pc==6||pc==12?4:pc==17?2:pc==20?8:0;
- if(!owner_role(w,owner,apply)||!action_player(w,apply)||(command<4&&!joint_owner(w,owner,apply))||!pcAllowed||wait>maxWait||next>d.limit||next%d.unit||count>64||halted>1||((pc==d.words-1)!=(halted==1)))return 0;
+ if(!owner_role(w,owner,apply)||!action_player(w,apply)||(command<4&&!joint_owner(w,owner,apply))||(command!=7&&(!pcAllowed||wait>maxWait||((pc==d.words-1)!=(halted==1))))||next>d.limit||next%d.unit||count>64||halted>1)return 0;
  if(out&&(object->state.commands!=d.script||object->state.current_context))return 0;
  int32_t regs[16];for(unsigned j=0;j<16;j++)regs[j]=out?object->state.regs[j]:(int32_t)rd(in+32+j*4);
- if(command==7){for(unsigned j=0;j<16;j++){if(j==0){if(regs[j]!=0&&regs[j]!=2&&regs[j]!=128)return 0;}else if(j<3){if(regs[j]!=0&&regs[j]!=128)return 0;}else if(j<6){if(regs[j]!=0&&regs[j]!=32)return 0;}else if(regs[j])return 0;}}
- else for(unsigned j=0;j<16;j++){if(j==15){if(regs[j]<0||regs[j]>2)return 0;}else if((command==0||command==3)&&j==10){if(regs[j]<0||regs[j]>1)return 0;}else if((command==0||command==3)&&j==11){if(regs[j]<0||regs[j]>9)return 0;}else if(regs[j])return 0;}
- unsigned control=out?(unsigned)object->state.vars[0]:rd(in+100);if(control>2||(command==7&&control==1)||(out&&(intptr_t)control!=object->state.vars[0]))return 0;
+ if(command!=7) for(unsigned j=0;j<16;j++){if(j==15){if(regs[j]<0||regs[j]>2)return 0;}else if((command==0||command==3)&&j==10){if(regs[j]<0||regs[j]>1)return 0;}else if((command==0||command==3)&&j==11){if(regs[j]<0||regs[j]>9)return 0;}else if(regs[j])return 0;}
+ unsigned control=out?(unsigned)object->state.vars[0]:rd(in+100);if(control>2||(out&&(intptr_t)control!=object->state.vars[0])||(command==7&&!point_vm_boundary(control,pc,wait,halted,regs)))return 0;
  for(unsigned j=0;j<9;j++){if(out){if(j&&object->state.vars[j])return 0;wr(out+96+j*8,0);wr(out+100+j*8,j?0:control);}else if(rd(in+96+j*8)||rd(in+100+j*8)!=(j?0:control))return 0;}
  if(out){wr(out+8,owner);wr(out+12,wait);wr(out+16,pc);wr(out+20,next);wr(out+24,count);wr(out+28,halted);for(unsigned j=0;j<16;j++)wr(out+32+j*4,(uint32_t)regs[j]);wr(out+168,command+1);wr(out+172,command);}else if(rd(in+168)!=command+1||!zero(in+176,80))return 0;
  unsigned active=0;size_t fields=1280;unsigned char occupied[FIELDFX_DATA_SIZE];memset(occupied,0,sizeof occupied);
