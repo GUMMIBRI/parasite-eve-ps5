@@ -1,37 +1,37 @@
-# Parasite Eve — PS5 homebrew port
+# Parasite Eve — PS5 Beta
 
-Experimental retail/homebrew PS5 adaptation of the native
-[Parasite Eve PC port](https://github.com/khasinski/parasite-eve-pc), using its
-[PsyZ fork](https://github.com/khasinski/parasite-eve-psyz). This project preserves
-upstream game logic and keeps PS5-specific work isolated.
+Native PS5 homebrew adaptation of [Parasite Eve PC](https://github.com/khasinski/parasite-eve-pc), using the public PsyZ / SDL3 GPU stack. **Beta 1** is for community testing; full-game stability and experimental checkpoints are not certified.
 
-**Status: native PS5 game test build compiled and linked; console behavior unverified.**
-The current integration candidate is derived from upstream0.7 and uses public
-SDL3 software video, AudioOut and DualSense backends. There is no validated
-playable PS5 release. Firmware13.60 with kstuff-lite / ShadowMount+ is the owner’s
-stated test environment; actual loader/service compatibility remains to be tested.
-Console and gameplay validation belong to the project owner.
+![Theater exterior in widescreen](docs/images/ps5-theater-widescreen.png)
 
-Original textures load from user-owned discs. External HD PNG replacement packs
-are not yet supported. No retail game files, texture packs or personal saves are
-distributed in this repository. See [native build notes](docs/PS5_GAME_BUILD.md)
-and [upstream integration](docs/PS5_UPSTREAM_SYNC.md).
+*Theater exterior in widescreen (owner-supplied capture). This retained capture is not tied to the latest beta build.*
 
-## Project direction
+## Download and install
 
-- Build with a public, legally available homebrew toolchain; no leaked Sony SDK.
-- Bring up boot/logging, scratch filesystem access, controller and graphics clear
-  before integrating game systems.
-- Preserve desktop behavior and deliberately integrate updates from upstream.
-  Keep PsyZ pinned to a reviewed revision.
-- Compare available original and HD assets for quality and compatibility.
-  Game images, HD packs and saves remain user-supplied local data.
-- Submit useful portable fixes upstream with their provenance and notices intact.
+Get the PS5 app from [PS5 beta releases](https://github.com/GUMMIBRI/parasite-eve-ps5/releases). Bring your own North American disc images and any compatible optional texture packs; game assets and personal saves are not distributed.
 
-See [contribution and review policy](CONTRIBUTING.md), [security policy](SECURITY.md),
-and the [PS5 groundwork PR](https://github.com/GUMMIBRI/parasite-eve-ps5/pull/1).
-There are no PS5 download/install instructions until a console build is verified.
-Upstream desktop releases below are PC releases, not PS5 packages.
+- Copy `PS5GameTest` into your `homebrew` folder.
+- Copy `parasite-eve` into `/mnt/usb0/`.
+
+The app may live at `/data/homebrew/PS5GameTest` while assets stay on USB. `/data/parasite-eve` is also supported. Existing explicit saved paths take precedence. The public asset folder is a layout for your own files, not a bundled game or HD pack.
+
+## Included PS5 work
+
+Native hardware rendering; widescreen and display preferences; optional HD background and character-texture paths; Original / Modern / Retro font choices; bounded particle materials and lighting; normal memory-card routing; and experimental typed checkpoints. Graphics / Mods / Save states / Cheats / Controls / System remain the main tabs. Fresh-install cheats are off.
+
+Analytic materials cover specific P109/P115/P117/P118 sources, including the first-theater CrossFlare. They are enabled by Hybrid/New particle modes, retain original sprites and do not establish Alligator attack coverage. Character textures are not replacement meshes. No DLSS or ray-tracing support is promised.
+
+Checkpoints require compatible resources, settings, scene and the same launch; unsupported owners reject. PM30 checkpoints are incompatible with older checkpoint versions. Normal card saves remain separate. The newest beta derivative requires human console verification; prior owner tests demonstrated boot/gameplay on earlier builds. Compilation and package audits do not establish appearance, performance or reliable capture/restore.
+
+## Source and upstream
+
+The repository base is synced through upstream `0ce223f5a` (0.10). The beta binary uses the separately pinned and reviewed native recipe; the repository sync is not a claim that every 0.10 change is in that binary.
+
+Current PS5 source, pins, notices and build instructions are under [platform/ps5/native-gpu](platform/ps5/native-gpu). Some original-data inputs must be generated locally from authorized owner input; these are omitted from Git and missing input fails clearly. No proprietary Sony SDK or system modules are included. Existing license and original-source limitations remain explicit.
+
+Earlier contribution [PR #42](https://github.com/khasinski/parasite-eve-pc/pull/42) was merged upstream. Newer changes are offered separately for review; PS5-gated implementations do not automatically enable PC features.
+
+See [beta notes](docs/PS5_BETA.md), [contribution policy](CONTRIBUTING.md), [license](LICENSE.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ---
 
