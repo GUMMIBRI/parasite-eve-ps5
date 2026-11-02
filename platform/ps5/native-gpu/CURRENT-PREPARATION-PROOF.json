@@ -1,7 +1,8 @@
 {
-  "schema": 3,
-  "selectedBuild": "resident-ailments-movie-retry-owned-20261101-a1",
-  "selectedPrivateEboot": "c7a47dfc44d773eb3e485538a4a5c211bf678908f5c1e3945f1068c300a5a394",
+  "schema": 4,
+  "selectedBuild": "game-test-standard-share-owned-20261102-a1",
+  "selectedPrivateEboot": "3f40867c6d3263ff5e741086b3eddfd5a7895b197e0a8ed324321acd2e084339",
+  "privateSourceCohort": "7e24c3ac11c87c875bf875fad11a527e3fc76646735c00abe40323a0300b1670",
   "originalArchivePins": [
     {
       "name": "game",
@@ -22,19 +23,14 @@
       "archiveSha256": "7b36fe7f802450aa0c98af2e151159c6c8d0e28ea8b0e4356187a21c2d3680a1"
     }
   ],
-  "sourceRecordsVerified": 207,
+  "sourceRecordsVerified": 210,
   "SDLSourceMirrorsVerified": 40,
-  "supportStateSourceInputsVerified": 71,
+  "supportStateSourceInputsVerified": 80,
   "allSevenSelectedShaderHeadersReproduced": true,
   "compilerSha256": "9643709c02c83e26773f96b6a87f197ab2e84f78be0879ad8fb3619418b5d9ad",
   "publicSourceCohortGenerated": false,
   "publicFullGameBuildRun": false,
-  "publicNoPackVerifierActualSdkTuCompiles": false,
-  "privateNativeFullBuildIsSeparateEvidence": true,
-  "privateBackgroundOrCharacterIndexesIncluded": false,
-  "assetsSavesSettingsLogsCredentialsOrBinariesIncluded": false,
   "gitExecuted": false,
   "targetExecuted": false,
-  "publicPublished": false,
-  "auxiliaryHashAudit": true
+  "publicPublished": false
 }
