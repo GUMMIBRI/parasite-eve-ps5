@@ -1,8 +1,8 @@
 {
   "schema": 4,
-  "selectedBuild": "game-test-standard-share-owned-20261102-a1",
-  "selectedPrivateEboot": "3f40867c6d3263ff5e741086b3eddfd5a7895b197e0a8ed324321acd2e084339",
-  "privateSourceCohort": "7e24c3ac11c87c875bf875fad11a527e3fc76646735c00abe40323a0300b1670",
+  "selectedBuild": "game-test-theater-material-owned-20261102-a1",
+  "selectedPrivateEboot": "50b8c2403c4bcf552409fcd11cba4f58acee380afe4920b5b1174dee5b72fb19",
+  "privateSourceCohort": "1f64de225c3855c5b3a7e3250961f7360e189781d6a548413c92ee6065b3c64b",
   "originalArchivePins": [
     {
       "name": "game",
@@ -23,7 +23,7 @@
       "archiveSha256": "7b36fe7f802450aa0c98af2e151159c6c8d0e28ea8b0e4356187a21c2d3680a1"
     }
   ],
-  "sourceRecordsVerified": 210,
+  "sourceRecordsVerified": 211,
   "SDLSourceMirrorsVerified": 40,
   "supportStateSourceInputsVerified": 80,
   "allSevenSelectedShaderHeadersReproduced": true,

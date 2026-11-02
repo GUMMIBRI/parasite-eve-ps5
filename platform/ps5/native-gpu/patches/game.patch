@@ -776,7 +776,7 @@
      if (!s_started) pe_host_start(init);
      return 0;
  }
-@@ -478,3 +549,152 @@
+@@ -478,3 +549,154 @@
      pe_save_crash_describe(out, size, &n);
  #undef PE_OUT
  }
@@ -787,6 +787,8 @@
 +extern int pe_mod_state_panel_closed(void);
 +extern int pe_main_menu_state_empty(void);
 +extern int pe_present_state_empty(void);
++extern int pe_toast_state_idle(void);
++extern int pe_toast_state_handler_owned(int,PeHookFn,void *);
 +extern int pe_save_state_idle(void);
 +#if PE_NATIVE_STATE_ASSISTS
 +extern int pe_assists_state_options(uint32_t [3]);
@@ -810,9 +812,9 @@
 +static char s_state_blocker_text[128];
 +int pe_mod_state_options(uint32_t out[4]){s_state_blocker=0;s_state_blocker_mod=0;
 +#define STATE_DENY(reason) do{s_state_blocker=(reason);return 0;}while(0)
-+ if(!out||!s_started)STATE_DENY(1);if(s_call_depth||s_current_mod)STATE_DENY(2);if(!pe_mod_state_panel_closed())STATE_DENY(3);if(!pe_save_state_idle())STATE_DENY(4);
++ if(!out||!s_started)STATE_DENY(1);if(s_call_depth||s_current_mod)STATE_DENY(2);if(!pe_mod_state_panel_closed())STATE_DENY(3);if(!pe_save_state_idle())STATE_DENY(4);if(!pe_toast_state_idle())STATE_DENY(14);
 + for(int i=0;i<s_manage_count;i++){const char *id=g_pe_mods[i]->id;if(strcmp(id,"pe_assists")&&strcmp(id,"pe_qol")&&strcmp(id,"pe_rebalance")&&strcmp(id,"pe_economy")&&strcmp(id,"pe_collection"))STATE_DENY(5);}
-+ for(int i=0;i<s_handler_count;i++)if(s_handlers[i].active&&s_handlers[i].mod_id){const char *id=s_handlers[i].mod_id;if(strcmp(id,"host")&&strcmp(id,"menu")&&strcmp(id,"present")&&strcmp(id,"pe_assists")
++ for(int i=0;i<s_handler_count;i++)if(s_handlers[i].active&&s_handlers[i].mod_id){const char *id=s_handlers[i].mod_id;if(strcmp(id,"host")&&strcmp(id,"menu")&&strcmp(id,"present")&&(strcmp(id,"toast")||!pe_toast_state_handler_owned(s_handlers[i].id,s_handlers[i].fn,s_handlers[i].user))&&strcmp(id,"pe_assists")
 +#if PE_NATIVE_STATE_QOL
 + &&strcmp(id,"pe_qol")
 +#endif
@@ -865,7 +867,7 @@
 + return 1;
 +#undef STATE_DENY
 +}
-+const char *pe_mod_state_blocker(void){uint32_t exact[4];if(pe_mod_state_options(exact))return "Experimental current-room checkpoint";switch(s_state_blocker){case 1:return "Mods host is not initialized";case 2:return "A mod callback is still running";case 3:return "Close the Mods panel before checkpointing";case 4:return "Pending or live mod-save data is not checkpoint-owned";case 5:return "This build contains an unowned mod; use the supported mod list";case 6:if(s_state_blocker_mod){snprintf(s_state_blocker_text,sizeof s_state_blocker_text,"%s still needs checkpoint ownership",s_state_blocker_mod);return s_state_blocker_text;}return "The current startup mod configuration is not checkpoint-owned";case 7:return "Close the custom mod screen or picture first";case 9:return "Finish the QOL inventory/key-screen job first";case 10:return "A mod activation change is pending; restore it or restart";case 13:
++const char *pe_mod_state_blocker(void){uint32_t exact[4];if(pe_mod_state_options(exact))return "Experimental current-room checkpoint";switch(s_state_blocker){case 1:return "Mods host is not initialized";case 2:return "A mod callback is still running";case 3:return "Close the Mods panel before checkpointing";case 4:return "Pending or live mod-save data is not checkpoint-owned";case 5:return "This build contains an unowned mod; use the supported mod list";case 6:if(s_state_blocker_mod){snprintf(s_state_blocker_text,sizeof s_state_blocker_text,"%s still needs checkpoint ownership",s_state_blocker_mod);return s_state_blocker_text;}return "The current startup mod configuration is not checkpoint-owned";case 7:return "Close the custom mod screen or picture first";case 9:return "Finish the QOL inventory/key-screen job first";case 10:return "A mod activation change is pending; restore it or restart";case 14:return "Wait for the notification to finish, then retry the checkpoint";case 13:
 +#if PE_NATIVE_STATE_REBALANCE
 +return pe_rebalance_checkpoint_blocker();
 +#else
@@ -1191,6 +1193,25 @@
 + return at+sizeof s_tail==bytes;
 +}
 +#endif
+--- a/mods/host/ui/pe_toast.c
++++ b/mods/host/ui/pe_toast.c
+@@ -57,6 +57,16 @@
+     return 0;
+ }
+ 
++/* Notification text/deadline and the retained raster/texture are host UI,
++ * never game graph roots. At a checkpoint boundary there may be no pending,
++ * displayed or panel-blocked notification. Keep the derived raster allocation
++ * unchanged; no wall-clock value or host/GPU pointer enters checkpoint data. */
++int pe_toast_state_idle(void) {
++    return !s_blocked && !s_shown && !s_until;
++}
++int pe_toast_state_handler_owned(int id, PeHookFn fn, void *user) {
++    return id == PE_HOOK_FRAME && fn == pe_toast_tick && user == NULL;
++}
+ void pe_toast_install(void) {
+     pe_hook_add(PE_HOOK_FRAME, pe_toast_tick, NULL, PE_PRIORITY_LATE, "toast");
+ }
 --- a/mods/host/ui/pe_ui_gpu.c
 +++ b/mods/host/ui/pe_ui_gpu.c
 @@ -7,12 +7,12 @@
@@ -11308,7 +11329,7 @@
 +#endif
 --- /dev/null
 +++ b/src/main/fieldfx/particle_mesh/pe_particle_render.c
-@@ -0,0 +1,367 @@
+@@ -0,0 +1,443 @@
 +/* Original project optional render-only tetrahedra. Original sprite stays. */
 +#include "pe1/particle_augment.h"
 +#include "pe1/game_state.h"
@@ -11320,6 +11341,7 @@
 +#include "pe1/render_buffers.h"
 +#include "pe1/render_packets.h"
 +#include "pe1/field_sprite_params.h"
++#include "pe1/fieldfx_task.h"
 +#include "pe1/field_textured_strip.h"
 +#include "pe1/psyq_gpu.h"
 +#include "pe_battle_particle_mesh.h"
@@ -11328,7 +11350,10 @@
 +#include <string.h>
 +#include <stdio.h>
 +#include <SDL3/SDL_log.h>
++#include <psyz/gpu.h>
 +extern int g_ActiveDrawSlot;
++extern FieldFxTaskProgram g_FieldFxTaskProgramCmd109;
++extern FieldFxTaskProgram g_RoomM005Effects;
 +unsigned PeBattleParticle_FromFallingSprite(int,const RenderBouncingSprite*,unsigned,unsigned,PeParticleFace[4]);
 +enum{PARTICLE_TRIANGLE_BUDGET=64,PARTICLE_GROUP_BUDGET=32,PARTICLE_ANCHOR_BUDGET=256,PARTICLE_NO_GROUP=0xffffffffu};
 +typedef struct{RenderNativeTag tag;u8 r,g,b,code;s16 x0,y0,x1,y1,x2,y2;}ParticleTriangle;
@@ -11347,24 +11372,42 @@
 +static unsigned particle_count;
 +static int particle_enabled,particle_frame_open,particle_slot;
 +enum { EMBER_GLOW_QUAD_BUDGET=8 };
-+enum { GLOW_EMBER=0,GLOW_GROUND=1,GLOW_CROSS=2 };
-+typedef struct { FieldStripPacket packet; unsigned depth,kind; unsigned long long source_generation; } EmberGlow;
++enum { GLOW_EMBER=0,GLOW_GROUND=1,GLOW_CROSS=2,GLOW_ORB_MATERIAL=3,GLOW_FLAME_MATERIAL=4,GLOW_CROSS_MATERIAL=5 };
++typedef struct { FieldStripPacket packet; unsigned depth,kind,material_age; unsigned long long source_generation; } EmberGlow;
++/* One native OT node owns NOP + F8 + nine packed GP0 FT4 words.
++ * Existing merged NOP forces the native64 packed-copy path; queue admission
++ * checks all eleven words before copying, so F8/FT4 cannot split at a drain. */
++typedef union { struct { RenderNativeTag tag; uint32_t words[11]; } material; FieldStripPacket packet; } EmberDrawPacket;
++PE1_STATIC_ASSERT(sizeof(EmberDrawPacket)==64,particle_material_draw_size);
++static int particle_material_registered;
++static unsigned particle_material_logs;
++static int ParticleMaterialCommand(const u_long *words,int available,void *unused){
++    (void)unused;if(available<1)return -1;unsigned bits=(unsigned)words[0],kind=bits&255u;
++    if((bits&0xffff0000u)!=0xf8000000u||kind<1||kind>3)Psyz_GpuSelectParticleMaterial(0,0);
++    else Psyz_GpuSelectParticleMaterial(kind,(bits>>8)&255u);
++    return 1;
++}
++static int ParticleMaterialReady(void){
++    if(!particle_material_registered){particle_material_registered=Psyz_GpuRegisterCommandHandlerIfVacant(0xf8,ParticleMaterialCommand,NULL)==0?1:-1;
++        if(particle_material_registered<0)SDL_Log("[Particle material] marker-occupied original-fallback=1");}
++    return particle_material_registered>0&&Psyz_GpuParticleMaterialAvailable();
++}
 +static EmberGlow ember_queue[EMBER_GLOW_QUAD_BUDGET];
 +static unsigned ember_count,ember_log_count;
 +static struct { int active,x,y,z;unsigned age; } ember_capture;
 +#include "pe_particle_light_native.h"
-+static struct {int active,x,y,z;unsigned age,joint,program;} cross_capture;
++static struct {int active,x,y,z;unsigned age,joint,program,material_queued;} cross_capture;
 +static unsigned cross_log_count;
 +static void FieldFx_CaptureCrossFlare(RenderNativeTag *entry,const RenderNativeTag *primitive);
 +extern int Psyz_GpuAuthoredFlareTint(unsigned page,unsigned clut,unsigned u,unsigned v,unsigned width,unsigned height,unsigned out[3]);
 +extern int Psyz_GpuCrossFlareSource(unsigned page,unsigned clut,unsigned u,unsigned v,unsigned width,unsigned height);
-+void FieldFx_BeginCrossFlareGlow(int x,int y,int z,unsigned age,unsigned joint){cross_capture.active=particle_frame_open&&particle_slot==g_ActiveDrawSlot&&age<35&&(joint==9||joint==20);cross_capture.x=x;cross_capture.y=y;cross_capture.z=z;cross_capture.age=age;cross_capture.joint=joint;cross_capture.program=117;}
-+void FieldFx_EndCrossFlareGlow(void){cross_capture.active=0;}
++void FieldFx_BeginCrossFlareGlow(int x,int y,int z,unsigned age,unsigned joint){cross_capture.active=g_FieldFxTaskContext&&g_FieldFxTaskContext->table==&g_RoomM005Effects.table&&particle_frame_open&&particle_slot==g_ActiveDrawSlot&&age<35&&(joint==9||joint==20);cross_capture.material_queued=0;cross_capture.x=x;cross_capture.y=y;cross_capture.z=z;cross_capture.age=age;cross_capture.joint=joint;cross_capture.program=117;}
++void FieldFx_EndCrossFlareGlow(void){cross_capture.active=0;cross_capture.material_queued=0;}
 +void FieldFx_BeginAuthoredFlareGlow(unsigned program,int x,int y,int z,unsigned age,unsigned joint){
 + cross_capture.active=particle_frame_open&&particle_slot==g_ActiveDrawSlot&&((program==115&&joint==0)||(program==118&&(joint==8||joint==16)));
-+ cross_capture.x=x;cross_capture.y=y;cross_capture.z=z;cross_capture.age=age;cross_capture.joint=joint;cross_capture.program=program;
++ cross_capture.x=x;cross_capture.y=y;cross_capture.z=z;cross_capture.age=age;cross_capture.joint=joint;cross_capture.program=program;cross_capture.material_queued=0;
 +}
-+void FieldFx_EndAuthoredFlareGlow(void){cross_capture.active=0;}
++void FieldFx_EndAuthoredFlareGlow(void){cross_capture.active=0;cross_capture.material_queued=0;}
 +void FieldFx_BeginResidentSparkGlow(unsigned program,int x,int y,int z,unsigned age){
 + cross_capture.active=particle_frame_open&&particle_slot==g_ActiveDrawSlot&&((program==94&&age<24)||((program==95||program==96)&&age<6)||(program==97&&age<12)||(program==102&&age<32));
 + cross_capture.x=x;cross_capture.y=y;cross_capture.z=z;cross_capture.age=age;cross_capture.joint=0;cross_capture.program=program;
@@ -11377,7 +11420,7 @@
 +void FieldFx_EndBurstGroundGlow(void){ground_capture.active=0;}
 +static void FieldFx_CaptureEmberGlow(const RenderNativeTag *primitive);
 +static void FieldFx_FlushEmberGlow(void);
-+void FieldFx_BeginEmberGlow(int x,int y,int z,unsigned age){ember_capture.active=particle_enabled==PE_PARTICLE_HYBRID&&particle_frame_open&&particle_slot==g_ActiveDrawSlot&&age<16;ember_capture.x=x;ember_capture.y=y;ember_capture.z=z;ember_capture.age=age;}
++void FieldFx_BeginEmberGlow(int x,int y,int z,unsigned age){ember_capture.active=g_FieldFxTaskContext&&g_FieldFxTaskContext->table==&g_FieldFxTaskProgramCmd109.table&&particle_enabled!=PE_PARTICLE_ORIGINAL&&particle_frame_open&&particle_slot==g_ActiveDrawSlot&&age<16;ember_capture.x=x;ember_capture.y=y;ember_capture.z=z;ember_capture.age=age;}
 +void FieldFx_EndEmberGlow(void){ember_capture.active=0;}
 +static unsigned particle_log_count,particle_source_log_count;
 +static int particle_log_initialized;
@@ -11482,6 +11525,25 @@
 +}
 +
 +
++/* Procedural body material: source-owned linked quad, no replacement/unlink.
++ * Both enhanced modes may add this material; pure replacement remains limited
++ * to the old families with exact original packet ownership. */
++static int FieldFx_QueueParticleMaterial(const FieldStripPacket *src,unsigned depth,unsigned kind,unsigned age,unsigned long long generation,const unsigned tint[3]){
++    if(!particle_enabled||!particle_frame_open||ember_count>=EMBER_GLOW_QUAD_BUDGET||depth>=4096||!generation||!ParticleMaterialReady())return 0;
++    if(src->u0!=src->u2||src->u1!=src->u3||src->v0!=src->v1||src->v2!=src->v3||src->u1<=src->u0||src->v2<=src->v0)return 0;
++    const s16 q[8]={src->x0,src->y0,src->x1,src->y1,src->x2,src->y2,src->x3,src->y3};
++    for(unsigned i=0;i<8;i++)if(q[i]<-1024||q[i]>1023)return 0;
++    int64_t a=(int64_t)(q[2]-q[0])*(q[5]-q[1])-(int64_t)(q[4]-q[0])*(q[3]-q[1]),b=(int64_t)(q[6]-q[2])*(q[5]-q[3])-(int64_t)(q[4]-q[2])*(q[7]-q[3]);
++    if(!a||!b||(a<0)!=(b<0))return 0;
++    EmberGlow pending;memset(&pending,0,sizeof pending);pending.packet=*src;pending.packet.tag.address=0;pending.packet.code=0x2c;
++    pending.packet.r0=(u8)((src->r0*tint[0]+127)/255);pending.packet.g0=(u8)((src->g0*tint[1]+127)/255);pending.packet.b0=(u8)((src->b0*tint[2]+127)/255);
++    if(!(pending.packet.r0|pending.packet.g0|pending.packet.b0))return 0;
++    pending.depth=depth;pending.kind=kind==1?GLOW_ORB_MATERIAL:kind==2?GLOW_FLAME_MATERIAL:GLOW_CROSS_MATERIAL;pending.material_age=age&255u;pending.source_generation=generation;
++    ember_queue[ember_count++]=pending;
++    if(particle_material_logs++<24)SDL_Log("[Particle material] queued=%s source=%s mode=%d age=%u original-retained=1 atlas-allocations=0 pixels=unobserved",kind==1?"rounded-orb-body":kind==2?"animated-flame-body":"animated-crossflare-core",kind==1?"P115.OrbitFlareController":kind==2?"P109.RisingEmber.state1":"P117.CrossFlare",particle_enabled,age);
++    return 1;
++}
++
 +/* Snapshot only an actually linked original FT4. Original command, CLUT,
 + * texture window UV and page/ABR are copied, never guessed or made opaque.
 + * Two narrow crossed world planes add volume while retaining every authored
@@ -11493,8 +11555,14 @@
 +    if(!start||ptr<start||ptr-start>RENDER_ANIM_BUFFER_BYTES-sizeof(FieldStripPacket)||g_DrawPacketOffset<0||ptr-start+sizeof(FieldStripPacket)>(unsigned)g_DrawPacketOffset||ptr%_Alignof(FieldStripPacket))return;
 +    const FieldStripPacket *original=(const FieldStripPacket*)primitive;
 +    if(original->tag.length!=9||original->code!=0x2e||!(original->r0|original->g0|original->b0))return;
-+    FieldFx_EmitParticleLight(ember_capture.x,ember_capture.y,ember_capture.z,original->r0>127?255:original->r0*2,original->g0>127?255:original->g0*2,original->b0>127?255:original->b0*2,256);
-+    if(particle_enabled!=PE_PARTICLE_HYBRID||ember_count>EMBER_GLOW_QUAD_BUDGET-2||!g_ViewMatrixSlot.value)return;
++    unsigned flame_tint[3];unsigned long long flame_generation=Psyz_GpuAuthoredFlareGeneration();
++    int flame_known=flame_generation&&Psyz_GpuParticleMaterialTint(2,original->tpage,original->clut,original->u0,original->v0,(unsigned)original->u1-original->u0+1,(unsigned)original->v2-original->v0+1,flame_tint);
++    unsigned prior_lights=particle_light_count;
++    if(flame_known){FieldFx_EmitParticleLight(ember_capture.x,ember_capture.y,ember_capture.z,((original->r0>127?255:original->r0*2)*flame_tint[0]+127)/255,((original->g0>127?255:original->g0*2)*flame_tint[1]+127)/255,((original->b0>127?255:original->b0*2)*flame_tint[2]+127)/255,256);
++        if(particle_light_count>prior_lights)particle_lights[prior_lights].source_generation=flame_generation;}
++    else FieldFx_EmitParticleLight(ember_capture.x,ember_capture.y,ember_capture.z,original->r0>127?255:original->r0*2,original->g0>127?255:original->g0*2,original->b0>127?255:original->b0*2,256);
++    int analytic_flame=flame_known&&ParticleMaterialReady();
++    if((!analytic_flame&&particle_enabled!=PE_PARTICLE_HYBRID)||ember_count>EMBER_GLOW_QUAD_BUDGET-2||!g_ViewMatrixSlot.value)return;
 +    unsigned h=Psyz_GteCtrlRead(26)&65535;int zsf=(s16)Psyz_GteCtrlRead(29);
 +    if(!h||zsf<=0)return;
 +    s32 ox=(s32)Psyz_GteCtrlRead(24),oy=(s32)Psyz_GteCtrlRead(25);
@@ -11514,7 +11582,13 @@
 +        pending[accepted].packet.r0=original->r0/4;pending[accepted].packet.g0=original->g0/4;pending[accepted].packet.b0=original->b0/4;
 +        pending[accepted].packet.x0=xy[0];pending[accepted].packet.y0=xy[1];pending[accepted].packet.x1=xy[2];pending[accepted].packet.y1=xy[3];pending[accepted].packet.x2=xy[4];pending[accepted].packet.y2=xy[5];pending[accepted].packet.x3=xy[6];pending[accepted].packet.y3=xy[7];pending[accepted].depth=(unsigned)depth;accepted++;
 +    }
-+    if(!accepted)return;memcpy(ember_queue+ember_count,pending,accepted*sizeof(*pending));ember_count+=accepted;
++    if(!accepted)return;
++    if(analytic_flame){unsigned best=0;if(accepted==2){int64_t area0=(int64_t)(pending[0].packet.x1-pending[0].packet.x0)*(pending[0].packet.y2-pending[0].packet.y0)-(int64_t)(pending[0].packet.x2-pending[0].packet.x0)*(pending[0].packet.y1-pending[0].packet.y0);int64_t area1=(int64_t)(pending[1].packet.x1-pending[1].packet.x0)*(pending[1].packet.y2-pending[1].packet.y0)-(int64_t)(pending[1].packet.x2-pending[1].packet.x0)*(pending[1].packet.y1-pending[1].packet.y0);if(area0<0)area0=-area0;if(area1<0)area1=-area1;best=area1>area0;}
++        FieldStripPacket material=pending[best].packet;material.r0=original->r0;material.g0=original->g0;material.b0=original->b0;
++        if(FieldFx_QueueParticleMaterial(&material,pending[best].depth,2,ember_capture.age,flame_generation,flame_tint))return;
++        if(particle_enabled!=PE_PARTICLE_HYBRID)return;
++    }
++    memcpy(ember_queue+ember_count,pending,accepted*sizeof(*pending));ember_count+=accepted;
 +    if(ember_log_count++<8)SDL_Log("[World flame accent] family=Program109.RisingEmber state=1 mode=Hybrid age=%u queued-worldplanes=1-or-2 original-retained=1 visual=unobserved",ember_capture.age);
 +}
 +/* Source quad is already floor-aligned by the game. Two extra world-plane
@@ -11570,15 +11644,28 @@
 +    unsigned prior_lights=particle_light_count;unsigned long long source_generation=0;
 +    unsigned light[3]={src->r0>127?255:src->r0*2,src->g0>127?255:src->g0*2,src->b0>127?255:src->b0*2};
 +    if(cross_capture.program!=117){
-+        if((!particle_lighting||particle_light_count>=PARTICLE_LIGHT_CAP||particle_light_fault||particle_light_applied)&&(particle_enabled!=PE_PARTICLE_HYBRID||ember_count>EMBER_GLOW_QUAD_BUDGET-2))return;
++        if((!particle_lighting||particle_light_count>=PARTICLE_LIGHT_CAP||particle_light_fault||particle_light_applied)&&(particle_enabled!=PE_PARTICLE_HYBRID||ember_count>EMBER_GLOW_QUAD_BUDGET-2)&&!(cross_capture.program==115&&!cross_capture.material_queued&&ember_count<EMBER_GLOW_QUAD_BUDGET&&ParticleMaterialReady()))return;
 +        unsigned tint[3];
 +        if(src->u0!=src->u2||src->u1!=src->u3||src->v0!=src->v1||src->v2!=src->v3||src->u1<src->u0||src->v2<src->v0||!Psyz_GpuAuthoredFlareTint(src->tpage,src->clut,src->u0,src->v0,(unsigned)src->u1-src->u0+1,(unsigned)src->v2-src->v0+1,tint))return;
 +        source_generation=Psyz_GpuAuthoredFlareGeneration();if(!source_generation)return;
 +        for(unsigned j=0;j<3;j++)light[j]=(light[j]*tint[j]+127)/255;
 +    }
++    /* P117 keeps its exact authored joint source. Unknown source retains the
++     * old light/halo path; only a known luminous palette admits a new body. */
++    if(cross_capture.program==117){unsigned tint[3];if(Psyz_GpuParticleMaterialTint(3,src->tpage,src->clut,src->u0,src->v0,(unsigned)src->u1-src->u0+1,(unsigned)src->v2-src->v0+1,tint)){
++        source_generation=Psyz_GpuAuthoredFlareGeneration();
++        if(source_generation)for(unsigned j=0;j<3;j++)light[j]=(light[j]*tint[j]+127)/255;
++    }}
 +    FieldFx_EmitParticleLight(center.x,center.y,center.z,light[0],light[1],light[2],256);
 +    if(source_generation&&particle_light_count>prior_lights)particle_lights[prior_lights].source_generation=source_generation;
 +    if(particle_light_count>prior_lights&&cross_log_count<24){cross_log_count++;SDL_Log("[Theater VFX light admitted] program=%u phase=2 joint=%u queued-emitter=1 original-RGB-fade=1 model-pixels=unobserved",cross_capture.program,cross_capture.joint);}
++    if(cross_capture.program==117&&!cross_capture.material_queued&&source_generation&&ParticleMaterialReady()){
++        unsigned tint[3];if(Psyz_GpuParticleMaterialTint(3,src->tpage,src->clut,src->u0,src->v0,(unsigned)src->u1-src->u0+1,(unsigned)src->v2-src->v0+1,tint)&&FieldFx_QueueParticleMaterial(src,(unsigned)((ep-ot)/sizeof(RenderNativeTag)),3,cross_capture.age,source_generation,tint)){cross_capture.material_queued=1;return;}
++    }
++    if(cross_capture.program==115&&!cross_capture.material_queued&&source_generation&&ParticleMaterialReady()){
++        unsigned tint[3];if(Psyz_GpuParticleMaterialTint(1,src->tpage,src->clut,src->u0,src->v0,(unsigned)src->u1-src->u0+1,(unsigned)src->v2-src->v0+1,tint)&&FieldFx_QueueParticleMaterial(src,(unsigned)((ep-ot)/sizeof(RenderNativeTag)),1,cross_capture.age,source_generation,tint)){cross_capture.material_queued=1;return;}
++    }
++    if(cross_capture.program==115&&cross_capture.material_queued)return;
 +    if(particle_enabled!=PE_PARTICLE_HYBRID||ember_count>EMBER_GLOW_QUAD_BUDGET-2||src->u0!=src->u2||src->u1!=src->u3||src->v0!=src->v1||src->v2!=src->v3||src->u1<src->u0||src->v2<src->v0)return;
 +    if(!Psyz_GpuCrossFlareSource(src->tpage,src->clut,src->u0,src->v0,(unsigned)src->u1-src->u0+1,(unsigned)src->v2-src->v0+1))return;
 +    const s16 xy[8]={src->x0,src->y0,src->x1,src->y1,src->x2,src->y2,src->x3,src->y3};int cx=((int)xy[0]+xy[2]+xy[4]+xy[6])/4,cy=((int)xy[1]+xy[3]+xy[5]+xy[7])/4;
@@ -11602,18 +11689,28 @@
 +    unsigned w=(unsigned)q->u1-q->u0+1,h=(unsigned)q->v2-q->v0+1;
 +    if(queued->kind==GLOW_GROUND)return Psyz_GpuParticleGlowSource(q->tpage,q->clut,q->u0,q->v0,w,h);
 +    if(queued->kind==GLOW_CROSS)return Psyz_GpuCrossFlareSource(q->tpage,q->clut,q->u0,q->v0,w,h);
++    if(queued->kind==GLOW_ORB_MATERIAL||queued->kind==GLOW_FLAME_MATERIAL||queued->kind==GLOW_CROSS_MATERIAL){unsigned tint[3];return ParticleMaterialReady()&&Psyz_GpuParticleMaterialTint(queued->kind==GLOW_ORB_MATERIAL?1:queued->kind==GLOW_FLAME_MATERIAL?2:3,q->tpage,q->clut,q->u0,q->v0,w,h,tint); }
 +    return 0;
 +}
 +static void FieldFx_FlushEmberGlow(void){
 +    unsigned count=ember_count;ember_count=0;ember_capture.active=0;ground_capture.active=0;cross_capture.active=0;
-+    if(!count||particle_enabled!=PE_PARTICLE_HYBRID||!particle_frame_open||particle_slot!=g_ActiveDrawSlot||(unsigned)particle_slot>=2||!D_800B0E38.ordering[particle_slot]||!g_RenderAnimBufferBase[particle_slot]||D_800B0E38.packets[particle_slot]!=(char*)g_RenderAnimBufferBase[particle_slot]||g_DrawPacketOffset<0)return;
-+    size_t offset=(unsigned)g_DrawPacketOffset,alignment=_Alignof(FieldStripPacket),bytes=count*sizeof(FieldStripPacket);
++    if(!count||!particle_enabled||!particle_frame_open||particle_slot!=g_ActiveDrawSlot||(unsigned)particle_slot>=2||!D_800B0E38.ordering[particle_slot]||!g_RenderAnimBufferBase[particle_slot]||D_800B0E38.packets[particle_slot]!=(char*)g_RenderAnimBufferBase[particle_slot]||g_DrawPacketOffset<0)return;
++    size_t offset=(unsigned)g_DrawPacketOffset,alignment=_Alignof(EmberDrawPacket),bytes=count*sizeof(EmberDrawPacket);
 +    if((uintptr_t)g_RenderAnimBufferBase[particle_slot]%alignment||offset>RENDER_ANIM_BUFFER_BYTES)return;
 +    offset=(offset+alignment-1)&~(alignment-1);
 +    if(bytes>RENDER_ANIM_BUFFER_BYTES-offset){if(ember_log_count++<16)SDL_Log("[World flame accent] capacity-rejected=1 original-retained=1");return;}
 +    for(unsigned i=0;i<count;i++)if(!FieldFx_GlowSourceAllowed(ember_queue+i))return;
-+    FieldStripPacket *out=(FieldStripPacket*)(g_RenderAnimBufferBase[particle_slot]+offset);
-+    for(unsigned i=0;i<count;i++){out[i]=ember_queue[i].packet;AddPrim(D_800B0E38.ordering[particle_slot]+ember_queue[i].depth,&out[i]);}
++    EmberDrawPacket *out=(EmberDrawPacket*)(g_RenderAnimBufferBase[particle_slot]+offset);
++    for(unsigned i=0;i<count;i++){
++        EmberGlow *q=&ember_queue[i];RenderNativeTag *entry=D_800B0E38.ordering[particle_slot]+q->depth;
++        if(q->kind==GLOW_ORB_MATERIAL||q->kind==GLOW_FLAME_MATERIAL||q->kind==GLOW_CROSS_MATERIAL){
++            out[i].material.tag.address=entry->address;out[i].material.tag.length=11;
++            out[i].material.words[0]=0x005a4d50u; /* PSYZ_MERGED_PRIM_NOP */
++            out[i].material.words[1]=0xf8000000u|(q->kind==GLOW_ORB_MATERIAL?1u:q->kind==GLOW_FLAME_MATERIAL?2u:3u)|(q->material_age<<8);
++            memcpy(out[i].material.words+2,&q->packet.r0,36);
++            entry->address=(uintptr_t)&out[i].material;
++        }else {out[i].packet=q->packet;AddPrim(entry,&out[i].packet);}
++    }
 +    g_DrawPacketOffset=(int)(offset+bytes);
 +    if(ember_log_count++<16)SDL_Log("[World flame accent] linked-quads=%u original-retained=1 capacity=%u visual=unobserved",count,(unsigned)RENDER_ANIM_BUFFER_BYTES);
 +}
