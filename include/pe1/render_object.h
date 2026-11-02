@@ -666,6 +666,11 @@ void Render_CopyFrameData(RenderObjectEntity *dst, RenderObjectEntity *src, s32 
 void Render_CopyFrameDataDouble(RenderObjectEntity *dst, RenderObjectEntity *src, s32 frame);
 void Pgxp_StoreBoneRotYXZ(const RenderMatrix *matrix, s16 rx, s16 ry, s16 rz);
 void Pgxp_StoreModelMatrix(const RenderMatrix *matrix, s16 rx, s16 ry, s16 rz, s16 scale);
+/* Preserve available world-position fractions only in the visual PGXP cache. */
+void Pgxp_StoreModelPosition16(const RenderMatrix *matrix, s32 x, s32 y, s32 z);
+int Render_Update(void);
+void Render_Noop(void);
+
 void Render_UpdateClutTable(RenderObjectEntity *object, s16 force, s16 buffer_index);
 void Anim_BuildRotationMatrices(RenderObjectEntity *object, RenderAnimationDataHeader *data, int frame);
 void Anim_DecodeBoneRotationsByte(RenderObjectEntity *object, RenderAnimationDataHeader *animation_data,

@@ -1,3 +1,5 @@
+#include "../src/overlays/room_m273_liberty/room_m273_boss.h"
+#include "../src/overlays/room_m273_liberty/room_m273_effects.h"
 #include "pe1/room_homing_flash.h"
 #include "../src/overlays/scene_e08_chrysler/scene_e08_modules.h"
 #include "pe1/scene_e20_hover_orb.h"
@@ -84,6 +86,124 @@
 #include "actor_animation/test_combat_media_and_spu.inc"
 #include "actor_animation/test_native_replays.inc"
 #include "actor_animation/test_hospital_and_chrysler.inc"
+
+extern int RoomM273_GrabPlacementFanEmitter(int, void *, intptr_t);
+extern int RoomM273_HandGlowEmitter(int, void *, intptr_t);
+extern void *g_RoomM273HandRingBandPool;
+static int m273_keep_pointer(int mode, void *state, intptr_t argument) {
+    (void)mode; (void)state; (void)argument; return 0;
+}
+
+extern int FieldFx_FanSweep(int, void *, intptr_t);
+extern int FieldFx_OrbitingSpriteEmitter(int, void *, intptr_t);
+extern int RoomM273_GrabStarBurstEmitter(int, void *, intptr_t);
+extern int RoomM273_HandTrailLandingEmitter(int, void *, intptr_t);
+extern int RoomM273_SwayShardEmitter(int, void *, intptr_t);
+static int original_callback_allocation_failure(void)
+{
+    const struct {
+        FieldFxTaskCallback callback;
+        unsigned payload, stride, count;
+    } cases[]={
+        {FieldFx_FanSweep,sizeof(FieldFanSweep),16,24},
+        {FieldFx_OrbitingSpriteEmitter,sizeof(RenderOrbitingEmitter),16,12},
+        {FieldFx_OrbitingSpriteBurst,sizeof(RenderOrbitingEmitter),16,3},
+        {FieldFx_HelicalSpriteEmitter,sizeof(RenderOrbitingEmitter),16,4},
+        {RoomM273_HandGlowEmitter,0,sizeof(void *),6},
+        {RoomM273_GrabStarBurstEmitter,0,sizeof(RoomM273PaletteInput),2},
+        {RoomM273_HandTrailLandingEmitter,0,12,10},
+        {RoomM273_SwayShardEmitter,0,20,4},
+    };
+    const size_t alignment=_Alignof(void *);
+    for(unsigned c=0;c<sizeof(cases)/sizeof(cases[0]);++c){
+        size_t payload=(cases[c].payload+alignment-1)/alignment*alignment;
+        size_t stride=(cases[c].stride+sizeof(FieldFxCallbackListEntry)+alignment-1)/alignment*alignment;
+        size_t first=sizeof(FieldFxCallbackList)+cases[c].count*stride;
+        for(unsigned capacity=0;capacity<3;++capacity){
+            struct {FieldFxTaskContext context;unsigned char guard[32];} storage;
+            memset(&storage,0,sizeof(storage));memset(storage.guard,0xa5,sizeof(storage.guard));
+            FieldFxTaskContext *ctx=&storage.context;
+            FieldFxTaskTable table={0};table.callbacks[0]=cases[c].callback;table.sizes[0]=cases[c].payload;
+            ctx->table=&table;
+            for(unsigned i=0;i<8;++i)ctx->slots[i].id=0xffff;
+            ctx->used=capacity==2?0:sizeof(ctx->arena)-payload-(capacity?first:0);
+            ctx->cursor=ctx->arena+ctx->used;
+            unsigned previous_used=ctx->used;char *previous_cursor=ctx->cursor;
+            g_FieldFxTaskContext=ctx;g_FieldFxActiveTaskSlot=NULL;
+            int result=FieldFx_SpawnTask(0);
+            if(capacity<2){
+                if(result!=-1 || ctx->count || ctx->used!=previous_used || ctx->cursor!=previous_cursor ||
+                   ctx->slots[0].id!=0xffff || ctx->slots[0].start || ctx->slots[0].end || g_FieldFxActiveTaskSlot){
+                    fprintf(stderr,"Effect %u capacity case %u accepted incomplete pools: result=%d count=%u\n",c,capacity,result,ctx->count);
+                    return 0;
+                }
+            }else if(result<=0 || ctx->count!=1 || ctx->slots[0].id!=0 || ctx->used!=(unsigned)result ||
+                     ctx->cursor!=ctx->arena+ctx->used)return 0;
+            for(unsigned i=0;i<sizeof(storage.guard);++i)if(storage.guard[i]!=0xa5)return 0;
+        }
+    }
+    g_FieldFxTaskContext=NULL;g_FieldFxActiveTaskSlot=NULL;
+    puts("Eight two-pool emitters: first/second allocation failure rolls back, complete allocation succeeds");
+    return 1;
+}
+
+extern int RoomM273_SweepDropCallback(int, void *, intptr_t);
+extern int RoomM273_SweepSplashEmitter(int, void *, intptr_t);
+static int original_m273_landing_cycle(void)
+{
+    struct { _Alignas(void *) char bytes[2048];unsigned char guard[16]; } drops, splashes;
+    memset(&drops,0xa5,sizeof(drops));memset(&splashes,0xa5,sizeof(splashes));
+    FieldFxTaskContext context={0};g_FieldFxTaskContext=&context;
+    g_FieldFxCurrentAge=73;g_RoomFloorY->y=100;
+    memset(&g_RoomM273SweepState,0,sizeof(g_RoomM273SweepState));
+    const unsigned count=sizeof(g_RoomM273SweepState.x)/sizeof(g_RoomM273SweepState.x[0]);
+    int drop_bytes=FieldFx_InitCallbackList(drops.bytes,sizeof(RoomM273Drop),count,RoomM273_SweepDropCallback);
+    if(drop_bytes<=0 || drop_bytes>sizeof(drops.bytes))return 0;
+    RoomM273Drop *particles[sizeof(g_RoomM273SweepState.x)/sizeof(g_RoomM273SweepState.x[0])];
+    for(unsigned i=0;i<count;++i){
+        particles[i]=FieldFx_AcquireCallbackSlot(drops.bytes);
+        if(!particles[i])return 0;
+        *particles[i]=(RoomM273Drop){.position={100+(int)i*11,99,-100-(int)i*3,0},.vx=1,.vy=2,.vz=3,.touched=1};
+    }
+    if(FieldFx_AcquireCallbackSlot(drops.bytes) || FieldFx_UpdateCallbackList(drops.bytes)!=(int)count ||
+       g_FieldFxCurrentAge!=73 || g_RoomM273SweepState.count!=(int)count)return 0;
+    for(unsigned i=0;i<count;++i){
+        if(g_RoomM273SweepState.x[i]!=101+(int)i*11 || g_RoomM273SweepState.y[i]!=100 ||
+           g_RoomM273SweepState.z[i]!=-97-(int)i*3 || particles[i]->position.pad!=1)return 0;
+    }
+    FieldFxTaskSlot slot={.start=splashes.bytes,.end=splashes.bytes};g_FieldFxActiveTaskSlot=&slot;
+    int splash_bytes=RoomM273_SweepSplashEmitter(0,NULL,0);
+    if(splash_bytes<=0 || splash_bytes>sizeof(splashes.bytes) || RoomM273_SweepSplashEmitter(1,NULL,0) ||
+       g_RoomM273SweepState.count)return 0;
+    FieldFxCallbackList *list=(void *)splashes.bytes;
+    for(unsigned i=0;i<(unsigned)list->count;++i){
+        FieldFxCallbackListEntry *entry=(void *)(list->entries+i*list->stride);
+        if(entry->active!=(i<count))return 0;
+        if(i<count){
+            GteShortVector *point=(void *)entry->state;
+            if(point->x!=101+(int)i*11 || point->y!=-28 || point->z!=-97-(int)i*3 || point->pad)return 0;
+        }
+    }
+    if(RoomM273_SweepSplashEmitter(1,NULL,0))return 0;
+    for(unsigned frame=0;frame<17;++frame){
+        if(FieldFx_UpdateCallbackList(splashes.bytes)!=(int)count || g_FieldFxCurrentAge!=73)return 0;
+        if(frame<8 && FieldFx_UpdateCallbackList(drops.bytes)!=(int)count)return 0;
+        if(g_RoomM273SweepState.count)return 0; /* Each landing is enqueued once. */
+    }
+    if(FieldFx_UpdateCallbackList(drops.bytes) || FieldFx_UpdateCallbackList(splashes.bytes))return 0;
+    for(unsigned i=0;i<count;++i){
+        FieldFxCallbackListEntry *entry=(void *)(list->entries+i*list->stride);
+        GteShortVector *point=(void *)entry->state;
+        if(entry->active || entry->age!=16 || point->y!=-124)return 0;
+    }
+    if(FieldFx_AcquireCallbackSlot(drops.bytes)!=particles[0])return 0;
+    for(unsigned i=drop_bytes;i<sizeof(drops.bytes);++i)if((unsigned char)drops.bytes[i]!=0xa5)return 0;
+    for(unsigned i=splash_bytes;i<sizeof(splashes.bytes);++i)if((unsigned char)splashes.bytes[i]!=0xa5)return 0;
+    for(unsigned i=0;i<sizeof(drops.guard);++i)if(drops.guard[i]!=0xa5 || splashes.guard[i]!=0xa5)return 0;
+    g_FieldFxTaskContext=NULL;g_FieldFxActiveTaskSlot=NULL;
+    puts("M273 sweep: full landing queue, splash transfer, no duplicate impacts, terminal frames and slot reuse passed");
+    return 1;
+}
 
 int main(int argc, char **argv)
 {
@@ -172,6 +292,47 @@ int main(int argc, char **argv)
     parent.entityFlags=0x100000;child.entityFlags=0x200000;
     Entity_SetActionMode(&parent,1);
     if(parent.animLastFrame!=7 || child.animLastFrame!=7 || child.actionMode!=1 || parent.actionData!=actions+1) return 1;
+    {
+        extern void Battle_UpdateEntityFacing(BattleEntity *);
+        extern void Battle_StepEntityAnimState(BattleEntity *);
+        extern void Battle_RollEnemySpawn(void *);
+        extern s32 Battle_GetEnemyContextField(FieldActor *, s32);
+        extern void Entity_WriteFieldByCmd(FieldActor *, s32, s32);
+        BattleEntity hitbox={0};
+        EntityAnimEventCore animCore={0};
+        Combatant aya={0},*saved_actor=g_ActiveActor;
+        BattleAttributes attrs={0};
+        BattleEntity *saved_active_entity=g_BattleActiveEntity;
+        s32 saved_result_flags=g_BattleResultFlags;
+        u32 saved_flags=g_GameStateFlags;
+        aya.attributes=&attrs;
+        g_ActiveActor=&aya;
+        g_GameStateFlags|=2;
+        hitbox.modelIndex=2;
+        Entity_SetActionMode(&hitbox,0);
+        if(hitbox.actionData!=0 || hitbox.actionMode!=0) return 1;
+        Entity_SetAction(&hitbox,1);
+        if(hitbox.actionData!=0 || hitbox.actionMode!=0) return 1;
+        Battle_UpdateEntityFacing(&hitbox);
+        Battle_StepEntityAnimState(&hitbox);
+        Battle_RollEnemySpawn(&hitbox);
+        if(Battle_GetEnemyContextField((FieldActor *)&hitbox, 0x2B)!=0) return 1;
+        Entity_WriteFieldByCmd((FieldActor *)&hitbox, 0x28, 123);
+        Battle_ApplySpellEffect(PE_SPELL_SCAN, &hitbox);
+        Battle_ApplySpellEffect(PE_SPELL_SLOW, &hitbox);
+        Battle_ApplySpellEffect(PE_SPELL_CONFUSE, &hitbox);
+        g_ActiveActor=saved_actor;
+        g_BattleActiveEntity=saved_active_entity;
+        g_BattleResultFlags=saved_result_flags;
+        hitbox.core=&animCore;
+        hitbox.actionMode=7;
+        hitbox.animLastFrame=1;
+        hitbox.animPrev.fixed=1<<16;
+        hitbox.animFrame=2<<16;
+        if(Entity_TriggerAnimEvent(&hitbox, 0)!=1) return 1;
+        g_GameStateFlags=saved_flags;
+        hitbox.core=0;
+    }
     parent.animFrame=0x18000;Entity_SetAction(&parent,1);
     if(parent.animFrame!=0x18000) return 2;
     parent.animStep=0x10000;Entity_AdvanceAnim(&child);

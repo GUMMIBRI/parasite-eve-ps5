@@ -1,37 +1,37 @@
-# Parasite Eve — PS5 homebrew port
+# Parasite Eve — PS5 Beta
 
-Experimental retail/homebrew PS5 adaptation of the native
-[Parasite Eve PC port](https://github.com/khasinski/parasite-eve-pc), using its
-[PsyZ fork](https://github.com/khasinski/parasite-eve-psyz). This project preserves
-upstream game logic and keeps PS5-specific work isolated.
+Native PS5 homebrew adaptation of [Parasite Eve PC](https://github.com/khasinski/parasite-eve-pc), using the public PsyZ / SDL3 GPU stack. **Beta 1** is for community testing; full-game stability and experimental checkpoints are not certified.
 
-**Status: native PS5 game test build compiled and linked; console behavior unverified.**
-The current integration candidate is derived from upstream0.7 and uses public
-SDL3 software video, AudioOut and DualSense backends. There is no validated
-playable PS5 release. Firmware13.60 with kstuff-lite / ShadowMount+ is the owner’s
-stated test environment; actual loader/service compatibility remains to be tested.
-Console and gameplay validation belong to the project owner.
+![Theater exterior in widescreen](docs/images/ps5-theater-widescreen.png)
 
-Original textures load from user-owned discs. External HD PNG replacement packs
-are not yet supported. No retail game files, texture packs or personal saves are
-distributed in this repository. See [native build notes](docs/PS5_GAME_BUILD.md)
-and [upstream integration](docs/PS5_UPSTREAM_SYNC.md).
+*Theater exterior in widescreen (owner-supplied capture). This retained capture is not tied to the latest beta build.*
 
-## Project direction
+## Download and install
 
-- Build with a public, legally available homebrew toolchain; no leaked Sony SDK.
-- Bring up boot/logging, scratch filesystem access, controller and graphics clear
-  before integrating game systems.
-- Preserve desktop behavior and deliberately integrate updates from upstream.
-  Keep PsyZ pinned to a reviewed revision.
-- Compare available original and HD assets for quality and compatibility.
-  Game images, HD packs and saves remain user-supplied local data.
-- Submit useful portable fixes upstream with their provenance and notices intact.
+Get the PS5 app from [PS5 beta releases](https://github.com/GUMMIBRI/parasite-eve-ps5/releases). Bring your own North American disc images and any compatible optional texture packs; game assets and personal saves are not distributed.
 
-See [contribution and review policy](CONTRIBUTING.md), [security policy](SECURITY.md),
-and the [PS5 groundwork PR](https://github.com/GUMMIBRI/parasite-eve-ps5/pull/1).
-There are no PS5 download/install instructions until a console build is verified.
-Upstream desktop releases below are PC releases, not PS5 packages.
+- Copy `PS5GameTest` into your `homebrew` folder.
+- Copy `parasite-eve` into `/mnt/usb0/`.
+
+The app may live at `/data/homebrew/PS5GameTest` while assets stay on USB. `/data/parasite-eve` is also supported. Existing explicit saved paths take precedence. The public asset folder is a layout for your own files, not a bundled game or HD pack.
+
+## Included PS5 work
+
+Native hardware rendering; widescreen and display preferences; optional HD background and character-texture paths; Original / Modern / Retro font choices; bounded particle materials and lighting; normal memory-card routing; and experimental typed checkpoints. Graphics / Mods / Save states / Cheats / Controls / System remain the main tabs. Fresh-install cheats are off.
+
+Analytic materials cover specific P109/P115/P117/P118 sources, including the first-theater CrossFlare. They are enabled by Hybrid/New particle modes, retain original sprites and do not establish Alligator attack coverage. Character textures are not replacement meshes. No DLSS or ray-tracing support is promised.
+
+Checkpoints require compatible resources, settings, scene and the same launch; unsupported owners reject. PM30 checkpoints are incompatible with older checkpoint versions. Normal card saves remain separate. The newest beta derivative requires human console verification; prior owner tests demonstrated boot/gameplay on earlier builds. Compilation and package audits do not establish appearance, performance or reliable capture/restore.
+
+## Source and upstream
+
+The repository base is synced through upstream `0ce223f5a` (0.10). The beta binary uses the separately pinned and reviewed native recipe; the repository sync is not a claim that every 0.10 change is in that binary.
+
+Current PS5 source, pins, notices and build instructions are under [platform/ps5/native-gpu](platform/ps5/native-gpu). Some original-data inputs must be generated locally from authorized owner input; these are omitted from Git and missing input fails clearly. No proprietary Sony SDK or system modules are included. Existing license and original-source limitations remain explicit.
+
+Earlier contribution [PR #42](https://github.com/khasinski/parasite-eve-pc/pull/42) was merged upstream. Newer changes are offered separately for review; PS5-gated implementations do not automatically enable PC features.
+
+See [beta notes](docs/PS5_BETA.md), [contribution policy](CONTRIBUTING.md), [license](LICENSE.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ---
 
@@ -44,7 +44,7 @@ Upstream desktop releases below are PC releases, not PS5 packages.
 A native PC port of Parasite Eve, built from the original game code with
 [our PsyZ fork](https://github.com/khasinski/parasite-eve-psyz).
 
-![Parasite Eve running in the native port](docs/images/gameplay.png)
+![Parasite Eve running in the native port](docs/images/gameplay.png?v=3)
 
 ## Play
 
@@ -57,12 +57,18 @@ Keep each CUE file next to its BIN file.
 
 1. Launch Parasite Eve and select your disc images. Selecting both discs enables automatic switching.
 2. You can start with either disc. If the other is needed, the game asks for it by name.
-3. Press **Escape** for graphics, controls, audio and disc settings. You can add the other disc there later.
+3. Press **Escape** for graphics, controls, audio, disc and mod settings. You can add the other disc there later.
 
-**Enter** is START and skips movies; in a story movie, START pauses it and asks whether to skip. View or change all bindings in **Escape → Controls**. A **speed** button can be bound there too: the game runs at 2x while it is held, or 3x or 4x with the arrows either side of the number (Left/Right on that row). It is unbound until you choose a key or button, and keeps your VSync setting.
+**HD backgrounds:** open **Escape → Mods → Background pack** to download or update the optional artwork.
+The game shows download progress and checks the files before installing. Use **2x or higher** in Graphics; the artwork applies immediately.
+You can also [download the pack manually](https://pe.polanka.ovh/).
+
+**Enter** is START and skips movies; in a story movie, START pauses it and asks whether to skip. View or change all bindings in **Escape → Controls**. A **speed** button can be bound there too: the game runs at 2x while it is held, or 3x or 4x with the arrows either side of the number (Left/Right on that row). **Speed button: Toggle** makes each press switch the speed-up on or off instead. It is unbound until you choose a key or button, and keeps your VSync setting.
 The left stick provides analog movement. **Escape → Controls → Field run threshold** sets how far to push it before Aya runs (85% by default).
 Settings and selected disc paths are saved automatically. Memory cards are kept in `memory-cards` beside your user preferences. Older `bu00`/`bu10` cards from the launch or executable folder are imported once, keeping the original files.
 **Escape → Graphics** includes geometry correction, antialiasing, model texture filtering and an optional **Widescreen** aspect ratio. Widescreen shows more of the original background where available; narrow scenes and movies stay in 4:3.
+
+For smoother motion, enable **Escape → Graphics → Gameplay display → 60 Hz (interpolated)**. This optional setting smooths models and camera movement while keeping the original game speed. It is off by default.
 
 If the game crashes, it saves a report and shows where to find it. Attach that file when reporting the problem on Discord.
 
@@ -106,12 +112,22 @@ Open **F1 → PE Enhancements** to configure them.
   Aya's outfits and character skins to unlock and wear. Skins are built from your own disc with
   the decomp bridge tools and stay hidden until present. Unlocks are kept across games in
   `pe_collection.ini`; other mods can register their own creatures and costumes.
+- **Quick save** (`pe_quicksave`): ten save slots in the game's own card format. **F10** saves to
+  the current slot, **F11** loads it, **F12** cycles the slot (also **F1 → Quick save**). Files
+  are kept beside the preferences as `quicksave_<slot>.mcd`; loading restarts the saved room the
+  way a loaded save does. Works in the free field, outside battles, movies and room changes.
+- **Cheats** (`pe_cheats`): **F1 → Cheats** — God mode, Infinite ammo and PE, Win this battle,
+  and Learn all / Restore PE powers. Every cheat is off until chosen; while they are off the mod
+  writes nothing to the game state.
+- **Warp** (`pe_warp`): **F1 → Warp** — jump to any story checkpoint. It sets the story-progress
+  variable and runs the room transfer on the next free field frame, never during a battle, an
+  event, a room change or a movie.
 
 Mod builds are experimental; a passing build or test does not establish full in-game compatibility.
 
 ## Build
 
-Requires Git, CMake 3.21 or newer and a C11 compiler.
+Requires Git, CMake 3.21 or newer and a C11 compiler. Linux builds also need libcurl development headers (`libcurl4-openssl-dev` on Ubuntu).
 
 ```sh
 git clone https://github.com/khasinski/parasite-eve-pc
@@ -131,6 +147,11 @@ cmake --build build-mods --parallel
 ./build-mods/parasite-eve-pc
 ```
 
-`PE_MOD_LIST` picks the mods by folder name (default: `pe_qol;pe_rebalance;pe_economy;pe_collection`).
+`PE_MOD_LIST` picks the mods by folder name (default: `pe_qol;pe_rebalance;pe_economy;pe_collection;pe_stacks;pe_warp;pe_quicksave;pe_cheats`).
+
+### PS5 payload & native GPU options
+
+Cross-compilation support for the open-source PS5 payload SDK (`-DPE_PS5_GAME=ON`, producing `parasite-eve-ps5.elf`) and optional extended native GPU / state / assist features (`-DPE_PS5_GPU_NATIVE=ON`) live in [`platform/ps5/`](platform/ps5/) and [`cmake/ps5/`](cmake/ps5/) (contributed by [@GUMMIBRI](https://github.com/GUMMIBRI)).
 
 For development details, see [code organization](docs/CODE_ORGANIZATION.md).
+[Parasite Eve Lighting Lab](tools/lighting-editor/README.md) is a separate desktop tool for experimenting with room lighting. Download it from [Releases](https://github.com/khasinski/parasite-eve-pc/releases). Lighting profiles are not yet used in the game.
