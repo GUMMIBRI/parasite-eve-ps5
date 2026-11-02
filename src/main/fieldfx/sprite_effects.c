@@ -1,3 +1,6 @@
+#ifdef PE_PS5_GPU_NATIVE
+#include "pe1/particle_augment.h"
+#endif
 #include <stdio.h>
 #include "pe1/geom_state.h"
 #include "pe1/battle_runtime.h"
@@ -62,8 +65,15 @@ int FieldFx_FallingSprite(int mode, void *data, intptr_t argument)
         if (g_FieldFxSpriteParams.palette == 4 && g_FieldFxAltPaletteFlag)
             palette += 4;
         clut = GetClut(32, palette);
+#ifdef PE_PS5_GPU_NATIVE
+        FieldFx_BeginFallingOriginal();
+#endif
         FieldFx_DrawShapeQuads(&position, &rotation, scale, scale,
                       (s16)g_FieldFxSpriteParams.parameter02 * (g_FieldFxCurrentAge % 7) + 0xE8, clut, 1, 128, &color);
+#ifdef PE_PS5_GPU_NATIVE
+        FieldFx_EndFallingOriginal();
+        FieldFx_QueueFallingParticle(state,(unsigned)g_FieldFxCurrentAge);
+#endif
         break;
     }
     return 0;
@@ -857,7 +867,12 @@ int FieldFx_FanSweep(int mode, void *data, intptr_t argument)
         sweep->angle = rand();
         handles = FieldFx_InitCallbackList(g_FieldFxActiveTaskSlot->end, 0x10, 0x18,
                                 FieldFx_FanSweepSpark);
-        handles += FieldFx_AllocCallbackList(&sweep->pool, handles, 8, 0x12, FieldFx_EmberSpark);
+        if (handles < 0) return handles;
+        {
+            int extra = FieldFx_AllocCallbackList(&sweep->pool, handles, 8, 0x12, FieldFx_EmberSpark);
+            if (extra < 0) return extra;
+            handles += extra;
+        }
         return handles;
     case 1:
         if (g_FieldFxCurrentAge < 0x20 && (g_FieldFxCurrentAge & 1)) {
@@ -1174,8 +1189,13 @@ int FieldFx_OrbitingSpriteEmitter(int mode, void *data, intptr_t argument)
         state->phase = rand();
         count = FieldFx_InitCallbackList(g_FieldFxActiveTaskSlot->end, 16, 12,
                               (FieldFxTaskCallback)FieldFx_OrbitingSprite);
-        count += FieldFx_AllocCallbackList(&state->particles, count, 8, 32,
+        if (count < 0) return count;
+        {
+            int extra = FieldFx_AllocCallbackList(&state->particles, count, 8, 32,
                                FieldFx_OrbitTrailPoint);
+            if (extra < 0) return extra;
+            count += extra;
+        }
         return count;
     case 1:
         if (g_FieldFxCurrentAge < 44 && g_FieldFxCurrentAge % 3 == 0) {
@@ -1238,8 +1258,13 @@ int FieldFx_OrbitingSpriteBurst(int mode, void *data, intptr_t argument)
         state->phase = rand();
         count = FieldFx_InitCallbackList(g_FieldFxActiveTaskSlot->end, 16, 3,
                              (FieldFxTaskCallback)FieldFx_OrbitingSprite);
-        count += FieldFx_AllocCallbackList(&state->particles, count, 8, 18,
+        if (count < 0) return count;
+        {
+            int extra = FieldFx_AllocCallbackList(&state->particles, count, 8, 18,
                                    FieldFx_OrbitTrailPoint);
+            if (extra < 0) return extra;
+            count += extra;
+        }
         return count;
     case 1:
         if (g_FieldFxCurrentAge == 1) {
@@ -1496,8 +1521,13 @@ int FieldFx_HelicalSpriteEmitter(int mode, void *data, intptr_t argument)
         state->phase = rand();
         count = FieldFx_InitCallbackList(g_FieldFxActiveTaskSlot->end, 16, 4,
                              (FieldFxTaskCallback)FieldFx_HelicalSprite);
-        count += FieldFx_AllocCallbackList(&state->particles, count, 8, 32,
+        if (count < 0) return count;
+        {
+            int extra = FieldFx_AllocCallbackList(&state->particles, count, 8, 32,
                                    FieldFx_HelicalTrailPoint);
+            if (extra < 0) return extra;
+            count += extra;
+        }
         return count;
     case 1:
         if (g_FieldFxCurrentAge < 2) {
