@@ -6886,7 +6886,18 @@
  #include "common.h"
  #include "pe1/akao_send.h"
  #include "pe1/battle_runtime.h"
-@@ -47,6 +55,7 @@
+@@ -40,6 +48,10 @@
+ void Entity_FrameUpdate(void);
+ void Draw_ClearOnFlag(void);
+ 
++#ifdef PE_PS5_GPU_NATIVE
++void CPE_HostSetGameplayLoopActive(int active);
++int CPE_HostTakeReturnTitleRequest(void);
++#endif
+ void FieldFx_UpdateScriptSprites(void);
+ void Boot_FinishFrame(void);
+ void Akao_Cmd_F1(void);
+@@ -47,6 +59,7 @@
  int Asset_UnloadTableEntries(void);
  
  void Boot_FlushSceneFast(void) {
@@ -6894,7 +6905,7 @@
      RECT rect;
      u32 status;
      u32 first_status;
-@@ -59,6 +68,7 @@
+@@ -59,6 +72,7 @@
          ClearImage(&rect, 0, 0, 1);
      }
      DrawSync(0);
@@ -6902,7 +6913,17 @@
      Akao_Cmd_F1();
      Render_Noop();
      Asset_UnloadTableEntries();
-@@ -122,12 +132,22 @@
+@@ -115,6 +129,9 @@
+     RenderTintTargetView *fade;
+     int skip_movie;
+ 
++#ifdef PE_PS5_GPU_NATIVE
++    CPE_HostSetGameplayLoopActive(0);
++#endif
+     int startup=Draw_InitPipeline();
+     if (startup < 0) return startup;
+     if (g_SceneDispatchCur == g_SceneDispatchToken) {
+@@ -122,12 +139,25 @@
          state = &g_GameState;
          fade = (RenderTintTargetView *)&g_ScreenTint.targetR;
          PE_HOOK(PE_HOOK_SCENE_START, NULL);
@@ -6911,6 +6932,9 @@
 +        PeStateBoundary_SceneChanged();
 +#endif
          if (g_BootSceneStarted) g_BootSceneStarted();
++#ifdef PE_PS5_GPU_NATIVE
++        CPE_HostSetGameplayLoopActive(1);
++#endif
          do {
              /* Geometry belongs to this game frame, not to each VBlank.
               * Draw_RenderFrame waits after the OT has already been built. */
@@ -6925,12 +6949,18 @@
              *scene_flags = 0;
              Field_HandleStateTransition();
              PE_HOOK(PE_HOOK_FRAME, NULL);
-@@ -200,6 +220,15 @@
+@@ -200,10 +230,28 @@
                  break;
              }
  loop_end_check:
 +#ifdef PE_PS5_GPU_NATIVE
 +            FieldFx_ParticleEndFrame();PeShadow_EndFrame();
++            /* No UI/VSync callback tears down gameplay. At the same final CPU
++             * boundary as checkpoints, leave through the original soft reset. */
++            if(CPE_HostTakeReturnTitleRequest()){
++                Boot_Shutdown();
++                break;
++            }
 +#endif
 +#if PE_NATIVE_STATE_CPU_COMPONENTS
 +            /* Final CPU point: after scripts/actors/frame cleanup, never inside a VSync handler. */
@@ -6941,7 +6971,14 @@
              ;
          } while (g_SceneDispatchCur == g_SceneDispatchToken);
      }
-@@ -212,6 +241,7 @@
+ 
++#ifdef PE_PS5_GPU_NATIVE
++    CPE_HostSetGameplayLoopActive(0);
++#endif
+     if (g_GameStateFlagsWord & 0x200) {
+         clear_rect.x = 0;
+         clear_rect.y = 0;
+@@ -212,6 +260,7 @@
          ClearImage(&clear_rect, 0, 0, 1);
      }
      DrawSync(0);
@@ -7461,18 +7498,31 @@
  #include "common.h"
  #include <ctype.h>
  #include <errno.h>
-@@ -7,6 +17,10 @@
+@@ -7,6 +17,13 @@
  #include <stdlib.h>
  #include <string.h>
  #include <SDL3/SDL.h>
 +#if PE_NATIVE_STATE_CPU_COMPONENTS
 +static void Host_StateUiRegister(void);
 +static bool Host_StateChord(const SDL_Event *event);
++#ifdef PE_PS5_GPU_NATIVE
++static int Host_StateTitleResetBusy(void);
++#endif
 +#endif
  #include <psyz/audio.h>
  #include <psyz/gpu.h>
  #include <psyz/overlay_sdl3.h>
-@@ -29,6 +43,15 @@
+@@ -15,6 +32,9 @@
+ #include "pe1/boot.h"
+ #include "pe1/boot_disc_check.h"
+ #include "pe1/boot_display.h"
++#ifdef PE_PS5_GPU_NATIVE
++#include "pe1/menu_memcard_display.h"
++#endif
+ #include "pe1/boot_services.h"
+ #include "pe1/asset_table.h"
+ #include "pe1/aya.h"
+@@ -29,6 +49,15 @@
  #include "pe1/save_tail_state.h"
  #include "pe1/scene_dispatch.h"
  #include "pe_hooks.h"
@@ -7488,7 +7538,7 @@
  
  /* Desktop preferences belong to the original boot module. The modal loop
   * never ticks the game, PS1 timers, scripts, or audio. */
-@@ -41,8 +64,22 @@
+@@ -41,8 +70,22 @@
      int geometry_correction;
      int antialiasing;
      int model_filtering;
@@ -7511,7 +7561,7 @@
      int fullscreen;
      /* 2..PSYZ_SPEED_MAX, used while the speed binding is held */
      unsigned speed_factor;
-@@ -54,8 +91,129 @@
+@@ -54,8 +97,129 @@
      char user_file[4096];
      int enabled;
  } host_options;
@@ -7641,7 +7691,7 @@
  
  #define HOST_BINDING_COUNT 17
  #define HOST_SPEED_BINDING 16
-@@ -91,11 +249,16 @@
+@@ -91,11 +255,16 @@
  }
  
  typedef enum HostSettingsPage {
@@ -7658,7 +7708,7 @@
  } HostSettingsPage;
  
  typedef enum HostBindDevice {
-@@ -103,6 +266,7 @@
+@@ -103,6 +272,7 @@
      HOST_BIND_CONTROLLER = 1
  } HostBindDevice;
  
@@ -7666,7 +7716,7 @@
  /* Versioned desktop background packs. Only a fully verified staging directory
   * can replace the active pointer; failed/cancelled downloads keep the old pack. */
  /* curl imports WinSock and WinAPI; keep their historical typedefs separate
-@@ -304,7 +468,210 @@
+@@ -304,7 +474,210 @@
      puts(Host_HdStatus());int result=host_hd.success?0:1;Host_HdStop();return result;
  }
  
@@ -7877,7 +7927,7 @@
  
  static char *Host_Trim(char *s) {
      while (isspace((unsigned char)*s)) {
-@@ -362,7 +729,53 @@
+@@ -362,7 +735,53 @@
      return 1;
  }
  
@@ -7931,7 +7981,7 @@
      if (!strcmp(section, "discs")) {
          int slot = !strcmp(key, "disc1") ? 0 : !strcmp(key, "disc2") ? 1 : -1;
          if (slot >= 0) {
-@@ -370,6 +783,9 @@
+@@ -370,6 +789,9 @@
              if (!Host_String(value, decoded, sizeof(decoded))) {
                  return 0;
              }
@@ -7941,7 +7991,7 @@
              memcpy(host_options.discs[slot], decoded, strlen(decoded) + 1);
          }
          return 1;
-@@ -397,6 +813,9 @@
+@@ -397,6 +819,9 @@
          return 0;
      }
  
@@ -7951,7 +8001,7 @@
      if (!strcmp(section, "controls")) {
          if (!strcmp(key, "field_run_threshold")) {
              if (v > 100) return 0;
-@@ -404,7 +823,11 @@
+@@ -404,7 +829,11 @@
          }
      } else if (!strcmp(section, "graphics")) {
          if (!strcmp(key, "internal_resolution")) {
@@ -7964,7 +8014,7 @@
                  return 0;
              }
              host_options.scale = (unsigned)v;
-@@ -426,20 +849,67 @@
+@@ -426,20 +855,67 @@
          } else if (!strcmp(key, "antialiasing")) {
              if (v > 1) return 0;
              host_options.antialiasing = v;
@@ -8032,7 +8082,7 @@
      } else if (!strcmp(section, "audio") && !strcmp(key, "volume")) {
          if (v > 100) {
              return 0;
-@@ -474,6 +944,9 @@
+@@ -474,6 +950,9 @@
  
  /* SDL paths are UTF-8; the Windows CRT's narrow fopen uses the local ANSI
   * code page. Keep the existing TOML parser/writer on a Unicode FILE stream. */
@@ -8042,7 +8092,7 @@
  static FILE *Host_OptionsFile(const char *path,const char *mode) {
  #ifdef _WIN32
      wchar_t *wide_path=(wchar_t *)SDL_iconv_string("UTF-16LE","UTF-8",path,strlen(path)+1);
-@@ -487,6 +960,11 @@
+@@ -487,6 +966,11 @@
  
  static void Host_LoadOptions(const char *path) {
      FILE *file = Host_OptionsFile(path, "r");
@@ -8054,7 +8104,7 @@
      if (!file) {
          return;
      }
-@@ -546,6 +1024,9 @@
+@@ -546,6 +1030,9 @@
  }
  
  static int Host_SaveOptions(void) {
@@ -8064,7 +8114,7 @@
      if (!host_options.enabled || !*host_options.user_file) {
          return 0;
      }
-@@ -557,6 +1038,9 @@
+@@ -557,6 +1044,9 @@
          return 0;
      }
  
@@ -8074,7 +8124,7 @@
      fprintf(
          file,
          "# Parasite Eve desktop preferences\n"
-@@ -568,7 +1052,14 @@
+@@ -568,7 +1058,14 @@
          "geometry_correction = %s\n"
          "antialiasing = %s\n"
          "model_filtering = %s\n"
@@ -8090,7 +8140,7 @@
          "[audio]\n"
          "volume = %u\n\n"
          "[game]\n"
-@@ -584,16 +1075,33 @@
+@@ -584,16 +1081,33 @@
          host_options.geometry_correction ? "true" : "false",
          host_options.antialiasing ? "true" : "false",
          host_options.model_filtering ? "true" : "false",
@@ -8126,7 +8176,7 @@
      fputs("\n[keyboard]\n", file);
      for (unsigned i = 0; i < HOST_BINDING_COUNT; ++i) {
          fprintf(file, "%s = %d\n", host_button_names[i], host_options.keys[i]);
-@@ -603,7 +1111,7 @@
+@@ -603,7 +1117,7 @@
          fprintf(file, "%s = %d\n", host_button_names[i], host_options.buttons[i]);
      }
  
@@ -8135,7 +8185,7 @@
      if (fclose(file)) {
          failed = 1;
      }
-@@ -617,18 +1125,34 @@
+@@ -617,18 +1131,34 @@
  /* Bundled desktop launches have no useful writable working directory.
   * Keep PS1 card files alongside the per-user preferences, without changing
   * relative image paths or the working directory used by headless replays. */
@@ -8170,7 +8220,7 @@
          return 0;
      }
  
-@@ -640,7 +1164,7 @@
+@@ -640,7 +1170,7 @@
          host_options.user_file,
          src
      );
@@ -8179,7 +8229,7 @@
  #ifdef _WIN32
      /* SDL's Win32 calls also need the extended prefix for long paths. Leave
       * short portable paths unchanged, including their usual slash spelling. */
-@@ -669,7 +1193,7 @@
+@@ -669,7 +1199,7 @@
          }
      }
  #endif
@@ -8188,7 +8238,7 @@
  
      const char *name = src + 5;
      if (*name == '*') {
-@@ -681,6 +1205,7 @@
+@@ -681,6 +1211,7 @@
  #endif
      int added = snprintf(dst + n, (size_t)(capacity - n), "%c%s", separator, name);
      if (added < 0 || added >= capacity - n) {
@@ -8196,7 +8246,7 @@
          dst[0] = '\0';
      }
      return 0;
-@@ -707,52 +1232,70 @@
+@@ -707,52 +1238,70 @@
      unsigned port = length >= 4 && dirname[length - 3] == '1';
      snprintf(device, sizeof(device), "bu%u0:%s", port, name);
      Host_CardPath(target, device, sizeof(target));
@@ -8275,7 +8325,7 @@
              SDL_RemovePath(marker);
              import.ok = 0;
          }
-@@ -772,22 +1315,88 @@
+@@ -772,22 +1321,88 @@
      host_options.geometry_correction = 1;
      host_options.antialiasing = 0;
      host_options.model_filtering = 0;
@@ -8364,7 +8414,7 @@
      const char *base = SDL_GetBasePath();
      char path[4096];
      if (base) {
-@@ -841,17 +1450,100 @@
+@@ -841,17 +1456,100 @@
      if (*host_options.user_file && !Host_InstallCardPaths(base)) {
          fprintf(stderr, "Cannot prepare user memory cards; legacy cards remain in use.\n");
      }
@@ -8465,7 +8515,7 @@
      Psyz_AudioSetOutputVolume(host_options.volume);
      for (unsigned i = 0; i < 16; ++i) {
          Psyz_SetKeyboardBinding_SDL3(i, (SDL_Scancode)host_options.keys[i]);
-@@ -893,6 +1585,11 @@
+@@ -893,6 +1591,11 @@
  }
  
  static int Host_ChooseDiscs(const char **paths) {
@@ -8477,7 +8527,7 @@
      static const SDL_DialogFileFilter filters[] = {
          {"Parasite Eve - select both Disc 1 and Disc 2 CUE images", "cue;bin"}
      };
-@@ -927,8 +1624,33 @@
+@@ -927,8 +1630,33 @@
  /* Main owns the two streams; adding an absent volume never replaces one that
   * the original asynchronous archive reader might still be using. */
  static PeDisc *host_images;
@@ -8511,7 +8561,7 @@
      static const SDL_DialogFileFilter filters[] = {
          {"Parasite Eve USA CUE/BIN image", "cue;bin"}
      };
-@@ -979,7 +1701,7 @@
+@@ -979,7 +1707,7 @@
  
      PeDisc *image = &host_images[slot];
      unsigned found = 0;
@@ -8520,7 +8570,7 @@
          return 0;
      }
  
-@@ -1002,6 +1724,11 @@
+@@ -1002,6 +1730,11 @@
      if (g_CdImageVolumes[identity - 1]) {
          return 1;
      }
@@ -8532,7 +8582,7 @@
  
      Psyz_PauseHostClock_SDL3(true);
      int paused = Psyz_AudioIsPaused();
-@@ -1095,10 +1822,14 @@
+@@ -1095,10 +1828,14 @@
      if (h <= 0) {
          h = 600;
      }
@@ -8549,7 +8599,7 @@
          if (*texture == NULL || *texW != layout.w || *texH != layout.h) {
              if (*texture != NULL) {
                  SDL_DestroyTexture(*texture);
-@@ -1129,21 +1860,32 @@
+@@ -1129,21 +1866,57 @@
          SDL_RenderTexture(renderer, *texture, NULL, &dst);
      }
      SDL_RenderPresent(renderer);
@@ -8581,12 +8631,37 @@
  
 +#ifdef PE_PS5_GPU_NATIVE
 +static int Host_SettingsBack(HostOverlayState *state){return Host_RegistryBack(state);}
++/* UI callbacks only enqueue. The original game loop owns soft-reset teardown. */
++static int host_gameplay_loop_active,host_return_title_pending;
++static int Host_ReturnTitleAvailable(void){
++    return host_gameplay_loop_active && !Host_HdBusy() && Draw_CheckDrawStatus()==0 &&
++#if PE_NATIVE_STATE_CPU_COMPONENTS
++        !Host_StateTitleResetBusy() &&
++#endif
++        g_SceneDispatchCur==g_SceneDispatchToken &&
++        !(g_GameState.flags&0x300) && !(g_GameStateFlags&0x2000);
++}
++void CPE_HostSetGameplayLoopActive(int active){
++    host_gameplay_loop_active=active;
++    if(!active)host_return_title_pending=0;
++}
++int CPE_HostTakeReturnTitleRequest(void){
++    int requested=host_return_title_pending;
++    host_return_title_pending=0;
++    if(!requested)return 0;
++    if(!Host_ReturnTitleAvailable()){
++        SDL_Log("[Return to title] rejected: gameplay scene changed or job still active");
++        return 0;
++    }
++    SDL_Log("[Return to title] confirmed; servicing original soft reset at game-frame boundary");
++    return 1;
++}
 +#endif
 +
  static void Host_ApplySettingsAction(
      HostOverlayState *state,
      int action,
-@@ -1153,7 +1895,14 @@
+@@ -1153,29 +1926,96 @@
      int pureCount = Host_SettingsPureRowCount(state->page);
      if (state->row >= pureCount) {
          if (activate_only) {
@@ -8601,8 +8676,21 @@
 +#endif
                  state->open = 0;
              } else {
++#ifdef PE_PS5_GPU_NATIVE
++                if(!Host_ReturnTitleAvailable()){
++                    state->status="Return to title is available during gameplay after active jobs finish.";
++                    state->dirty=1;return;
++                }
++                state->status=NULL;
++                state->return_title_row=state->row;
++                state->prompt=2;state->row=1; /* No is the safe default. */
++                state->dirty=1;
++#else
                  state->quit = 1;
-@@ -1163,19 +1912,68 @@
+                 state->open = 0;
++#endif
+             }
+         }
          return;
      }
  
@@ -8673,7 +8761,7 @@
          state->status=Host_HdStatus();state->dirty=1;return;
      } else if (state->page == HOST_PAGE_IMAGES) {
          if (!activate_only) {
-@@ -1237,11 +2035,17 @@
+@@ -1237,11 +2077,17 @@
  
  static void Host_ControlGraphics(int geometry, int antialiasing, int filtering) {
      const int values[3] = {geometry, antialiasing, filtering};
@@ -8694,7 +8782,7 @@
      }
  }
  
-@@ -1304,8 +2108,20 @@
+@@ -1304,13 +2150,39 @@
          int isStepper = hitRow < pureCount &&
                          !(state->page == HOST_PAGE_CONTROLS && hitRow >= 1 && hitRow != HOST_ANALOG_RUN_ROW) &&
                          state->page != HOST_PAGE_IMAGES &&
@@ -8716,7 +8804,26 @@
          Host_ApplySettingsAction(state, action, !isStepper, game);
      }
  }
-@@ -1485,6 +2301,9 @@
+ 
+ static void Host_AnswerPrompt(HostOverlayState *state, int skip) {
++#ifdef PE_PS5_GPU_NATIVE
++    if(state->prompt==2){
++        state->prompt=0;state->row=state->return_title_row;
++        state->dirty=1;
++        if(skip){
++            if(!Host_ReturnTitleAvailable()){
++                state->status="Scene changed or a job is active. Return to title was cancelled.";
++                return;
++            }
++            state->return_title=1;state->open=0;
++        }
++        return;
++    }
++#endif
+     state->skip = skip;
+     state->open = 0;
+ }
+@@ -1485,6 +2357,9 @@
          switch (event->key.scancode) {
          case SDL_SCANCODE_ESCAPE:
              if (!repeat) {
@@ -8726,7 +8833,7 @@
                  state->open = 0;
              }
              break;
-@@ -1533,9 +2352,22 @@
+@@ -1533,9 +2408,22 @@
          default:
              break;
          }
@@ -8749,7 +8856,7 @@
          case SDL_GAMEPAD_BUTTON_START:
              state->open = 0;
              break;
-@@ -1571,14 +2403,22 @@
+@@ -1571,14 +2459,22 @@
              break;
          }
      } else if (event->type == SDL_EVENT_MOUSE_WHEEL) {
@@ -8774,7 +8881,7 @@
                  state->dirty = 1;
              }
          }
-@@ -1590,10 +2430,19 @@
+@@ -1590,10 +2486,19 @@
      }
  }
  
@@ -8794,7 +8901,7 @@
  
      int useGpuOverlay = (game != NULL && s_overlayGpuDevice != NULL);
      SDL_Window *fallbackWindow = NULL;
-@@ -1602,6 +2451,15 @@
+@@ -1602,6 +2507,15 @@
      int fallbackTexW = 0, fallbackTexH = 0;
  
      if (!useGpuOverlay) {
@@ -8810,7 +8917,7 @@
          fallbackWindow = SDL_CreateWindow(
              "Parasite Eve - Settings", 640, 600, SDL_WINDOW_HIGH_PIXEL_DENSITY
          );
-@@ -1613,6 +2471,7 @@
+@@ -1613,6 +2527,7 @@
              SDL_DestroyWindow(fallbackWindow);
              return;
          }
@@ -8818,7 +8925,7 @@
          SDL_PumpEvents();
          SDL_FlushEvents(SDL_EVENT_WINDOW_FIRST, SDL_EVENT_WINDOW_LAST);
      }
-@@ -1625,7 +2484,11 @@
+@@ -1625,7 +2540,11 @@
  
      s_overlayState = (HostOverlayState){
          .open = 1,
@@ -8830,7 +8937,7 @@
          .row = 0,
          .bind_device = HOST_BIND_KEYBOARD,
          .capturing_binding = 0,
-@@ -1634,10 +2497,20 @@
+@@ -1634,10 +2553,20 @@
          .status = NULL
      };
  
@@ -8852,7 +8959,7 @@
          if (useGpuOverlay) {
              Host_OverlayRefreshGPU(s_overlayGpuDevice, game, &s_overlayState);
              Psyz_VideoVSync(0);
-@@ -1657,16 +2530,29 @@
+@@ -1657,16 +2586,32 @@
          }
      }
  
@@ -8865,6 +8972,9 @@
 +    pe_menu_save_settings(); /* Includes dynamic choices normalized while painting. */
 +    #endif
      int quit = s_overlayState.quit;
++#ifdef PE_PS5_GPU_NATIVE
++    int return_title=s_overlayState.return_title&&!quit;
++#endif
      s_overlayState.open = 0;
 +    Host_TraceAspectSelection("menu_resume", 1);
  
@@ -8882,7 +8992,7 @@
      }
      if (fallbackTexture != NULL) {
          SDL_DestroyTexture(fallbackTexture);
-@@ -1675,7 +2561,9 @@
+@@ -1675,7 +2620,9 @@
          SDL_DestroyRenderer(fallbackRenderer);
      }
      if (fallbackWindow != NULL) {
@@ -8892,23 +9002,30 @@
      }
  
      /* Avoid a held menu key leaking into the resumed original pad poll. */
-@@ -1684,6 +2572,15 @@
+@@ -1684,6 +2631,22 @@
      if (!paused) {
          Psyz_AudioUnpause();
      }
 +#if defined(PE_PS5_GPU_NATIVE) && defined(PE_MODS)
 +    if(host_open_assists){
 +        host_open_assists=0;
-+        if(!quit)pe_mod_panel_open_page(host_pending_mod_page?host_pending_mod_page:"Playtest assists");host_pending_mod_page=NULL;
++        if(!quit&&!return_title)pe_mod_panel_open_page(host_pending_mod_page?host_pending_mod_page:"Playtest assists");host_pending_mod_page=NULL;
 +    }
 +#endif
 +#if PE_NATIVE_STATE_CPU_COMPONENTS
-+    if(!quit)CPE_StateUi_AfterModalClosed();
++    if(!quit
++#ifdef PE_PS5_GPU_NATIVE
++       &&!return_title
++#endif
++    )CPE_StateUi_AfterModalClosed();
++#endif
++#ifdef PE_PS5_GPU_NATIVE
++    if(return_title)host_return_title_pending=1;
 +#endif
      if (quit) {
          SDL_Event event;
          SDL_zero(event);
-@@ -1694,6 +2591,22 @@
+@@ -1694,6 +2657,22 @@
  
  /* g_BootMovieSkipConfirm: the movie, game clock and audio stay paused until
   * the question is answered. No keeps watching. */
@@ -8931,7 +9048,7 @@
  static int Host_ConfirmMovieSkip(void) {
      SDL_Window *game = Psyz_GetWindow_SDL3();
      int paused = Psyz_AudioIsPaused();
-@@ -1718,6 +2631,26 @@
+@@ -1718,6 +2697,26 @@
          quit = s_overlayState.quit;
          s_overlayState = (HostOverlayState){0};
      } else {
@@ -8958,7 +9075,7 @@
          SDL_MessageBoxButtonData buttons[] = {
              {0, 1, "Yes"},
              {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT | SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "No"}
-@@ -1732,6 +2665,7 @@
+@@ -1732,6 +2731,7 @@
          };
          int choice = 0;
          skip = SDL_ShowMessageBox(&box, &choice) && choice == 1;
@@ -8966,7 +9083,7 @@
      }
  
      /* Avoid the answering key leaking into the resumed original pad poll. */
-@@ -1826,7 +2760,13 @@
+@@ -1826,7 +2826,13 @@
  }
  
  static bool Host_SettingsEvent(const SDL_Event *event) {
@@ -8980,7 +9097,7 @@
      if (s_overlayState.open) {
          if (event->type == SDL_EVENT_WINDOW_RESIZED ||
              event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
-@@ -1844,6 +2784,18 @@
+@@ -1844,6 +2850,18 @@
          Host_PauseForFocus(game);
          return true;
      }
@@ -8999,7 +9116,7 @@
      if (event->type == SDL_EVENT_KEY_DOWN && event->key.scancode == SDL_SCANCODE_ESCAPE) {
          if (!event->key.repeat) {
              Host_Settings(game);
-@@ -1854,12 +2806,50 @@
+@@ -1854,12 +2872,50 @@
  }
  
  static void Host_InstallSettingsOverlay(void) {
@@ -9050,7 +9167,7 @@
  #define STATE_FLAG_IMAGE_BUSY 0x00100000U
  #define STATE_FLAG_READY 0x00000100U
  
-@@ -1927,14 +2917,24 @@
+@@ -1927,14 +2983,24 @@
      Host_CrashAppend(out, size, &used,
                       "\r\n== Settings ==\r\n"
                       "Settings file: %s\r\n"
@@ -9076,7 +9193,7 @@
                       kAspectNames[host_options.aspect != 0], kDitherNames[host_options.dither != 0],
                       kSwitchNames[host_options.geometry_correction != 0], kAntialiasNames[host_options.antialiasing != 0],
                       kFilterNames[host_options.model_filtering != 0], host_options.volume, host_options.speed_factor,
-@@ -2145,10 +3145,16 @@
+@@ -2145,10 +3211,16 @@
  }
  
  int main(int argc, char **argv) {
@@ -9093,7 +9210,7 @@
      const char *paths[2] = {NULL, NULL};
      int result = EXIT_FAILURE;
      int interactive = 1;
-@@ -2171,6 +3177,20 @@
+@@ -2171,6 +3243,20 @@
      CrashReport_SetMods(pe_mod_crash_describe);
  #endif
      Host_InitOptions(interactive);
@@ -9114,7 +9231,7 @@
      if(argc==2 && (!strcmp(argv[1],"--download-backgrounds") || !strcmp(argv[1],"--verify-backgrounds")))return Host_HdCli(!strcmp(argv[1],"--verify-backgrounds"));
      unsigned internal_resolution = host_options.scale;
      int resolution_argument = 0;
-@@ -2202,7 +3222,11 @@
+@@ -2202,7 +3288,11 @@
              errno = 0;
              const char *value = argv[++arg];
              unsigned long scale = strtoul(value, &end, 10);
@@ -9127,7 +9244,7 @@
                  fprintf(stderr, "Invalid internal resolution\n");
                  return EXIT_FAILURE;
              }
-@@ -2301,6 +3325,26 @@
+@@ -2301,6 +3391,26 @@
          }
      }
  
@@ -9154,7 +9271,7 @@
      if (interactive) {
          if (!paths[0] && !paths[1]) {
              for (unsigned i = 0; i < 2; ++i) {
-@@ -2321,6 +3365,9 @@
+@@ -2321,6 +3431,9 @@
          return EXIT_FAILURE;
      }
  
@@ -9164,7 +9281,7 @@
      const char *headless_mode = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "PSYZ_HEADLESS");
      if ((host_options.antialiasing || host_options.model_filtering) &&
          headless_mode && !strcmp(headless_mode, "1")) {
-@@ -2384,7 +3431,7 @@
+@@ -2384,7 +3497,7 @@
          if (!paths[slot]) {
              continue;
          }
@@ -9173,7 +9290,7 @@
              fprintf(stderr, "Cannot open image: %s\n", images[slot].error);
              goto image_error;
          }
-@@ -2405,6 +3452,9 @@
+@@ -2405,6 +3518,9 @@
      g_CdImageVolumes[0] = g_CdImageVolumes[1] = NULL;
      pe_disc_close(&images[0]);
      pe_disc_close(&images[1]);
@@ -9183,7 +9300,7 @@
      if (!interactive) {
          goto shutdown;
      }
-@@ -2464,7 +3514,16 @@
+@@ -2464,7 +3580,16 @@
  
      g_BootHostActive = 1;
      PE_HOOK(PE_HOOK_INIT, (&(PeHookInit){interactive, host_options.user_file}));
@@ -9201,7 +9318,7 @@
          fprintf(stderr, "Cannot select internal resolution\n");
          goto shutdown;
      }
-@@ -2480,7 +3539,20 @@
+@@ -2480,7 +3605,20 @@
       * ends (mesh_list.c); kept on so switching it on mid-game works. */
      Psyz_GpuSetVramCopy(1);
      Boot_InitSystem();
@@ -9223,7 +9340,7 @@
          fprintf(stderr, "Requested internal resolution unavailable\n");
          goto shutdown;
      }
-@@ -2600,6 +3672,11 @@
+@@ -2600,6 +3738,11 @@
      }
  
  shutdown:
@@ -9235,7 +9352,7 @@
      Host_HdStop();
      if (g_BootDisplayPlaybackActive) {
          BootDisplay_WaitForCdAndRestoreCallbacks();
-@@ -2620,5 +3697,47 @@
+@@ -2620,5 +3763,52 @@
      g_BootHostPadEvents = NULL;
      g_BootHostPadEventCount = 0;
      return result;
@@ -9247,6 +9364,11 @@
 +
 +#if PE_NATIVE_STATE_CPU_COMPONENTS
 +#include "state_ui.h"
++#ifdef PE_PS5_GPU_NATIVE
++static int Host_StateTitleResetBusy(void){
++    return s_state_terminal||s_state_request||s_state_waiting||s_state_preparing||s_state_preflight||s_state_session.pending;
++}
++#endif
 +/* Scoped addon only: merge into manager's latest boot main, never replace it.
 + * Platform GPU metadata separately rejects every paused modal/focus/background. */
 +unsigned CPE_StateHostReasonBits(void){
@@ -9414,23 +9536,43 @@
 +#endif
 --- /dev/null
 +++ b/src/main/boot/native_tabs.h
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,117 @@
++
++#ifndef PE_NATIVE_PUBLIC_RELEASE
++#define PE_NATIVE_PUBLIC_RELEASE 0
++#endif
 +/* Native settings rows. Original game menus and bindings remain separate. */
 +#ifndef PE_NATIVE_TABS_H
 +#define PE_NATIVE_TABS_H
 +#include "native_registry.h"
-+static int Host_ModernRowCount(int page){if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS)return Host_RegistryCount(page);if(page==HOST_PAGE_STATES)return 8;if(page==HOST_PAGE_IMAGES)return 9;return 0;}
++static int Host_ModernRowCount(int page){
++#if PE_NATIVE_PUBLIC_RELEASE
++ if(page==HOST_PAGE_STATES)return 1;
++#endif
++if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS)return Host_RegistryCount(page);if(page==HOST_PAGE_STATES)return 8;if(page==HOST_PAGE_IMAGES)return 9;return 0;}
 +
 +static const char *Host_ModernRowLabel(int page,int row){
++#if PE_NATIVE_PUBLIC_RELEASE
++ if(page==HOST_PAGE_STATES)return "Coming soon-ish*";
++#endif
++
 + if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS)return Host_RegistryLabel(page,row);
 + static const char *const states[]={"Last checkpoint attempt","Requirement preview","Save checkpoint","Checkpoint file","Load checkpoint","Refresh files","Use Original effects","Checkpoint scope"};
 + static const char *const system[]={"Menu appearance","Menu text","Focus pointer","Disc 1","Disc 2","File setup","Save data","Error reports","Build"};
 + if(page==HOST_PAGE_STATES&&row>=0&&row<8)return states[row];if(page==HOST_PAGE_IMAGES&&row>=0&&row<9)return system[row];return "";
 +}
 +
-+static int Host_ModernRowKind(int page,int row){if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS)return Host_RegistryKind(page,row);if(page==HOST_PAGE_STATES)return row==3?2:row==2||row==4||row==5||row==6?1:0;if(page==HOST_PAGE_IMAGES)return row<3?2:row<5&&!g_CdImageVolumes[row-3]?1:0;return 0;}
++static int Host_ModernRowKind(int page,int row){
++#if PE_NATIVE_PUBLIC_RELEASE
++ if(page==HOST_PAGE_STATES)return 0;
++#endif
++if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS)return Host_RegistryKind(page,row);if(page==HOST_PAGE_STATES)return row==3?2:row==2||row==4||row==5||row==6?1:0;if(page==HOST_PAGE_IMAGES)return row<3?2:row<5&&!g_CdImageVolumes[row-3]?1:0;return 0;}
 +
 +static void Host_ModernRowValue(int page,int row,char *out,unsigned size){
++#if PE_NATIVE_PUBLIC_RELEASE
++ if(page==HOST_PAGE_STATES){snprintf(out,size,"Unavailable in public beta");return;}
++#endif
++
 + if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS){Host_RegistryValue(page,row,out,size);return;}const char *value="";
 +if(page==HOST_PAGE_STATES){
 +#if PE_NATIVE_STATE_CPU_COMPONENTS
@@ -9461,6 +9603,10 @@
 +    snprintf(out,size,"%s",value);
 +}
 +static const char *Host_ModernRowHelp(int page,int row){
++#if PE_NATIVE_PUBLIC_RELEASE
++ if(page==HOST_PAGE_STATES)return "Coming soon-ish* Experimental save states are disabled in this public beta. Use normal in-game memory-card saves.";
++#endif
++
 + if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS)return Host_RegistryHelp(page,row);
 +    if(page==HOST_PAGE_STATES){
 +#if PE_NATIVE_STATE_CPU_COMPONENTS
@@ -9490,6 +9636,10 @@
 +    return "";
 +}
 +static int Host_ModernAction(int page,int row,int direction,int activate){
++#if PE_NATIVE_PUBLIC_RELEASE
++ if(page==HOST_PAGE_STATES)return 0;
++#endif
++
 + if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS)return Host_RegistryAction(page,row,direction,activate);
 +if(page==HOST_PAGE_STATES){
 +#if PE_NATIVE_STATE_CPU_COMPONENTS
@@ -9506,7 +9656,15 @@
 +#endif
 --- a/src/main/boot/settings_overlay.h
 +++ b/src/main/boot/settings_overlay.h
-@@ -28,6 +28,11 @@
+@@ -1,3 +1,7 @@
++
++#ifndef PE_NATIVE_PUBLIC_RELEASE
++#define PE_NATIVE_PUBLIC_RELEASE 0
++#endif
+ #ifndef PE1_BOOT_SETTINGS_OVERLAY_H
+ #define PE1_BOOT_SETTINGS_OVERLAY_H
+ 
+@@ -28,6 +32,11 @@
  /* ---- geometry, in design units that scale with the window (from rage-racer-pc) ---- */
  
  enum {
@@ -9518,7 +9676,7 @@
      OVERLAY_PAGE_GRAPHICS = 0,
      OVERLAY_PAGE_CONTROLS = 1,
      OVERLAY_PAGE_AUDIO = 2,
-@@ -35,15 +40,28 @@
+@@ -35,15 +44,28 @@
      OVERLAY_PAGE_MODS = 4,
      OVERLAY_PAGE_COUNT = 5,
      OVERLAY_ACTION_ROWS = 2,
@@ -9547,12 +9705,13 @@
      /* "< 2x >" stepper in front of the speed row's label */
      OVERLAY_SPEED_STEP_CENTRE = 22,
      OVERLAY_SPEED_STEP_REACH = 18,
-@@ -78,9 +96,16 @@
+@@ -78,9 +100,17 @@
  
  typedef struct HostOverlayState {
      int open;
 +#ifdef PE_PS5_GPU_NATIVE
 +    int installer;
++    int return_title,return_title_row;
 +#endif
      int page;
      int row;
@@ -9564,7 +9723,7 @@
      int bind_device;
      int capturing_binding;
      int quit;
-@@ -90,9 +115,19 @@
+@@ -90,9 +120,19 @@
      int skip;   /* the question's answer */
  } HostOverlayState;
  
@@ -9584,7 +9743,7 @@
  static const Color kText = {0.93f, 0.95f, 0.98f, 1.0f};
  static const Color kMuted = {0.60f, 0.65f, 0.73f, 1.0f};
  static const Color kDanger = {1.0f, 0.45f, 0.42f, 1.0f};
-@@ -130,16 +165,28 @@
+@@ -130,16 +170,28 @@
  
  /* graphics */
  
@@ -9613,7 +9772,7 @@
  ACCESSORS(Aspect, host_options.widescreen ? 2 : host_options.aspect != 0,
            (host_options.widescreen = i == 2, host_options.aspect = i == 1))
  
-@@ -157,21 +204,132 @@
+@@ -157,21 +209,132 @@
  ACCESSORS(ModelFiltering, host_options.model_filtering != 0,
            host_options.model_filtering = i)
  
@@ -9758,7 +9917,7 @@
  };
  
  /* audio */
-@@ -188,8 +346,14 @@
+@@ -188,8 +351,14 @@
              kVolumeNames, Volume),
  };
  
@@ -9773,7 +9932,7 @@
  };
  
  static const char *OverlayPageName(int page) {
-@@ -197,6 +361,10 @@
+@@ -197,6 +366,10 @@
  }
  
  static const OverlaySetting *OverlayPageSettings(int page, int *count) {
@@ -9784,7 +9943,7 @@
      switch (page) {
      case OVERLAY_PAGE_GRAPHICS:
          *count = COUNT_OF(kGraphics);
-@@ -211,10 +379,24 @@
+@@ -211,10 +384,24 @@
  }
  
  static int Host_SettingsPureRowCount(int page) {
@@ -9810,7 +9969,7 @@
      return 2;
  }
  
-@@ -246,6 +428,17 @@
+@@ -246,6 +433,17 @@
  /* Scrolls Controls by the minimum amount needed to keep a selected binding
   * or field-threshold row in view. Mouse hover never calls this. */
  static void Host_EnsureControlsRowVisible(HostOverlayState *state) {
@@ -9828,7 +9987,7 @@
      state->scroll = Host_ClampControlsScroll(state->scroll);
      if (state->page != OVERLAY_PAGE_CONTROLS) {
          return;
-@@ -481,6 +674,9 @@
+@@ -481,6 +679,9 @@
  
  static void OverlayComputeStateLayout(const HostOverlayState *state, int windowW,
                                        int windowH, OverlayLayout *layout) {
@@ -9838,7 +9997,7 @@
      if (state->prompt) {
          OverlayFitLayout(PROMPT_PANEL_W, OverlayPromptDesignHeight(), windowW, windowH,
                           layout);
-@@ -515,6 +711,11 @@
+@@ -515,6 +716,11 @@
      if (row >= pureCount) {
          return visibleSettings + (row - pureCount);
      }
@@ -9850,7 +10009,7 @@
      if (page != OVERLAY_PAGE_CONTROLS) {
          return row;
      }
-@@ -564,8 +765,12 @@
+@@ -564,8 +770,12 @@
      const float s = p->s;
      int page;
  
@@ -9865,7 +10024,20 @@
      DrawText(p->surface, (float)(OVERLAY_PANEL_W - OVERLAY_PAD) * s, 38.0f * s,
               14.0f * s, "GAME PAUSED", kMuted, ALIGN_RIGHT);
      for (page = 0; page < OVERLAY_PAGE_COUNT; page++) {
-@@ -586,6 +791,14 @@
+@@ -578,7 +788,11 @@
+         }
+         DrawText(p->surface, (tab.x + tab.w * 0.5f) * s,
+                  (tab.y + tab.h * 0.5f + 5.5f) * s, 15.0f * s,
+-                 OverlayPageName(page), current ? kText : kMuted, ALIGN_CENTRE);
++                 OverlayPageName(page),
++#if defined(PE_PS5_GPU_NATIVE) && PE_NATIVE_PUBLIC_RELEASE
++                 page==OVERLAY_PAGE_STATES ? WithAlpha(kMuted,0.55f) :
++#endif
++                 (current ? kText : kMuted), ALIGN_CENTRE);
+     }
+     FillRoundRect(p->surface, (float)OVERLAY_PAD * s,
+                   (float)(OVERLAY_HEADER_H - 12) * s,
+@@ -586,6 +800,14 @@
                    WithAlpha(kText, 0.10f));
  }
  
@@ -9880,7 +10052,7 @@
  static void PaintValueRow(const Painter *p, const char *labelText,
                            const char *valueText, float mid, float baseline,
                            int selected, int highlightValue, Color label) {
-@@ -594,13 +807,21 @@
+@@ -594,13 +816,21 @@
      float reach = ((float)OVERLAY_VALUE_W * 0.5f - 14.0f) * s;
      Color chevron = selected ? kAccent : WithAlpha(kMuted, 0.75f);
  
@@ -9905,7 +10077,7 @@
               highlightValue ? kAccent : (selected ? kText : WithAlpha(kText, 0.9f)),
               ALIGN_CENTRE);
  }
-@@ -632,7 +853,14 @@
+@@ -632,7 +862,14 @@
      int value = setting->get();
      if (value < 0) value = 0;
      if (value >= setting->count) value = setting->count - 1;
@@ -9921,7 +10093,16 @@
                    selected, 0, label);
  }
  
-@@ -688,6 +916,10 @@
+@@ -682,12 +919,19 @@
+         float baseline = mid + 6.0f * s;
+         int selected = row == p->state->row;
+         Color label = selected ? kText : WithAlpha(kText, 0.82f);
++#if defined(PE_PS5_GPU_NATIVE) && PE_NATIVE_PUBLIC_RELEASE
++        if(page==OVERLAY_PAGE_STATES)label=WithAlpha(kMuted,0.55f);
++#endif
+ 
+         if (selected) {
+             FillRoundRect(p->surface, (float)(OVERLAY_PAD / 2) * s,
                            top + 3.0f * s, (float)(OVERLAY_PANEL_W - OVERLAY_PAD) * s,
                            (float)(OVERLAY_ROW_H - 6) * s, 9.0f * s,
                            WithAlpha(kAccent, 0.16f));
@@ -9932,7 +10113,7 @@
              FillRoundRect(p->surface, (float)(OVERLAY_PAD / 2) * s + 4.0f * s,
                            mid - 10.0f * s, 3.0f * s, 20.0f * s, 1.5f * s,
                            kAccent);
-@@ -695,6 +927,12 @@
+@@ -695,6 +939,16 @@
          if (row < pureCount) {
              if (settings != NULL && row < declCount) {
                  PaintSettingRow(p, &settings[row], mid, baseline, selected, label);
@@ -9940,12 +10121,16 @@
 +            } else if(page==OVERLAY_PAGE_MODS||page==OVERLAY_PAGE_CHEATS||page==OVERLAY_PAGE_STATES||page==OVERLAY_PAGE_DISCS){
 +                char value[160];Host_ModernRowValue(page,row,value,sizeof value);
 +                if(Host_ModernRowKind(page,row)==2)PaintValueRow(p,Host_ModernRowLabel(page,row),value,mid,baseline,selected,0,label);
-+                else {char fitLabel[1024],fitValue[1024];float em=(host_options.menu_text_size?19.0f:17.0f)*s;DrawText(p->surface,OVERLAY_PAD*s,baseline,em,FitRowText(Host_ModernRowLabel(page,row),em,(OVERLAY_PANEL_W-2*OVERLAY_PAD-OVERLAY_VALUE_W-20)*s,fitLabel),label,ALIGN_LEFT);DrawText(p->surface,(OVERLAY_PANEL_W-OVERLAY_PAD)*s,baseline,16*s,FitRowText(value,16*s,OVERLAY_VALUE_W*s,fitValue),selected?kText:kMuted,ALIGN_RIGHT);}
++                else {char fitLabel[1024],fitValue[1024];float em=(host_options.menu_text_size?19.0f:17.0f)*s;DrawText(p->surface,OVERLAY_PAD*s,baseline,em,FitRowText(Host_ModernRowLabel(page,row),em,(OVERLAY_PANEL_W-2*OVERLAY_PAD-OVERLAY_VALUE_W-20)*s,fitLabel),label,ALIGN_LEFT);DrawText(p->surface,(OVERLAY_PANEL_W-OVERLAY_PAD)*s,baseline,16*s,FitRowText(value,16*s,OVERLAY_VALUE_W*s,fitValue),
++#if PE_NATIVE_PUBLIC_RELEASE
++page==OVERLAY_PAGE_STATES?WithAlpha(kMuted,0.55f):
++#endif
++(selected?kText:kMuted),ALIGN_RIGHT);}
 +#endif
              } else if (page == OVERLAY_PAGE_CONTROLS) {
                  if (row == 0) {
                      const char *dev = p->state->bind_device == HOST_BIND_CONTROLLER
-@@ -720,7 +958,28 @@
+@@ -720,7 +974,28 @@
                      }
                  }
              } else if (page == OVERLAY_PAGE_MODS) {
@@ -9974,7 +10159,7 @@
                  if(row==0)PaintValueRow(p,names[row],Host_HdValue(row),mid,baseline,selected,0,label);
                  else {
                      DrawText(p->surface,OVERLAY_PAD*s,baseline,17*s,names[row],label,ALIGN_LEFT);
-@@ -733,26 +992,49 @@
+@@ -733,26 +1008,49 @@
                  PaintValueRow(p, discLabel, val, mid, baseline, selected, 0, label);
              }
          } else {
@@ -9986,7 +10171,7 @@
  
              DrawText(p->surface, (float)OVERLAY_PAD * s, baseline, 17.0f * s,
 +#ifdef PE_PS5_GPU_NATIVE
-+                     quit ? "Quit game" : row==pureCount+1 ? "Back" : "Resume game",quit?kDanger:label,
++                     quit ? "Return to Title" : row==pureCount+1 ? "Back" : "Resume game",quit?kDanger:label,
 +#else
                       quit ? "Quit game" : "Resume game", quit ? kDanger : label,
 +#endif
@@ -10026,7 +10211,7 @@
      if (page == OVERLAY_PAGE_CONTROLS) {
          int scroll = Host_ClampControlsScroll(p->state->scroll);
          float trackTop = (OverlayRowTop(visibleSettings, 1) + 4.0f) * s;
-@@ -770,22 +1052,46 @@
+@@ -770,22 +1068,46 @@
  }
  
  static const char *OverlayRowHelp(const HostOverlayState *state) {
@@ -10035,7 +10220,7 @@
 +    if(state->row<customCount&&(state->page==OVERLAY_PAGE_MODS||state->page==OVERLAY_PAGE_CHEATS||state->page==OVERLAY_PAGE_STATES||(state->page==OVERLAY_PAGE_DISCS&&state->row>=3)))return Host_ModernRowHelp(state->page,state->row);
 +    if(state->row==customCount)return "Resume the game with your current settings.";
 +    if(state->row==customCount+1)return (state->page==OVERLAY_PAGE_MODS||state->page==OVERLAY_PAGE_CHEATS)?"Return to the parent page, or resume from a category root. Choices are kept.":"Back to the game; current choices are kept, like Circle.";
-+    if(state->row==customCount+2)return "Quit the game. Save normal progress before leaving.";
++    if(state->row==customCount+2)return state->status?state->status:"Return to title after confirmation. Unsaved progress is lost; close the app through the PS5 menu.";
 +#endif
 +#ifdef PE_PS5_GPU_NATIVE
 +    if(state->page==OVERLAY_PAGE_MODS&&state->row==5)
@@ -10074,7 +10259,7 @@
          return settings[state->row].help;
      }
      if (state->page == OVERLAY_PAGE_CONTROLS) {
-@@ -808,6 +1114,21 @@
+@@ -808,6 +1130,21 @@
      return "";
  }
  
@@ -10096,7 +10281,7 @@
  static void PaintFooter(const Painter *p, int visibleRowCount) {
      const float s = p->s;
      float footerTop = (float)(OverlayDesignHeight(visibleRowCount) - OVERLAY_FOOTER_H) * s;
-@@ -816,11 +1137,24 @@
+@@ -816,11 +1153,24 @@
      FillRoundRect(p->surface, (float)OVERLAY_PAD * s, footerTop,
                    (float)(OVERLAY_PANEL_W - 2 * OVERLAY_PAD) * s, 1.0f, 0.0f,
                    WithAlpha(kText, 0.10f));
@@ -10122,7 +10307,50 @@
               WithAlpha(kMuted, 0.7f), ALIGN_LEFT);
  }
  
-@@ -1131,6 +1465,7 @@
+@@ -852,12 +1202,27 @@
+ 
+     memset(surface->pixels, 0, (size_t)surface->w * (size_t)surface->h * 4u);
+     PaintFrame(&painter, (float)PROMPT_PANEL_W * s, (float)OverlayPromptDesignHeight() * s);
+-    DrawText(surface, (float)OVERLAY_PAD * s, 40.0f * s, 26.0f * s, "Skip cutscene",
++    DrawText(surface, (float)OVERLAY_PAD * s, 40.0f * s, 26.0f * s,
++#ifdef PE_PS5_GPU_NATIVE
++             state->prompt==2?"Return to Title":"Skip cutscene",
++#else
++             "Skip cutscene",
++#endif
+              kText, ALIGN_LEFT);
+     DrawText(surface, (float)(PROMPT_PANEL_W - OVERLAY_PAD) * s, 38.0f * s, 14.0f * s,
+-             "MOVIE PAUSED", kMuted, ALIGN_RIGHT);
++#ifdef PE_PS5_GPU_NATIVE
++             state->prompt==2?"GAME PAUSED":"MOVIE PAUSED",
++#else
++             "MOVIE PAUSED",
++#endif
++             kMuted, ALIGN_RIGHT);
+     DrawText(surface, (float)OVERLAY_PAD * s, 80.0f * s, 17.0f * s,
+-             "Do you want to skip the cutscene?", WithAlpha(kText, 0.82f), ALIGN_LEFT);
++#ifdef PE_PS5_GPU_NATIVE
++             state->prompt==2?"Return to title? Unsaved progress is lost.":"Do you want to skip the cutscene?",
++#else
++             "Do you want to skip the cutscene?",
++#endif
++             WithAlpha(kText, 0.82f), ALIGN_LEFT);
+     FillRoundRect(surface, (float)OVERLAY_PAD * s, (float)(PROMPT_HEADER_H - 12) * s,
+                   (float)(PROMPT_PANEL_W - 2 * OVERLAY_PAD) * s, 1.0f, 0.0f,
+                   WithAlpha(kText, 0.10f));
+@@ -883,7 +1248,11 @@
+                   (float)(PROMPT_PANEL_W - 2 * OVERLAY_PAD) * s, 1.0f, 0.0f,
+                   WithAlpha(kText, 0.10f));
+     DrawText(surface, (float)OVERLAY_PAD * s, footerTop + 36.0f * s, 13.0f * s,
++#ifdef PE_PS5_GPU_NATIVE
++             state->prompt==2?"Up/Down select   Cross confirm   Circle cancel":"Up/Down select   Enter confirm   Esc keep watching",
++#else
+              "Up/Down select   Enter confirm   Esc keep watching",
++#endif
+              WithAlpha(kMuted, 0.7f), ALIGN_LEFT);
+     solid = surface->pixels + (size_t)(surface->h - 1) * (size_t)surface->w * 4u;
+     solid[3] = 255;
+@@ -1131,6 +1500,7 @@
      out[5] = (OverlayGpuVertex){x1, y1, 1.0f, 1.0f, 1.0f, alpha, u1, v1};
  }
  
@@ -10130,7 +10358,7 @@
  static int Host_UploadOverlaySurfaceAndVertices(SDL_GPUDevice *device) {
      if (s_overlaySurface.w <= 0 || s_overlaySurface.h <= 0 || s_overlayWindowW <= 0 ||
          s_overlayWindowH <= 0) {
-@@ -1163,7 +1498,7 @@
+@@ -1163,7 +1533,7 @@
      float h = (float)s_overlayWindowH;
      float solidU = 0.5f / (float)s_overlayTextureW;
      float solidV = ((float)s_overlayTextureH - 0.5f) / (float)s_overlayTextureH;
@@ -10139,7 +10367,7 @@
  
      float x0 = (float)s_overlayLayout.x / w * 2.0f - 1.0f;
      float y0 = 1.0f - (float)s_overlayLayout.y / h * 2.0f;
-@@ -1197,6 +1532,7 @@
+@@ -1197,6 +1567,7 @@
          return 0;
      }
      SDL_GPUCopyPass *copy = SDL_BeginGPUCopyPass(command);
@@ -10147,7 +10375,7 @@
  
      SDL_GPUTextureTransferInfo texSrc;
      SDL_zero(texSrc);
-@@ -1226,16 +1562,20 @@
+@@ -1226,16 +1597,20 @@
      SDL_UploadToGPUBuffer(copy, &vtxSrc, &vtxDst, false);
  
      SDL_EndGPUCopyPass(copy);
@@ -10170,7 +10398,7 @@
      int w = 0, h = 0;
      OverlayLayout layout;
      SDL_GetWindowSizeInPixels(window, &w, &h);
-@@ -1253,13 +1593,34 @@
+@@ -1253,13 +1628,34 @@
      if (!state->dirty) {
          return;
      }
@@ -10209,7 +10437,7 @@
      }
      if (Host_EnsureOverlayPipeline(device, SDL_GetGPUSwapchainTextureFormat(device, window))) {
          Host_UploadOverlaySurfaceAndVertices(device);
-@@ -1267,11 +1628,37 @@
+@@ -1267,11 +1663,37 @@
      state->dirty = 0;
  }
  
@@ -10250,7 +10478,11 @@
      }
 --- /dev/null
 +++ b/src/main/boot/state_ui.h
-@@ -0,0 +1,138 @@
+@@ -0,0 +1,210 @@
++
++#ifndef PE_NATIVE_PUBLIC_RELEASE
++#define PE_NATIVE_PUBLIC_RELEASE 0
++#endif
 +/* SPDX-License-Identifier: MIT. Host-owned experimental same-room checkpoint UI.
 + * File requests run only after the modal releases clock/audio; component work
 + * remains queued at the final CPU boundary. No ordinary save file is touched. */
@@ -10283,7 +10515,11 @@
 +    for(unsigned i=9;i<34;i++)if(i!=25&&!((name[i]>='0'&&name[i]<='9')||(name[i]>='a'&&name[i]<='f')))return SDL_ENUM_CONTINUE;
 +    if(name[25]!='-')return SDL_ENUM_CONTINUE;if(s_state_scan_name[0]&&!strncmp(name,s_state_scan_name,34))s_state_scan_seen=1;StateInsertName(name);return SDL_ENUM_CONTINUE;
 +}
-+static void StateRefreshList(void){char selected[35]={0};if(s_state_selected>=0&&(unsigned)s_state_selected<s_state_count)memcpy(selected,s_state_names[s_state_selected],35);memcpy(s_state_scan_name,selected,35);s_state_scan_seen=0;s_state_count=s_state_scanned=0;s_state_truncated=0;s_state_list_error=0;if(!s_state_directory[0]||!SDL_EnumerateDirectory(s_state_directory,StateList,NULL)){s_state_list_error=1;snprintf(s_state_status,sizeof s_state_status,"Cannot list checkpoint files; check the save-data folder and retry Refresh");}s_state_selected=-1;if(s_state_scan_seen){if(!StateSelectName(selected)){if(s_state_count==64){s_state_count--;s_state_truncated=1;}StateInsertName(selected);StateSelectName(selected);}}else if(selected[0]&&!s_state_list_error)snprintf(s_state_status,sizeof s_state_status,"Selected file was not found in the bounded scan; choose a file again");s_state_scan_name[0]=0;}
++static void StateRefreshList(void){
++#if PE_NATIVE_PUBLIC_RELEASE
++    return; /* Public beta: no checkpoint IO, identity hashing or boundary jobs. */
++#endif
++char selected[35]={0};if(s_state_selected>=0&&(unsigned)s_state_selected<s_state_count)memcpy(selected,s_state_names[s_state_selected],35);memcpy(s_state_scan_name,selected,35);s_state_scan_seen=0;s_state_count=s_state_scanned=0;s_state_truncated=0;s_state_list_error=0;if(!s_state_directory[0]||!SDL_EnumerateDirectory(s_state_directory,StateList,NULL)){s_state_list_error=1;snprintf(s_state_status,sizeof s_state_status,"Cannot list checkpoint files; check the save-data folder and retry Refresh");}s_state_selected=-1;if(s_state_scan_seen){if(!StateSelectName(selected)){if(s_state_count==64){s_state_count--;s_state_truncated=1;}StateInsertName(selected);StateSelectName(selected);}}else if(selected[0]&&!s_state_list_error)snprintf(s_state_status,sizeof s_state_status,"Selected file was not found in the bounded scan; choose a file again");s_state_scan_name[0]=0;}
 +static void StateSelectStep(int direction){if(!s_state_count){s_state_selected=-1;return;}if(s_state_selected<0||(unsigned)s_state_selected>=s_state_count)s_state_selected=direction<0?(int)s_state_count-1:0;else s_state_selected=(s_state_selected+(direction<0?-1:1)+(int)s_state_count)%(int)s_state_count;}
 +static void StatePrevious(void){StateSelectStep(-1);}
 +static void StateNext(void){StateSelectStep(1);}
@@ -10304,14 +10540,47 @@
 +    snprintf(text,sizeof text,"Same launch and room, unchanged settings/resources. Recent actor layouts %u/%u; this is separate from the file list. Supported actor changes are experimental.%s No cross-launch or cross-room loading; normal saves and global Collection progress stay separate.",m.retained,m.capacity,why);return text;
 +}
 +static unsigned s_state_action_serial;static int s_state_last_operation;
-+static void StateCapture(void){SDL_Log("[native checkpoint] action=capture serial=%u phase=menu-request open=1 hostbits=0x%x expected_self_modal=1 particles_requested=%d particles_effective=%d",++s_state_action_serial,CPE_StateHostReasonBits(),host_options.battle_debris_3d,FieldFx_GetParticleAugment());if(s_state_terminal||s_state_session.pending||s_state_waiting)return;if(!s_state_directory[0]){snprintf(s_state_status,sizeof s_state_status,"Checkpoint folder unavailable; check save-data access before saving");pe_toast(s_state_status);return;}s_state_request=1;pe_mod_panel_close();}
-+static void StateLoad(void){SDL_Log("[native checkpoint] action=load serial=%u phase=menu-request open=1 hostbits=0x%x expected_self_modal=1 particles_requested=%d particles_effective=%d",++s_state_action_serial,CPE_StateHostReasonBits(),host_options.battle_debris_3d,FieldFx_GetParticleAugment());if(s_state_terminal||s_state_session.pending||s_state_waiting)return;if(!s_state_directory[0]){snprintf(s_state_status,sizeof s_state_status,"Checkpoint folder unavailable; check save-data access before loading");pe_toast(s_state_status);return;}if(!s_state_count||s_state_selected<0||(unsigned)s_state_selected>=s_state_count){snprintf(s_state_status,sizeof s_state_status,"Choose a checkpoint file first, then select Load checkpoint");pe_toast(s_state_status);return;}s_state_request=2;pe_mod_panel_close();}
++/* Eligibility is observed at the real CPU boundary BEFORE reading both discs.
++ * This never grants capture permission: the actual capture/restore repeats all
++ * typed owner checks at its own CPU boundary after identity preparation. */
++static int s_state_preflight,s_state_preflight_operation,s_state_preflight_reason;
++static char s_state_preflight_status[192];
++static void StatePreflight(void *context){
++    (void)context;s_state_preflight_reason=PeCpuStateSession_CurrentRoomBoundary();
++    snprintf(s_state_preflight_status,sizeof s_state_preflight_status,"%s",PeCpuStateSession_RoomBoundaryText(s_state_preflight_reason));
++    PeStatePmBlocker pm={0};int have_pm=s_state_preflight_reason==PE_CHECKPOINT_PM_ACTIVE&&PeStateCheckpoint_PmBlocker(&pm);
++    SDL_Log("[native checkpoint] phase=cpu-preflight serial=%u operation=%d boundary=%d hostbits=0x%x gpu_bits=0x%x pm_valid=%d pm_slot=%u pm_command=%u pm_status=%u pm_category=%u identity_cached=%d reason=%.180s",s_state_action_serial,s_state_preflight_operation,s_state_preflight_reason,CPE_StateHostReasonBits(),Psyz_StateGpuControlBlockers(),have_pm,pm.slot,pm.command,pm.status,pm.category,s_state_identity_ready,s_state_preflight_status);
++    if(have_pm)snprintf(s_state_preflight_status,sizeof s_state_preflight_status,"%s: effect %u, slot %u, state %u. Normal saves remain available.",pm.category==1?"Unsupported checkpoint owner":"Checkpoint owner not ready",pm.command,pm.slot,pm.status);
++    s_state_preflight=2;
++}
++static void StatePreflightCancelled(void *context){
++    (void)context;s_state_preflight_reason=PeStateBoundary_InvalidationReason()==PE_STATE_INVALIDATE_NORMAL_LOAD?19:20;
++    snprintf(s_state_preflight_status,sizeof s_state_preflight_status,"%s",PeCpuStateSession_RoomBoundaryText(s_state_preflight_reason));s_state_preflight=2;
++}
++static void StateCapture(void){
++#if PE_NATIVE_PUBLIC_RELEASE
++    return; /* Public beta: no checkpoint IO, identity hashing or boundary jobs. */
++#endif
++SDL_Log("[native checkpoint] action=capture serial=%u phase=menu-request open=1 hostbits=0x%x expected_self_modal=1 particles_requested=%d particles_effective=%d",++s_state_action_serial,CPE_StateHostReasonBits(),host_options.battle_debris_3d,FieldFx_GetParticleAugment());if(s_state_terminal||s_state_session.pending||s_state_waiting||s_state_preflight)return;if(!s_state_directory[0]){snprintf(s_state_status,sizeof s_state_status,"Checkpoint folder unavailable; check save-data access before saving");pe_toast(s_state_status);return;}s_state_request=1;pe_mod_panel_close();}
++static void StateLoad(void){
++#if PE_NATIVE_PUBLIC_RELEASE
++    return; /* Public beta: no checkpoint IO, identity hashing or boundary jobs. */
++#endif
++SDL_Log("[native checkpoint] action=load serial=%u phase=menu-request open=1 hostbits=0x%x expected_self_modal=1 particles_requested=%d particles_effective=%d",++s_state_action_serial,CPE_StateHostReasonBits(),host_options.battle_debris_3d,FieldFx_GetParticleAugment());if(s_state_terminal||s_state_session.pending||s_state_waiting||s_state_preflight)return;if(!s_state_directory[0]){snprintf(s_state_status,sizeof s_state_status,"Checkpoint folder unavailable; check save-data access before loading");pe_toast(s_state_status);return;}if(!s_state_count||s_state_selected<0||(unsigned)s_state_selected>=s_state_count){snprintf(s_state_status,sizeof s_state_status,"Choose a checkpoint file first, then select Load checkpoint");pe_toast(s_state_status);return;}s_state_request=2;pe_mod_panel_close();}
 +static void StateRefresh(void){StateRefreshList();}
-+static void StateUseOriginalEffects(void){host_options.battle_debris_3d=0;FieldFx_SetParticleAugment(0);int saved=Host_SaveOptions();snprintf(s_state_status,sizeof s_state_status,"Original effects selected; extra geometry Off%s",saved?"":" (not persisted)");pe_toast(s_state_status);SDL_Log("[native checkpoint] user_action=original-effects requested=0 effective=%d persisted=%d",FieldFx_GetParticleAugment(),saved);}
++static void StateUseOriginalEffects(void){
++#if PE_NATIVE_PUBLIC_RELEASE
++    return; /* Public beta: no checkpoint IO, identity hashing or boundary jobs. */
++#endif
++host_options.battle_debris_3d=0;FieldFx_SetParticleAugment(0);int saved=Host_SaveOptions();snprintf(s_state_status,sizeof s_state_status,"Original effects selected; extra geometry Off%s",saved?"":" (not persisted)");pe_toast(s_state_status);SDL_Log("[native checkpoint] user_action=original-effects requested=0 effective=%d persisted=%d",FieldFx_GetParticleAugment(),saved);}
 +static void StateRequirements(char *out,unsigned n){unsigned b=CPE_StateHostReasonBits()&~(4u|128u);snprintf(out,n,"%s",b?CPE_StateHostReasonText(b):"Checked after menu closes; normal gameplay only");}
 +static void StateHashU64(PeSha256 *sha,uint64_t v){unsigned char b[8];for(unsigned i=0;i<8;i++)b[i]=(unsigned char)(v>>(i*8));pe_sha256_update(sha,b,8);}
 +static char s_state_identity_error[192];
 +static int StateIdentity(PeStateIdentity *identity){
++#if PE_NATIVE_PUBLIC_RELEASE
++    return 0; /* Public beta: no checkpoint IO, identity hashing or boundary jobs. */
++#endif
++
 +    snprintf(s_state_identity_error,sizeof s_state_identity_error,"Disc verification could not finish; check both disc paths in System");
 +    PeSha256 sha;pe_sha256_init(&sha);static const char domain[]="PE-native-checkpoint-disc-pair-v1";pe_sha256_update(&sha,domain,sizeof domain);
 +    unsigned char *buffer=malloc(65536);if(!buffer){snprintf(s_state_identity_error,sizeof s_state_identity_error,"Not enough memory for disc verification; nothing queued");return 0;}int ok=1;const int audio_paused=Psyz_AudioIsPaused();
@@ -10330,41 +10599,72 @@
 +    if(ok){memcpy(identity->build,cpe_state_build_identity,32);pe_sha256_final(&sha,identity->disc);}
 +    free(buffer);s_install.active=0;s_overlayState=previous_overlay;s_overlayState.dirty=1;Host_OverlayRefreshGPU(s_overlayGpuDevice,Psyz_GetWindow_SDL3(),&s_overlayState);SDL_ResetKeyboard();Psyz_PauseHostClock_SDL3(false);if(!audio_paused)Psyz_AudioUnpause();s_state_preparing=0;return ok;
 +}
-+void CPE_StateUi_AfterModalClosed(void){
-+    int request=s_state_request;s_state_request=0;if(!request||s_state_terminal||s_state_session.pending)return;
++static void StatePrepareRequest(int request){
++#if PE_NATIVE_PUBLIC_RELEASE
++    return; /* Public beta: no checkpoint IO, identity hashing or boundary jobs. */
++#endif
++
++    if(!request||s_state_terminal||s_state_session.pending)return;
 +    unsigned hostbits=CPE_StateHostReasonBits();SDL_Log("[native checkpoint] phase=after-modal-close serial=%u request=%d hostbits=0x%x gpu_bits=0x%x overlay=%d panel_closed=%d paused_audio=%d installer=%d particles_requested=%d particles_effective=%d",s_state_action_serial,request,hostbits,Psyz_StateGpuControlBlockers(),s_overlayState.open,pe_mod_state_panel_closed(),Psyz_AudioIsPaused(),s_install.active,host_options.battle_debris_3d,FieldFx_GetParticleAugment());
 +    if(hostbits){snprintf(s_state_status,sizeof s_state_status,"%s",CPE_StateHostReasonText(hostbits));SDL_Log("[native checkpoint] phase=after-modal-rejected hostbits=0x%x reason=%.180s",hostbits,s_state_status);pe_toast(s_state_status);return;}
-+    if(!s_state_identity_ready){PeStateIdentity identity;if(!StateIdentity(&identity)){snprintf(s_state_status,sizeof s_state_status,"%s",s_state_identity_error);pe_toast(s_state_status);return;}PeCpuStateSession_Init(&s_state_session,&identity);s_state_identity_ready=1;}
++    if(!s_state_identity_ready){SDL_Log("[native checkpoint] identity=full-disc-pair-hash cache=miss scope=this-launch");PeStateIdentity identity;if(!StateIdentity(&identity)){snprintf(s_state_status,sizeof s_state_status,"%s",s_state_identity_error);pe_toast(s_state_status);return;}PeCpuStateSession_Init(&s_state_session,&identity);s_state_identity_ready=1;}else SDL_Log("[native checkpoint] identity=full-disc-pair-hash cache=hit scope=this-launch");
 +    s_state_out=malloc(PE_STATE_MAX_BYTES);if(request==2)s_state_scratch=malloc(PE_STATE_MAX_BYTES);
 +    if(!s_state_out||(request==2&&!s_state_scratch)){free(s_state_out);free(s_state_scratch);s_state_out=s_state_scratch=NULL;snprintf(s_state_status,sizeof s_state_status,"Not enough memory to prepare checkpoint; nothing queued and gameplay unchanged");pe_toast(s_state_status);SDL_Log("[native checkpoint] queue=not-attempted allocation_failed=1 operation=%d",request);return;}
 +    int r=request==1?PeCpuStateSession_RequestCaptureFile(&s_state_session,s_state_out,PE_STATE_MAX_BYTES,s_state_directory):PeCpuStateSession_RequestRestoreComponentsFile(&s_state_session,s_state_out,PE_STATE_MAX_BYTES,s_state_scratch,PE_STATE_MAX_BYTES,s_state_directory,s_state_names[s_state_selected]);
 +    if(r){free(s_state_out);free(s_state_scratch);s_state_out=s_state_scratch=NULL;snprintf(s_state_status,sizeof s_state_status,"%s",r==PE_STATE_BUSY?"Another checkpoint is still pending; wait for its result":r==PE_STATE_ROLLBACK_FAILED?"Previous load could not be recovered; restart before using checkpoints":r==PE_STATE_INVALID?"Checkpoint request is invalid; check the folder and selected file":r==PE_STATE_BOUNDS?"Checkpoint request exceeds the supported buffer size":"Checkpoint preparation was rejected; resume gameplay and try again");SDL_Log("[native checkpoint] phase=queue-rejected operation=%d result=%d",request,r);pe_toast(s_state_status);return;}
 +    s_state_last_operation=request;s_state_waiting=1;snprintf(s_state_status,sizeof s_state_status,"Queued; resume to reach the safe CPU boundary");SDL_Log("[native checkpoint] queued operation=%s completed=0",request==1?"capture":"load");
 +}
++void CPE_StateUi_AfterModalClosed(void){
++#if PE_NATIVE_PUBLIC_RELEASE
++    return; /* Public beta: no checkpoint IO, identity hashing or boundary jobs. */
++#endif
++
++    int request=s_state_request;s_state_request=0;if(!request||s_state_terminal||s_state_session.pending||s_state_preflight)return;
++    unsigned bits=CPE_StateHostReasonBits();
++    if(bits){snprintf(s_state_status,sizeof s_state_status,"%s",CPE_StateHostReasonText(bits));SDL_Log("[native checkpoint] phase=before-preflight-rejected serial=%u hostbits=0x%x reason=%.180s",s_state_action_serial,bits,s_state_status);pe_toast(s_state_status);return;}
++    s_state_preflight_operation=request;s_state_preflight_reason=0;s_state_preflight=1;
++    int result=PeStateBoundary_RequestWithCancel(StatePreflight,StatePreflightCancelled,NULL);
++    if(result){s_state_preflight=0;snprintf(s_state_status,sizeof s_state_status,"Checkpoint eligibility could not be queued; resume gameplay and retry");SDL_Log("[native checkpoint] phase=preflight-queue-rejected serial=%u result=%d",s_state_action_serial,result);pe_toast(s_state_status);return;}
++    snprintf(s_state_status,sizeof s_state_status,"Checking supported game owners at the next CPU boundary");
++}
 +static const char *StateOwnerLabel(unsigned id){switch(id){case PE_STATE_GPU:return "graphics/textures";case PE_STATE_AUDIO:case PE_STATE_AKAO:return "audio";case PE_STATE_ACTORS:case PE_STATE_BATTLE:return "characters/battle";case PE_STATE_PM:return "room effects or gameplay mods";case PE_STATE_SCRIPTS:case PE_STATE_SCHEDULER:return "active game events";case PE_STATE_ASSETS:case PE_STATE_SCENE:return "room resources";case PE_STATE_ORIGINAL_SAVE:case PE_STATE_PERSISTENT:return "inventory/player data";case PE_STATE_MODS:return "gameplay mods";default:return "game state";}}
 +/* Observed rejection from the completed CPU-boundary attempt only. Never
 + * rescan live PM slots from this menu or turn observation into permission. */
 +static int StatePmFailureStatus(void){
 +    PeStatePmBlocker b;
-+    if(!s_state_session.result||s_state_session.result==PE_STATE_ROLLBACK_FAILED||s_state_session.boundaryReason!=PE_CHECKPOINT_PM_ACTIVE||!PeStateCheckpoint_PmBlocker(&b)||b.command>7||b.slot>=22||!b.status||!b.sequence||(b.category!=1&&b.category!=2))return 0;
-+    if(b.category==1)snprintf(s_state_status,sizeof s_state_status,"Last attempt: battle action %u was unsupported. Let it finish, then retry outside combat. Use normal saves.",b.command);
++    if(!s_state_session.result||s_state_session.result==PE_STATE_ROLLBACK_FAILED||s_state_session.boundaryReason!=PE_CHECKPOINT_PM_ACTIVE||!PeStateCheckpoint_PmBlocker(&b)||b.slot>=22||!b.status||!b.sequence||(b.category!=1&&b.category!=2))return 0;
++    if(b.command>7)snprintf(s_state_status,sizeof s_state_status,"Last attempt: effect %u, slot %u, state %u: %s. Normal saves remain available.",b.command,b.slot,b.status,b.category==1?"unsupported checkpoint owner":"typed owner not ready");
++    else if(b.category==1)snprintf(s_state_status,sizeof s_state_status,"Last attempt: battle action %u was unsupported. Let it finish, then retry outside combat. Use normal saves.",b.command);
 +    else snprintf(s_state_status,sizeof s_state_status,"Last attempt: battle action %u was not ready. Let it finish, then retry. Use normal saves for progress.",b.command);
 +    SDL_Log("[native checkpoint] observed_pm_rejection command=%u slot=%u status=%u category=%u sequence=%llu source=last-cpu-attempt live-rescan=0",b.command,b.slot,b.status,b.category,b.sequence);
 +    return 1;
 +}
 +void CPE_StateUi_Poll(void){
++#if PE_NATIVE_PUBLIC_RELEASE
++    return; /* Public beta: no checkpoint IO, identity hashing or boundary jobs. */
++#endif
++
++    if(s_state_preflight==2){
++        int request=s_state_preflight_operation;s_state_preflight=0;s_state_preflight_operation=0;
++        if(s_state_preflight_reason){snprintf(s_state_status,sizeof s_state_status,"%s",s_state_preflight_status);pe_toast(s_state_status);return;}
++        StatePrepareRequest(request);return;
++    }
 +    if(!s_state_waiting||s_state_session.pending)return;s_state_waiting=0;
 +    free(s_state_out);free(s_state_scratch);s_state_out=s_state_scratch=NULL;
 +    if(s_state_session.result==PE_STATE_ROLLBACK_FAILED)s_state_terminal=1;
 +    if(!s_state_session.result){StateRefreshList();if(s_state_last_operation==1){StateRememberCapture(s_state_session.stateFile);snprintf(s_state_status,sizeof s_state_status,"Checkpoint saved and selected for Load; same-run checks still apply%s",s_state_list_error?"; folder refresh failed":"");}else snprintf(s_state_status,sizeof s_state_status,"Checkpoint loaded%s",s_state_list_error?"; folder refresh failed":"");}
 +    else {const char*why=s_state_session.result==PE_STATE_ROLLBACK_FAILED?"Load recovery failed; restart before using checkpoints":s_state_session.boundaryReason==18&&s_state_last_operation==1?"File saved, but its actor layout was not retained; resume gameplay and save a new checkpoint":s_state_session.boundaryReason==16?(s_state_session.result==PE_STATE_INCOMPATIBLE?"File incompatible with this build, discs or checkpoint format; save a new checkpoint this run":s_state_session.result==PE_STATE_CHECKSUM?"Checkpoint file could not be verified; refresh or choose another file":s_state_session.result==PE_STATE_BOUNDS?(s_state_last_operation==1?"Could not create a unique checkpoint file; wait a moment and retry":"Checkpoint file size is invalid or unsupported; choose another file"):s_state_session.result==PE_STATE_INVALID?(s_state_last_operation==1?"Checkpoint folder or captured data is unsupported; nothing was saved":"Checkpoint path or file format is invalid; choose a capture made by this build"):s_state_last_operation==1?"Could not save checkpoint files; check save-data access and free space":"Could not read checkpoint files; refresh the list and choose another file"):PeCpuStateSession_RoomBoundaryText(s_state_session.boundaryReason);PeStateFailure failed=PeState_LastFailure();const char*stage=PeState_FailureStageText(failed.stage);if(s_state_session.result!=PE_STATE_ROLLBACK_FAILED&&(!strcmp(stage,"barrier-begin")||!strcmp(stage,"barrier-changed")))snprintf(s_state_status,sizeof s_state_status,"Game state was busy during checkpoint preparation; resume gameplay and retry");else if(s_state_session.result!=PE_STATE_ROLLBACK_FAILED&&!strcmp(stage,"buffer-bounds"))snprintf(s_state_status,sizeof s_state_status,"Checkpoint data exceeds the supported buffer size; choose a different capture or scene");else if(s_state_session.result!=PE_STATE_ROLLBACK_FAILED&&s_state_session.boundaryReason==PE_STATE_ROOM_OWNERS&&failed.module)snprintf(s_state_status,sizeof s_state_status,"%s blocked by %s; %s",s_state_last_operation==1?"Save":"Load",StateOwnerLabel(failed.module),s_state_last_operation==1?"resume gameplay and retry":"use matching settings/resources or a recent capture");else snprintf(s_state_status,sizeof s_state_status,"%s",why);}
 +    StatePmFailureStatus();
++    SDL_Log("[native checkpoint] phase=cpu-result serial=%u hostbits=0x%x gpu_bits=0x%x status=%.180s notification_published=0",s_state_action_serial,CPE_StateHostReasonBits(),Psyz_StateGpuControlBlockers(),s_state_status);
 +    pe_toast(s_state_status);
-+    SDL_Log("[native checkpoint] phase=cpu-result serial=%u hostbits=0x%x gpu_bits=0x%x",s_state_action_serial,CPE_StateHostReasonBits(),Psyz_StateGpuControlBlockers());
 +    SDL_Log("[native checkpoint] completed=1 result=%d boundary=%d bytes=%zu file=%s terminal=%d",s_state_session.result,s_state_session.boundaryReason,s_state_session.used,s_state_session.stateFile,s_state_terminal);
 +    if(s_state_terminal){SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION,"Checkpoint rollback failed: restart required; checkpoint actions disabled");Host_OpenSettingsTab(HOST_PAGE_STATES);}
 +}
 +static void Host_StateUiRegister(void){
++#if PE_NATIVE_PUBLIC_RELEASE
++    return; /* Public beta: no checkpoint IO, identity hashing or boundary jobs. */
++#endif
++
 +#if PE_NATIVE_STATE_CHANGED_COHORTS
 +    const char*fileHelp="Immutable captures; same launch/build/discs/room/settings. Supported actor changes require one of8 retained captured layouts; reloaded resources or evicted layouts remain incompatible";
 +#else
@@ -11222,7 +11522,7 @@
 +}
 --- /dev/null
 +++ b/src/main/fieldfx/particle_mesh/pe_particle_light_native.h
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,94 @@
 +/* MPL-2.0. Original bounded, render-only point-light contribution.
 + * Included after particle renderer ownership globals. No original simulation
 + * or lighting cache is modified: temporary native RGB words are restored as
@@ -11263,9 +11563,12 @@
 +static void FieldFx_LightColour(u32 *word,unsigned r,unsigned g,unsigned b){
 +    if(particle_light_restore_count==PARTICLE_LIGHT_COLOUR_CAP)return;
 +    u32 base=*word;unsigned red=base&255,green=(base>>8)&255,blue=(base>>16)&255;
-+    /* A bounded RGB gain preserves authored black/tint/fade and original room
-+     * lighting. Distance/RGB comes from the actual emitter, not the screen. */
-+    red+=red*r/128;green+=green*g/128;blue+=blue*b/128;
++    /* Colored light must illuminate a dark channel too: multiplying each
++     * channel by itself made a red attack barely affect blue/green clothing.
++     * Authored peak gates energy, so true black and every source fade stay
++     * black/faded. Existing per-channel48 gain cap still bounds the result. */
++    unsigned peak=red>green?red:green;if(blue>peak)peak=blue;
++    red+=(peak*r+64)/128;green+=(peak*g+64)/128;blue+=(peak*b+64)/128;
 +    if(red>255)red=255;if(green>255)green=255;if(blue>255)blue=255;
 +    u32 lit=(base&0xff000000u)|red|(green<<8)|(blue<<16);
 +    if(lit==base)return;
@@ -11294,8 +11597,11 @@
 +            ParticleWorldLight *l=&particle_lights[i];if(l->source_generation&&l->source_generation!=Psyz_GpuAuthoredFlareGeneration())continue;int64_t dx=(int64_t)ax-l->x,dy=(int64_t)ay-l->y,dz=(int64_t)az-l->z;
 +            uint64_t distance=(uint64_t)(dx*dx+dy*dy+dz*dz),radius=(uint64_t)l->radius*l->radius;
 +            if(distance>=radius)continue;
-+            unsigned weight=(unsigned)((radius-distance)*24/radius);
-+            r+=l->r*weight/255;g+=l->g*weight/255;b+=l->b*weight/255;
++            /* Smooth compact falloff reaches zero with zero edge slope.
++             * Radius<=512: the largest intermediate is2^41, inside u64. */
++            uint64_t remaining=radius-distance;
++            unsigned weight=(unsigned)(remaining*remaining*32/(radius*radius));
++            r+=(l->r*weight+127)/255;g+=(l->g*weight+127)/255;b+=(l->b*weight+127)/255;
 +        }
 +        if(r>48)r=48;if(g>48)g=48;if(b>48)b=48;if(!(r|g|b))continue;
 +        spans[model_count].first=first;spans[model_count++].last=last;
@@ -11462,7 +11768,7 @@
 +static unsigned particle_log_count,particle_source_log_count;
 +static int particle_log_initialized;
 +int FieldFx_GetParticleAugment(void){return particle_enabled;}
-+void FieldFx_SetParticleAugment(int mode){if(mode<0||mode>2)mode=0;if(!particle_log_initialized||mode!=particle_enabled){particle_log_initialized=1;particle_log_count=0;particle_source_log_count=0;ember_log_count=0;cross_log_count=0;SDL_Log("[3D falling debris] mode=%d (0Original1Hybrid2Geometry-only) render-only\n",mode);}particle_enabled=mode;}
++void FieldFx_SetParticleAugment(int mode){if(mode<0||mode>2)mode=0;if(!particle_log_initialized||mode!=particle_enabled){particle_log_initialized=1;particle_log_count=0;particle_source_log_count=0;ember_log_count=0;cross_log_count=0;SDL_Log("[3D falling debris] mode=%d (0Original1Hybrid2New) render-only known-material-originals-retained=1\n",mode);}particle_enabled=mode;}
 +void FieldFx_ParticleBeginFrame(void){cross_capture.active=0;ground_capture.active=0;FieldFx_ParticleLightsBegin();ember_count=0;ember_capture.active=0;particle_count=0;particle_frame_open=1;particle_slot=g_ActiveDrawSlot;particle_group_count=0;particle_capture_active=0;particle_last_group=PARTICLE_NO_GROUP;if((unsigned)particle_slot<2)particle_anchor_count[particle_slot]=0;}
 +void FieldFx_ParticleEndFrame(void){cross_capture.active=0;ground_capture.active=0;FieldFx_ParticleLightsEnd();ember_count=0;ember_capture.active=0;particle_count=0;particle_frame_open=0;particle_capture_active=0;particle_last_group=PARTICLE_NO_GROUP;particle_group_count=0;}
 +void FieldFx_BeginFallingOriginal(void){

@@ -1,7 +1,7 @@
 {
-  "selectedBuild": "game-test-point7-owned-20261102-a1",
-  "selectedPrivateEboot": "58058fe6287667b980c1a19cc4542157119a183552ed09e99e147b34d29b9520",
-  "privateSourceCohort": "97b40f82c23218e69f2cff9900377a57b0d0be759afc3d361d31df500f2998e9",
+  "selectedBuild": "combined-graphics-ui-owned-20261103-a1",
+  "selectedPrivateEboot": "14bee2cb1bc034d6df7ff9991052bd1d4e5d59ffe2aac39ebbb24712da88d101",
+  "privateSourceCohort": "425636b2c446f47c1d9917d31ac67f42536ed265af460f48c3a614da46b143ec",
   "sourceOnly": true,
   "platform": "PS5 native",
   "fullPublicBuildRun": false,
@@ -21,7 +21,9 @@
     "experimental": true,
     "arbitraryFrame": false,
     "crossProcess": false,
-    "runtimeCaptureQualified": false
+    "runtimeCaptureQualified": false,
+    "publicEnabled": false,
+    "publicLabel": "Coming soon-ish*"
   },
   "fonts": {
     "styles": [
@@ -88,5 +90,26 @@
     "newRetailTailWordsDistributed": 0,
     "completePublicBuildWithoutInput": false,
     "missingInputFailsClosed": true
-  }
+  },
+  "publicPolicy": {
+    "compileDefinition": "PE_NATIVE_PUBLIC_RELEASE=1",
+    "cmakeSelection": "PE_NATIVE_PUBLIC_RELEASE=ON",
+    "checkpointLabel": "Coming soon-ish*",
+    "checkpointUiAndWorkDisabled": true,
+    "ordinaryCardsPreserved": true,
+    "publicBinaryBuilt": false
+  },
+  "returnToTitle": {
+    "ps5Only": true,
+    "confirmationDefaultNo": true,
+    "deferredOriginalSoftReset": true,
+    "runtimeQualified": false
+  },
+  "curatedUi": {
+    "selector": 9,
+    "privateMappingIncluded": false,
+    "selectionHandBound": false
+  },
+  "knownMaterialQualityImproved": true,
+  "authoredColorActorLightImproved": true
 }

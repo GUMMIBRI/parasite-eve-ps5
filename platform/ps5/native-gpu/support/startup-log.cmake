@@ -84,7 +84,7 @@ target_sources(parasite-eve-pc PRIVATE "@ROOT@/game-src/src/main/boot/installer/
 if(PE_NATIVE_APP_ROLE STREQUAL "INSTALLER_TEST")
   target_compile_definitions(parasite-eve-pc PRIVATE PE_NATIVE_INSTALLER_TEST=1 PE_NATIVE_APP_TITLE="Parasite Eve - Installer Test")
 elseif(PE_NATIVE_APP_ROLE STREQUAL "GAME_TEST")
-  target_compile_definitions(parasite-eve-pc PRIVATE PE_NATIVE_GAME_TEST=1 PE_NATIVE_APP_TITLE="Parasite Eve - Game Test")
+  target_compile_definitions(parasite-eve-pc PRIVATE PE_NATIVE_GAME_TEST=1 PE_NATIVE_APP_TITLE="Parasite Eve")
 else()
   message(FATAL_ERROR "Select GAME_TEST or INSTALLER_TEST launch policy")
 endif()
@@ -92,7 +92,7 @@ endif()
 if(PE_NATIVE_APP_ROLE STREQUAL "INSTALLER_TEST")
  target_compile_definitions(pe-startup-log PRIVATE PE_NATIVE_APP_TITLE="Parasite Eve - Installer Test")
 else()
- target_compile_definitions(pe-startup-log PRIVATE PE_NATIVE_APP_TITLE="Parasite Eve - Game Test")
+ target_compile_definitions(pe-startup-log PRIVATE PE_NATIVE_APP_TITLE="Parasite Eve")
 endif()
 
 target_link_libraries(parasite-eve-pc PRIVATE --wrap=fileno --wrap=fstat)
@@ -114,3 +114,9 @@ target_include_directories(pe-ps5-sdl-core PRIVATE "${PE_PS5_SDL3_SOURCE}/src/io
 
 # Optional authentic owner-selected testkit; output is exclusive user slotO only.
 target_sources(parasite-eve-pc PRIVATE "${CMAKE_CURRENT_LIST_DIR}/pe-portable-testkit.c")
+
+# Public source recipe: preserve ordinary cards, disable experimental checkpoint UI.
+if(NOT PE_NATIVE_PUBLIC_RELEASE)
+  message(FATAL_ERROR "Public export requires PE_NATIVE_PUBLIC_RELEASE=ON")
+endif()
+target_compile_definitions(parasite-eve-pc PRIVATE PE_NATIVE_PUBLIC_RELEASE=1)

@@ -1303,7 +1303,7 @@
 +int Psyz_GpuLoadDialogueFont(const unsigned char *rgba,unsigned bytes){return Psyz_GpuLoadFontContext(0,rgba,bytes);}
 --- /dev/null
 +++ b/psyz/src/platform/duck_models.h
-@@ -0,0 +1,399 @@
+@@ -0,0 +1,436 @@
 +/* MPL-2.0. Independently authored native model replacement adapter.
 + * xxHash dependency retains its BSD-2-Clause notice in duck_xxhash.h.
 + * No DuckStation implementation is included. Index format is documented locally. */
@@ -1327,6 +1327,16 @@
 +} DuckImage;
 +static unsigned char *duck_index;
 +static unsigned duck_count,duck_pages_count,duck_image_count,duck_upload_bytes;
++/* UI admission is explicit in the curated index, never inferred from sizes or
++ * anonymous pack filenames. Old model indexes have zero UI entries. */
++#define DUCK_UI_MAX_PAGES 16u
++static DuckPage duck_ui_pages[DUCK_UI_MAX_PAGES];
++static unsigned duck_ui_page_count,duck_ui_entries;
++static unsigned long long duck_ui_resolved_generation[DUCK_UI_MAX_PAGES];
++static unsigned duck_ui_matches[DUCK_UI_MAX_PAGES][DUCK_MAX_MATCHES],duck_ui_match_counts[DUCK_UI_MAX_PAGES];
++static int DuckEntryUi(const unsigned char *entry){const char *name=(const char*)entry+26;return !SDL_strncmp(name,"ui-menu-",8)||!SDL_strncmp(name,"ui-text-",8)||!SDL_strncmp(name,"ui-character-select-",20)||!SDL_strncmp(name,"ui-cursor-",10);}
++static unsigned DuckIndexUiCount(const unsigned char *data,unsigned count){unsigned ui=0;for(unsigned i=0;i<count;i++)ui+=DuckEntryUi(data+16+(size_t)i*DUCK_RECORD_BYTES);return ui;}
++static void DuckUiReset(void){duck_ui_page_count=0;memset(duck_ui_resolved_generation,0,sizeof duck_ui_resolved_generation);memset(duck_ui_match_counts,0,sizeof duck_ui_match_counts);}
 +static DuckPage duck_pages[DUCK_MAX_PAGES];
 +static DuckImage duck_images[DUCK_MAX_MATCHES];
 +static unsigned short duck_words[1024*512];
@@ -1355,6 +1365,11 @@
 +        int px=(p&15)*64,py=((p>>4)&1)*256,cx=(c&63)*16,cy=c>>6;
 +        if(DuckOverlap(r.x,r.y,r.w,r.h,px,py,mode==0?64:128,256)||DuckOverlap(r.x,r.y,r.w,r.h,cx,cy,mode==0?16:256,1))duck_resolved_generation[i]=0;
 +    }
++    for(unsigned i=0;i<duck_ui_page_count;i++){
++        unsigned p=duck_ui_pages[i].page,c=duck_ui_pages[i].clut,mode=(p>>7)&3;
++        int px=(p&15)*64,py=((p>>4)&1)*256,cx=(c&63)*16,cy=c>>6;
++        if(DuckOverlap(r.x,r.y,r.w,r.h,px,py,mode==0?64:128,256)||DuckOverlap(r.x,r.y,r.w,r.h,cx,cy,mode==0?16:256,1))duck_ui_resolved_generation[i]=0;
++    }
 +    if(duck_generation!=~0ull)++duck_generation;
 +}
 +static void DuckUpload(SDL_Rect r,const unsigned short *words){
@@ -1362,17 +1377,18 @@
 +    for(int y=0;y<r.h;y++){size_t o=(size_t)(r.y+y)*1024+r.x;memcpy(duck_words+o,words+(size_t)y*r.w,(size_t)r.w*2);memset(duck_known+o,1,(size_t)r.w);}
 +}
 +static void DuckAtlasReset(void){
++    DuckUiReset();
 +#if PE_NATIVE_STATE_CPU_COMPONENTS
 +    for(unsigned i=0;i<duck_image_count;i++){SDL_free(duck_images[i].state_pixels);duck_images[i].state_pixels=NULL;}
 +#endif
 +    duck_state_reserved_cells=0;duck_image_count=0;duck_upload_bytes=0;duck_image_failure=0;memset(duck_failed_entries,0,sizeof duck_failed_entries);duck_arena_base=duck_arena_cursor_x=duck_arena_cursor_y=duck_arena_row_height=0;memset(duck_resolved_generation,0,sizeof duck_resolved_generation);}
-+static void DuckQuit(void){SDL_free(duck_index);duck_index=NULL;duck_count=0;duck_index_attempted=0;DuckAtlasReset();memset(duck_known,0,sizeof duck_known);duck_pages_count=0;}
++static void DuckQuit(void){SDL_free(duck_index);duck_index=NULL;duck_count=0;duck_ui_entries=0;duck_index_attempted=0;DuckAtlasReset();memset(duck_known,0,sizeof duck_known);duck_pages_count=0;}
 +int Psyz_GpuSetHdModels(int enabled,const char *root){
 +    if(root && root[0] && SDL_strcmp(root,duck_root)){
 +        if(SDL_strlen(root)>=sizeof duck_root)return -1;
 +        if(duck_pack_epoch==UINT32_MAX)return -1;
 +        ++duck_pack_epoch;
-+        SDL_strlcpy(duck_root,root,sizeof duck_root);SDL_free(duck_index);duck_index=NULL;duck_count=0;duck_index_attempted=0;
++        SDL_strlcpy(duck_root,root,sizeof duck_root);SDL_free(duck_index);duck_index=NULL;duck_count=0;duck_ui_entries=0;duck_index_attempted=0;
 +        /* Old atlas pixels remain allocated/immutable until normal room retirement. */
 +        unsigned reserved=duck_state_reserved_cells;DuckAtlasReset();duck_state_reserved_cells=reserved;
 +    }
@@ -1437,11 +1453,12 @@
 +        if(e[0]>1||e[1]>=(e[0]?256:16)||!w||!h||x+w>256||y+h>256||x%factor||w%factor||!e[26]||!memchr(e+26,0,256)){return DuckIndexReject("record",path,b,n,i,errno);}
 +        for(unsigned j=26;e[j];j++)if(!((e[j]>='a'&&e[j]<='z')||(e[j]>='A'&&e[j]<='Z')||(e[j]>='0'&&e[j]<='9')||e[j]=='-'||e[j]=='_'||e[j]=='.')){return DuckIndexReject("record",path,b,n,i,errno);}
 +        if(SDL_strstr((char *)e+26,"..")||!SDL_strstr((char *)e+26,".png")){return DuckIndexReject("record",path,b,n,i,errno);}
++        if(!SDL_strncmp((char*)e+26,"ui-",3)&&!DuckEntryUi(e))return DuckIndexReject("ui-category",path,b,n,i,errno);
 +    }
 +
 + *output=b;*outputCount=count;SDL_Log("[HD models] index-staged entries=%u bytes=%zu pixels-rendered=0",count,n);return 1;
 +}
-+static int DuckLoadIndex(void){if(duck_index_attempted)return duck_index!=NULL;duck_index_attempted=1;return DuckReadIndex(duck_root,&duck_index,&duck_count);}
++static int DuckLoadIndex(void){if(duck_index_attempted)return duck_index!=NULL;duck_index_attempted=1;int ok=DuckReadIndex(duck_root,&duck_index,&duck_count);duck_ui_entries=ok?DuckIndexUiCount(duck_index,duck_count):0;return ok;}
 +int Psyz_GpuReloadHdModels(const char *root){
 +    if(!root||!root[0]||SDL_strlen(root)>=sizeof duck_root||duck_pack_epoch==UINT32_MAX||!device||gpu_failed||UseSoftwareBackend())return -1;
 +    unsigned char *candidate=NULL;unsigned count=0;
@@ -1452,7 +1469,7 @@
 +    if(Psyz_GpuExeque()<0||gpu_failed||n_vertices||n_indices||!SubmitCmdAndWait()||!SDL_WaitForGPUIdle(device)){SDL_free(candidate);SDL_Log("[HD models] reload-rejected stage=gpu-retirement old-pack-retained=1 epoch=%u",duck_pack_epoch);return -1;}
 +    unsigned reserved=duck_state_reserved_cells;
 +    DuckAtlasReset();duck_state_reserved_cells=reserved;
-+    SDL_free(duck_index);duck_index=candidate;duck_count=count;duck_index_attempted=1;
++    SDL_free(duck_index);duck_index=candidate;duck_count=count;duck_ui_entries=DuckIndexUiCount(candidate,count);duck_index_attempted=1;
 +    SDL_strlcpy(duck_root,root,sizeof duck_root);++duck_pack_epoch;duck_submitted_polygons=0;
 +    duck_match_log_budget=16;duck_hit_log_budget=24;duck_failure_log_budget=8;
 +    SDL_Log("[HD models] reload-committed root=%s entries=%u epoch=%u old-atlas-cells-retained=%u pixels-rendered=0 preference-changed=0",duck_root,duck_count,duck_pack_epoch,reserved);
@@ -1560,36 +1577,33 @@
 +    for(int j=0;j<h;j++)for(int i=0;i<w;i++){unsigned word=duck_words[(py+y+j)*1024+px+(x+i)/(int)factor];unsigned value=(word>>(((x+i)%factor)*bits))&mask;if(value>hi)return 0;}
 +    return 1;
 +}
-+static void DuckResolve(unsigned slot){
-+    duck_match_counts[slot]=0;duck_resolved_generation[slot]=duck_generation;
++static void DuckResolveMatches(DuckPage source,unsigned *matches,unsigned *count,int ui){
++    *count=0;
 +    if(!DuckLoadIndex())return;
-+    unsigned p=duck_pages[slot].page,c=duck_pages[slot].clut,mode=(p>>7)&3,factor=mode?2:4;
++    unsigned p=source.page,c=source.clut,mode=(p>>7)&3,factor=mode?2:4;
 +    int px=(p&15)*64,py=((p>>4)&1)*256,cx=(c&63)*16,cy=c>>6;
 +    unsigned long long palettes[256];unsigned char palette_state[256]={0};unsigned examined=0;
 +    for(unsigned i=0;i<duck_count;i++){
-+        const unsigned char *e=duck_index+16+(size_t)i*DUCK_RECORD_BYTES;if(e[0]!=mode)continue;
++        const unsigned char *e=duck_index+16+(size_t)i*DUCK_RECORD_BYTES;if(e[0]!=mode||DuckEntryUi(e)!=ui)continue;
 +        unsigned hi=e[1];if(!palette_state[hi])palette_state[hi]=DuckHashRect(cx,cy,(int)hi+1,1,&palettes[hi])?1:2;
 +        if(palette_state[hi]!=1||palettes[hi]!=DuckU64(e+18))continue;
 +        if(++examined>1024)break;
 +        unsigned long long hash;int x=DuckU16(e+2),y=DuckU16(e+4),w=DuckU16(e+6),h=DuckU16(e+8);
 +        if(!DuckHashRect(px+x/(int)factor,py+y,w/(int)factor,h,&hash)||hash!=DuckU64(e+10)||!DuckPaletteCoverage(px,py,x,y,w,h,mode,hi))continue;
-+        if(duck_match_counts[slot]==DUCK_MAX_MATCHES)break;
-+        duck_match_entries[slot][duck_match_counts[slot]++]=i;
++        if(*count==DUCK_MAX_MATCHES)break;
++        matches[(*count)++]=i;
 +    }
-+    if(duck_match_log_budget){--duck_match_log_budget;SDL_Log("[HD models] bank-hint=%d page=%u clut=%u exact-matches=%u palette-candidates=%u rendered=0",duck_bank,p,c,duck_match_counts[slot],examined);}
++    if(duck_match_log_budget){--duck_match_log_budget;SDL_Log("[HD models] bank-hint=%d page=%u clut=%u exact-matches=%u palette-candidates=%u rendered=0",duck_bank,p,c,*count,examined);}
 +}
-+static void DuckApply(Vertex *v,unsigned n,unsigned page,unsigned clut){
-+    if(!duck_enabled||UseSoftwareBackend()||!scaled_vram_render||internal_res<=1||cur_twin!=TWIN_PACK(255,255,0,0))return;
-+    unsigned slot;for(slot=0;slot<duck_pages_count;slot++)if(duck_pages[slot].page==(page&511)&&duck_pages[slot].clut==clut)break;
-+    if(slot==duck_pages_count)return;
-+    if(!duck_resolved_generation[slot])DuckResolve(slot);
++static void DuckResolve(unsigned slot){duck_resolved_generation[slot]=duck_generation;DuckResolveMatches(duck_pages[slot],duck_match_entries[slot],&duck_match_counts[slot],0);}
++static void DuckApplyMatches(Vertex *v,unsigned n,unsigned page,unsigned clut,const unsigned *matches,unsigned count,int ui){
 +    /* Prefer the most specific exact-source rectangle containing every UV.
 +     * Equal-area alternatives remain ambiguous, independent of file ordering. */
 +    unsigned selected=~0u,best_area=~0u;int ambiguous=0;
-+    for(unsigned m=0;m<duck_match_counts[slot];m++){
-+        unsigned i=duck_match_entries[slot][m];const unsigned char *e=duck_index+16+(size_t)i*DUCK_RECORD_BYTES;
++    for(unsigned m=0;m<count;m++){
++        unsigned i=matches[m];const unsigned char *e=duck_index+16+(size_t)i*DUCK_RECORD_BYTES;
 +        float x=DuckU16(e+2),y=DuckU16(e+4),w=DuckU16(e+6),h=DuckU16(e+8);int inside=1;
-+        for(unsigned j=0;j<n;j++)if(v[j].u<x||v[j].u>=x+w||v[j].v<y||v[j].v>=y+h)inside=0;
++        for(unsigned j=0;j<n;j++)if(v[j].u<x||(ui?v[j].u>x+w:v[j].u>=x+w)||v[j].v<y||(ui?v[j].v>y+h:v[j].v>=y+h))inside=0;
 +        if(inside){unsigned area=(unsigned)(w*h);if(area<best_area){selected=i;best_area=area;ambiguous=0;}else if(area==best_area)ambiguous=1;}
 +    }
 +    if(selected==~0u||ambiguous)return;
@@ -1600,11 +1614,34 @@
 +    for(unsigned j=0;j<n;j++){
 +        v[j].hd_uv[0]=(image->x+(v[j].u-DuckU16(e+2))*image->w/DuckU16(e+6))/HD_ATLAS_WIDTH;
 +        v[j].hd_uv[1]=(image->y+(v[j].v-DuckU16(e+4))*image->h/DuckU16(e+8))/HD_ATLAS_HEIGHT;
-+        v[j].hd_uv[2]=5;
++        v[j].hd_uv[2]=ui?9:5;
 +    }
 +    duck_ever_submitted=1;if(duck_submitted_polygons!=~0u)++duck_submitted_polygons;
 +    if(!image->logged&&duck_hit_log_budget){image->logged=1;--duck_hit_log_budget;SDL_Log("[HD models] replacement-polygon-submitted bank-hint=%d page=%u clut=%u file=%s vertices=%u gpu-pixels=human-unverified",duck_bank,page&511,clut,(const char *)e+26,n);}
 +}
++static int DuckHardwareReady(void){return duck_enabled&&!UseSoftwareBackend()&&scaled_vram_render&&internal_res>1&&cur_twin==TWIN_PACK(255,255,0,0);}
++static void DuckApply(Vertex *v,unsigned n,unsigned page,unsigned clut){
++    if(!DuckHardwareReady())return;
++    unsigned slot;for(slot=0;slot<duck_pages_count;slot++)if(duck_pages[slot].page==(page&511)&&duck_pages[slot].clut==clut)break;
++    if(slot==duck_pages_count)return;
++    if(!duck_resolved_generation[slot])DuckResolve(slot);
++    DuckApplyMatches(v,n,page,clut,duck_match_entries[slot],duck_match_counts[slot],0);
++}
++/* Only positively categorized UI entries and non-model, axis-aligned textured
++ * rectangles are eligible. Field atlas, font and particle selectors are gated
++ * by the call sites before this function. Unknown pack entries stay original. */
++static void DuckApplyUi(Vertex *v,unsigned n,unsigned page,unsigned clut){
++    if(n!=4||!DuckHardwareReady()||!DuckLoadIndex()||!duck_ui_entries)return;
++    unsigned mode=(page>>7)&3;if(mode>1||clut>32767||(clut&63)*16+(mode?256:16)>1024)return;
++    for(unsigned j=0;j<4;j++)if(v[j].hd_uv[2]!=0||(v[j].t&TPAGE_MODEL)||v[j].pgxp_pos[2]>0)return;
++    if(v[0].x!=v[2].x||v[1].x!=v[3].x||v[0].y!=v[1].y||v[2].y!=v[3].y||v[1].x<=v[0].x||v[2].y<=v[0].y)return;
++    if(v[0].u!=v[2].u||v[1].u!=v[3].u||v[0].v!=v[1].v||v[2].v!=v[3].v||v[1].u<=v[0].u||v[2].v<=v[0].v||v[1].u>256||v[2].v>256)return;
++    unsigned slot;for(slot=0;slot<duck_ui_page_count;slot++)if(duck_ui_pages[slot].page==(page&511)&&duck_ui_pages[slot].clut==clut)break;
++    if(slot==duck_ui_page_count){if(slot==DUCK_UI_MAX_PAGES)return;duck_ui_pages[duck_ui_page_count++]=(DuckPage){(unsigned short)(page&511),(unsigned short)clut};duck_ui_resolved_generation[slot]=0;}
++    if(!duck_ui_resolved_generation[slot]){duck_ui_resolved_generation[slot]=duck_generation;DuckResolveMatches(duck_ui_pages[slot],duck_ui_matches[slot],&duck_ui_match_counts[slot],1);}
++    DuckApplyMatches(v,n,page,clut,duck_ui_matches[slot],duck_ui_match_counts[slot],1);
++}
++
 +#if PE_NATIVE_STATE_CPU_COMPONENTS
 +static bool SubmitCmdAndWait(void);
 +/* Explicit checkpoint payload: no raw structs, pointers, cache arenas or paths.
@@ -1697,7 +1734,7 @@
 +    duck_bank=(int32_t)DuckStateGet32(in+12);duck_pages_count=DuckStateGet32(in+16);
 +    for(unsigned i=0;i<duck_pages_count;i++)duck_pages[i]=(DuckPage){DuckU16(in+128+i*4),DuckU16(in+130+i*4)};
 +    memset(duck_resolved_generation,0,sizeof duck_resolved_generation);memset(duck_match_counts,0,sizeof duck_match_counts);
-+    memset(duck_failed_entries,0,sizeof duck_failed_entries);duck_image_failure=0;duck_generation=duck_generation==~0ull?1:duck_generation+1;
++    memset(duck_failed_entries,0,sizeof duck_failed_entries);duck_image_failure=0;duck_generation=duck_generation==~0ull?1:duck_generation+1;DuckUiReset();
 +    return 1;
 +}
 +#endif
@@ -15759,7 +15796,7 @@
                  if (!pgxp_valid) {
                      for (int i = 0; i < nVertices; ++i) {
                          vertex_cur[i].pgxp_pos[2] = -1.0f;
-@@ -2376,8 +3460,59 @@
+@@ -2376,8 +3460,60 @@
                  }
              }
  
@@ -15803,6 +15840,7 @@
 +            }
 +            #endif
 +            if (isTextured) DuckApply(vertex_cur,(unsigned)nVertices,tpage,clut);
++            if(isTextured&&nVertices==4&&(code&~3)==0x2c&&dialogue_glyph<0&&!particle_material&&!atlas_extension)DuckApplyUi(vertex_cur,4,tpage,clut);
 +            if(dialogue_glyph>=0&&font_context==1&&nVertices==4&&tpage==5&&clut==0x089c){
 +                unsigned u=(dialogue_glyph%21)*12+font_crop,vv=(dialogue_glyph/21)*12;int valid=1;
 +                for(int i=0;i<4;i++)if(vertex_cur[i].u!=u+((i&1)?font_width:0)||vertex_cur[i].v!=vv+((i&2)?12:0))valid=0;
@@ -15821,7 +15859,7 @@
              if (nVertices == 4) {
                  Vertex second[3] = {vertex_cur[1], vertex_cur[3],
                                      vertex_cur[2]};
-@@ -2497,7 +3632,10 @@
+@@ -2497,7 +3633,10 @@
                      lt |= TPAGE_DITHER;
                  }
                  for (int k = 0; k < 4; k++) {
@@ -15833,7 +15871,7 @@
                      SET_TC(&q[k], lt, -1);
                  }
                  index_cur[0] = base + 0;
-@@ -2603,6 +3741,16 @@
+@@ -2603,6 +3742,17 @@
                  vertex_cur[i].hd_uv[2]=atlas_extension?(widescreen&&sprite_atlases_enabled?2:3):(sprite_atlases_enabled?1:0);
              }
          }
@@ -15847,10 +15885,11 @@
 +            for(int i=0;i<4;i++){vertex_cur[i].hd_uv[0]=(left+((i&1)?48.0f:0.0f))/416.0f;vertex_cur[i].hd_uv[1]=(top+((i&2)?48.0f:0.0f))/520.0f;vertex_cur[i].hd_uv[2]=4.0f;}
 +            dialogue_font_batch=font_context;
 +        }else dialogue_glyph=-1;
++        if(isTextured&&!atlas&&!atlas_extension&&dialogue_glyph<0&&!particle_material)DuckApplyUi(vertex_cur,4,tpage,clut);
          SET_TC_ALL(vertex_cur, tpage, clut);
          Draw_EnqueueBuffer(4, 6);
      }
-@@ -2613,6 +3761,7 @@
+@@ -2613,6 +3763,7 @@
  void Draw_SetAreaStart(int x, int y) {
      if (UseSoftwareBackend()) {
          software_rasterizer.area_start(x, y);
@@ -15858,7 +15897,7 @@
          return;
      }
      draw_area_start.x = x;
-@@ -2621,6 +3770,7 @@
+@@ -2621,6 +3772,7 @@
  void Draw_SetAreaEnd(int x, int y) {
      if (UseSoftwareBackend()) {
          software_rasterizer.area_end(x, y);
@@ -15866,7 +15905,7 @@
          return;
      }
      draw_area_end.x = x;
-@@ -2758,6 +3908,7 @@
+@@ -2758,6 +3910,7 @@
      SDL_UploadToGPUTexture(copy, &src, &dst, false);
      SDL_EndGPUCopyPass(copy);
      MarkVramDirty((SDL_Rect){rect->x, rect->y, rect->w, rect->h});
@@ -15874,7 +15913,7 @@
      SyncNativeVramToScaled(rect->x, rect->y, rect->w, rect->h);
  }
  
-@@ -2792,6 +3943,16 @@
+@@ -2792,6 +3945,16 @@
      free(rgba);
  }
  
@@ -15891,7 +15930,7 @@
  void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
      if (UseSoftwareBackend()) {
          software_rasterizer.move_image(rect, x, y);
-@@ -2862,6 +4023,8 @@
+@@ -2862,6 +4025,8 @@
  }
  
  void Draw_ResetBuffer(void) {
@@ -15900,7 +15939,7 @@
      if (UseSoftwareBackend()) {
          software_rasterizer.reset_buffer();
          return;
-@@ -2883,6 +4046,9 @@
+@@ -2883,6 +4048,9 @@
      }
      SDL_GPUCommandBuffer* cmd = AcquireCmd();
      if (!cmd) {
@@ -15910,7 +15949,7 @@
          Draw_ResetBuffer();
          return;
      }
-@@ -2890,6 +4056,9 @@
+@@ -2890,6 +4058,9 @@
      u8* map = SDL_MapGPUTransferBuffer(device, vtx_transfer, true);
      if (!map) {
          ERRORF("SDL_MapGPUTransferBuffer: %s", SDL_GetError());
@@ -15920,7 +15959,7 @@
          Draw_ResetBuffer();
          return;
      }
-@@ -2946,21 +4115,39 @@
+@@ -2946,21 +4117,39 @@
      /* Native VRAM is independently rasterized: gameplay readback and texture
       * feedback must not depend on high-resolution sample positions. */
      for (unsigned target_index = 0;
@@ -15966,7 +16005,7 @@
              /* Three sampled textures, up to two draws (color and mask). Reserve
               * both heaps' worst-case sampler use before any destination copy.
               */
-@@ -2975,19 +4162,22 @@
+@@ -2975,19 +4164,22 @@
                  int x1 = clip.x * (int)target_scale;
                  int y1 = clip.y * (int)target_scale;
                  for (int i = start; i < end; ++i) {
@@ -15993,7 +16032,7 @@
                          target_scale;
                      float y = (draw_offset.y + vy + bias) * target_scale;
                      x0 = SDL_min(x0, (int)SDL_floorf(x) - 1);
-@@ -3007,7 +4197,7 @@
+@@ -3007,7 +4199,7 @@
                  }
                  SDL_GPUCopyPass* blend_copy = SDL_BeginGPUCopyPass(cmd);
                  SDL_GPUTextureLocation from = {
@@ -16002,7 +16041,7 @@
                      .x = (Uint32)x0,
                      .y = (Uint32)y0};
                  SDL_GPUTextureLocation to = from;
-@@ -3018,7 +4208,7 @@
+@@ -3018,7 +4210,7 @@
                  SDL_EndGPUCopyPass(blend_copy);
              }
              const SDL_GPUColorTargetInfo target = {
@@ -16011,7 +16050,7 @@
                  .load_op = SDL_GPU_LOADOP_LOAD,
                  .store_op = SDL_GPU_STOREOP_STORE,
              };
-@@ -3049,8 +4239,8 @@
+@@ -3049,8 +4241,8 @@
              const SDL_GPUTextureSamplerBinding sampler_binding[3] = {
                  {.texture=vram_sample,.sampler=vram_sampler},
                  {.texture=destination_sample,.sampler=vram_sampler},
@@ -16022,7 +16061,7 @@
              SDL_BindGPUFragmentSamplers(pass,0,sampler_binding,3);
              /* The viewport maps shader x to offset * (1 - grid) + x * grid;
               * the shader squeezes around the centre in its own space, so
-@@ -3059,10 +4249,14 @@
+@@ -3059,10 +4251,14 @@
              const float offset_ubo[8] = {
                  (float)draw_offset.x,
                  (float)draw_offset.y,
@@ -16039,7 +16078,7 @@
                  sub_x,
                  sub_y};
              SDL_PushGPUVertexUniformData(
-@@ -3071,6 +4265,7 @@
+@@ -3071,6 +4267,7 @@
                  semi ? 2u : 0u, target_scale,
                  draw_grid_source_width == draw_grid_target_width,
                  (target_index && model_filtering ? 1u : 0u) |
@@ -16047,7 +16086,7 @@
                      (dither_mode == PSYZ_DITHER_OFF ? 2u : 0u)};
              SDL_PushGPUFragmentUniformData(
                  cmd, 0, color_pass, sizeof(color_pass));
-@@ -3087,6 +4282,7 @@
+@@ -3087,6 +4284,7 @@
                      1, target_scale,
                      draw_grid_source_width == draw_grid_target_width,
                      (target_index && model_filtering ? 1u : 0u) |
@@ -16055,7 +16094,7 @@
                          (dither_mode == PSYZ_DITHER_OFF ? 2u : 0u)};
                  SDL_PushGPUFragmentUniformData(
                      cmd, 0, mask_pass, sizeof(mask_pass));
-@@ -3099,5 +4295,240 @@
+@@ -3099,5 +4297,240 @@
          }
      }
      MarkVramDirty(scissor_rect);
@@ -16782,7 +16821,7 @@
      grid_source = grid_target = 1;
 --- a/psyz/src/platform/shaders/psx.frag.glsl
 +++ b/psyz/src/platform/shaders/psx.frag.glsl
-@@ -82,9 +82,76 @@
+@@ -82,9 +82,93 @@
  }
  
  void main() {
@@ -16799,28 +16838,41 @@
 +        vec3 tint=clamp(floor(vertexColor.rgb*127.5+0.5)/128.0,0.0,1.0);
 +        vec3 body;float alpha;
 +        if(orbMaterial){
-+            vec2 q=uv*2.0-1.0;float radius=length(q);
-+            float edge=max(fwidth(radius),0.012);
-+            float coverage=1.0-smoothstep(0.88-edge,0.98+edge,radius);
++            // Use screen-pixel scale: a rectangular authored sprite must not
++            // stretch the modern sphere into an ellipse. Rotation is retained;
++            // the disc is inscribed in the existing quad, never expanded.
++            vec2 texelRate=vec2(length(vec2(dFdx(uv.x),dFdy(uv.x))),
++                                length(vec2(dFdx(uv.y),dFdy(uv.y))));
++            vec2 extent=1.0/max(texelRate,vec2(0.000001));
++            vec2 q=(uv*2.0-1.0)*extent/max(min(extent.x,extent.y),1.0);
++            float radius=length(q);float edge=max(fwidth(radius),0.008);
++            float coverage=1.0-smoothstep(0.94-edge,0.99+edge,radius);
 +            float nz=sqrt(max(0.0,1.0-dot(q,q)));
 +            vec3 normal=vec3(q,nz);
-+            float shade=0.22+0.65*max(0.0,dot(normal,normalize(vec3(-0.4,-0.55,0.8))));
-+            float highlight=pow(max(0.0,dot(normal,normalize(vec3(-0.35,-0.45,1.0)))),24.0);
-+            float rim=pow(1.0-nz,3.0)*(0.65+0.15*sin(age*0.21));
-+            body=tint*(shade+rim*0.6)+vec3(highlight*0.65);
-+            alpha=coverage*0.82;
++            float diffuse=max(0.0,dot(normal,normalize(vec3(-0.4,-0.55,0.8))));
++            float highlight=pow(max(0.0,dot(normal,normalize(vec3(-0.35,-0.45,1.0)))),32.0);
++            float rim=pow(1.0-nz,2.5)*(0.60+0.10*sin(age*0.21));
++            float core=exp(-dot(q,q)*4.0);
++            body=tint*(0.30+0.65*diffuse+rim*0.65+core*0.18)+vec3(highlight*0.80);
++            alpha=coverage*0.94;
 +        }else if(flameMaterial){
-+            // Deterministic lobes use authored age, not the game RNG or clock.
++            // Three deterministic tongues share the original age/quad. No
++            // texture allocation, game RNG, wall clock or independent lifetime.
 +            float y=1.0-uv.y;float wave=sin(y*9.0-age*0.28)*0.10*y;
 +            float x=(uv.x-0.5-wave)*2.0;
-+            float width=mix(0.72,0.03,pow(y,0.8));
-+            float lobes=0.07*sin(y*21.0-age*0.43)+0.04*sin(y*37.0+age*0.17);
-+            float distance=abs(x)-width-lobes*y;
-+            float edge=max(fwidth(distance),0.015);
-+            float coverage=(1.0-smoothstep(-edge,edge,distance))*smoothstep(0.0,0.08,y)*(1.0-smoothstep(0.90,1.0,y));
-+            float core=pow(max(0.0,1.0-abs(x)/max(width,0.03)),2.0)*(1.0-y);
-+            body=tint*(0.6+core*0.7)+vec3(core*0.32);
-+            alpha=coverage*0.70;
++            float width=mix(0.66,0.025,pow(y,0.72));
++            float lobes=0.06*sin(y*21.0-age*0.43)+0.035*sin(y*37.0+age*0.17);
++            float central=width+lobes*y-abs(x);
++            float sideHeight=0.65+0.08*sin(age*0.19);
++            float sideWidth=0.16*max(0.0,1.0-y/max(sideHeight,0.1));
++            float side=max(sideWidth-abs(x-0.35+0.12*y),
++                           sideWidth-abs(x+0.32-0.10*y))-max(0.0,y-sideHeight)*4.0;
++            float signedBody=max(central,side);
++            float edge=max(fwidth(signedBody),0.012);
++            float coverage=smoothstep(-edge,edge,signedBody)*smoothstep(0.0,0.05,y)*(1.0-smoothstep(0.94,1.0,y));
++            float core=pow(max(0.0,1.0-abs(x)/max(width,0.03)),1.5)*(1.0-y);
++            body=tint*(0.65+core*0.90)+vec3(core*0.42);
++            alpha=coverage*0.88;
 +        }
 +        else{
 +            // Preserve the authored crossed-flare identity and quad rotation.
@@ -16833,9 +16885,13 @@
 +            float secondary=1.0-smoothstep(width*0.45,width+0.02,diagonal);
 +            float reach=1.0-smoothstep(0.1,1.0,radius);
 +            float core=exp(-dot(q,q)*45.0);
-+            float energy=clamp(ray*reach+secondary*reach*0.30+core,0.0,1.0);
-+            body=tint*(0.70+core*0.60)+vec3(core*0.20);
-+            alpha=energy*0.58;
++            // A thin luminous spine inside the authored crossed rays keeps
++            // their shape readable without turning every spark into lightning.
++            float spine=1.0-smoothstep(width*0.30,width*0.30+max(fwidth(ax),0.010),ax);
++            float halo=exp(-dot(q,q)*7.0)*0.18;
++            float energy=clamp(ray*reach*0.80+spine*reach*0.25+secondary*reach*0.30+core+halo,0.0,1.0);
++            body=tint*(0.78+core*0.65)+vec3(core*0.30);
++            alpha=energy*0.76;
 +        }
 +        // Authored source fade must also remove body coverage and highlights.
 +        alpha*=max(tint.r,max(tint.g,tint.b));
@@ -16860,7 +16916,7 @@
          if (hdUV.z>2.5 || passMode.y<=1u) discard;
          vec3 tint=min(floor(vertexColor.rgb*127.5+0.5),vec3(255.0))/128.0;
          vec4 material=texture(texHD,hdUV.xy);
-@@ -94,7 +161,10 @@
+@@ -94,7 +178,10 @@
      }
      vec4 texColor=textureMode==0u ? vec4(1,1,1,2) :
          fetchModelTexel(ivec2(resolveTexel()));
@@ -16872,7 +16928,7 @@
          vec2 pos=rawUV-vec2(0.5);
          ivec2 lo=ivec2(uvBounds.xy),hi=ivec2(uvBounds.zw);
          ivec2 origin=ivec2(floor(pos));vec2 weight=fract(pos);
-@@ -141,7 +211,7 @@
+@@ -141,7 +228,7 @@
      bool enhancedPixel=false;
      // Presentation only. The original texel still owns coverage, STP and
      // palette changes. Unmatched reference colours fall back pixel by pixel.
@@ -16881,14 +16937,18 @@
          ivec2 size=textureSize(texHD,0);
          ivec2 reference=ivec2(hdUV.xy*vec2(size))+ivec2(0,size.y/2);
          vec3 basis=texelFetch(texHD,reference,0).rgb;
-@@ -151,6 +221,13 @@
+@@ -151,6 +238,17 @@
              modColor=clamp(enhanced*tint,0.0,1.0);
              enhancedPixel=true;
          }
 +    }
 +    // Exact source-page/CLUT matching owns identity; native texel still owns
 +    // transparent cutouts, STP, mask writes and blend classification.
-+    if (passMode.y>1u && hdUV.z>4.5 && polygon!=0u && textureMode!=0u) {
++    // UI selector9 is admitted only by the explicit categorized UI adapter;
++    // model5, font4 and analytic particles6/7/8 retain independent ownership.
++    bool duckModel=hdUV.z>4.5 && hdUV.z<5.5 && polygon!=0u;
++    bool duckUi=hdUV.z>8.5 && hdUV.z<9.5;
++    if (passMode.y>1u && (duckModel || duckUi) && textureMode!=0u) {
 +        vec3 enhanced=texture(texHD,hdUV.xy).rgb;
 +        vec3 tint=min(floor(vertexColor.rgb*127.5+0.5),vec3(255.0))/128.0;
 +        modColor=clamp(enhanced*tint,0.0,1.0);enhancedPixel=true;

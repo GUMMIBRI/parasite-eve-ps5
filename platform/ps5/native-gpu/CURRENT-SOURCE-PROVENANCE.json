@@ -1,10 +1,8 @@
 {
-  "selectedBuild": "game-test-point7-owned-20261102-a1",
-  "selectedPrivateEboot": "58058fe6287667b980c1a19cc4542157119a183552ed09e99e147b34d29b9520",
-  "privateSourceCohort": "97b40f82c23218e69f2cff9900377a57b0d0be759afc3d361d31df500f2998e9",
-  "sourceRecords": 213,
-  "sdlMirrors": 40,
-  "auxiliaryInputs": 80,
+  "schema": 5,
+  "selectedBuild": "combined-graphics-ui-owned-20261103-a1",
+  "selectedPrivateEboot": "14bee2cb1bc034d6df7ff9991052bd1d4e5d59ffe2aac39ebbb24712da88d101",
+  "privateSourceCohort": "425636b2c446f47c1d9917d31ac67f42536ed265af460f48c3a614da46b143ec",
   "originalArchivePins": [
     {
       "name": "game",
@@ -25,14 +23,46 @@
       "archiveSha256": "7b36fe7f802450aa0c98af2e151159c6c8d0e28ea8b0e4356187a21c2d3680a1"
     }
   ],
-  "publicDifferences": [
-    "No private factory TOML or native asset index",
-    "Private seed fingerprint replaced by caller-supplied optional macro; default fail-closed",
-    "Public unsupported/link adapters retained",
-    "Generated public cohort deferred until actual build",
-    "Both PointSprite data initializers replaced by required local generated include; newly restored32 words absent, no original EXE fingerprint/offset/extraction proof"
-  ],
+  "sourceRecordsVerified": 213,
+  "SDLSourceMirrorsVerified": 40,
+  "supportStateSourceInputsVerified": 80,
+  "allSevenSelectedShaderHeadersReproduced": true,
+  "compilerSha256": "9643709c02c83e26773f96b6a87f197ab2e84f78be0879ad8fb3619418b5d9ad",
+  "publicPolicy": {
+    "compileDefinition": "PE_NATIVE_PUBLIC_RELEASE=1",
+    "cmakeSelection": "PE_NATIVE_PUBLIC_RELEASE=ON",
+    "checkpointLabel": "Coming soon-ish*",
+    "checkpointUiAndWorkDisabled": true,
+    "ordinaryCardsPreserved": true,
+    "publicBinaryBuilt": false
+  },
+  "publicSourceCohortGenerated": false,
+  "publicFullGameBuildRun": false,
   "gitExecuted": false,
   "targetExecuted": false,
-  "omittedOriginalDataLicenseCleared": false
+  "publicPublished": false,
+  "patches": [
+    {
+      "component": "game",
+      "path": "patches/game.patch",
+      "sha256": "6f6d79d3242dee558b17258224a7134c6412cf40fe895de7a8c59f92c40b5d7e"
+    },
+    {
+      "component": "psyz",
+      "path": "patches/psyz.patch",
+      "sha256": "79bbc133b0a60bfbe22fb4443da19ecd9469a39f422b76b9bbdaaf8424245b29"
+    },
+    {
+      "component": "sdl",
+      "path": "patches/sdl.patch",
+      "sha256": "17ec682deebf34481c286064ced88e95e6918892fe5dea89c0cee352494463ba"
+    }
+  ],
+  "requiredOwnerPointSpriteInputPending": true,
+  "publicDifferences": [
+    "Required216-byte original-data input omitted; caller must pin supplied authorized data",
+    "No private seed fingerprint, factory settings, UI index, texture PNG, saves, runtime logs or binaries",
+    "Public recipe selects disabled checkpoint UI/work; ordinary card saves unchanged"
+  ],
+  "actualPublicBinaryBuilt": false
 }
