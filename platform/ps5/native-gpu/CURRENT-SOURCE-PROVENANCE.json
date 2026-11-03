@@ -1,8 +1,11 @@
 {
-  "schema": 5,
-  "selectedBuild": "combined-graphics-ui-owned-20261103-a1",
-  "selectedPrivateEboot": "14bee2cb1bc034d6df7ff9991052bd1d4e5d59ffe2aac39ebbb24712da88d101",
-  "privateSourceCohort": "425636b2c446f47c1d9917d31ac67f42536ed265af460f48c3a614da46b143ec",
+  "schema": 6,
+  "selectedBuild": "public-repairs-20261103-source",
+  "reviewedLogicRevision": "integrated-repairs-owned-20261103-a1",
+  "sourceOnly": true,
+  "sourceRecordsVerified": 213,
+  "SDLSourceMirrorsVerified": 40,
+  "supportStateSourceInputsVerified": 80,
   "originalArchivePins": [
     {
       "name": "game",
@@ -23,11 +26,23 @@
       "archiveSha256": "7b36fe7f802450aa0c98af2e151159c6c8d0e28ea8b0e4356187a21c2d3680a1"
     }
   ],
-  "sourceRecordsVerified": 213,
-  "SDLSourceMirrorsVerified": 40,
-  "supportStateSourceInputsVerified": 80,
-  "allSevenSelectedShaderHeadersReproduced": true,
-  "compilerSha256": "9643709c02c83e26773f96b6a87f197ab2e84f78be0879ad8fb3619418b5d9ad",
+  "patches": [
+    {
+      "component": "game",
+      "path": "patches/game.patch",
+      "sha256": "3b70182fe6d15135f11639d17e55bcada0953fafb830655bdddf2a39d6fa8162"
+    },
+    {
+      "component": "psyz",
+      "path": "patches/psyz.patch",
+      "sha256": "d57e5d088f44c3b7d771354352ed83f0f7a2f5a4b685d42a69afde23e084ff7e"
+    },
+    {
+      "component": "sdl",
+      "path": "patches/sdl.patch",
+      "sha256": "17ec682deebf34481c286064ced88e95e6918892fe5dea89c0cee352494463ba"
+    }
+  ],
   "publicPolicy": {
     "compileDefinition": "PE_NATIVE_PUBLIC_RELEASE=1",
     "cmakeSelection": "PE_NATIVE_PUBLIC_RELEASE=ON",
@@ -38,31 +53,57 @@
   },
   "publicSourceCohortGenerated": false,
   "publicFullGameBuildRun": false,
+  "shaderSourcesAndSevenExpectedHeaderHashesUnchanged": true,
+  "shaderRecompileRun": false,
+  "priorShaderProof": "Reviewed combined source export; all seven retained-source headers reproduced there",
+  "requiredCallerPointSpriteInputPending": true,
+  "originalDataInitializerIncluded": false,
+  "privateUiMappingIncluded": false,
+  "privateCohortIdentityIncluded": false,
   "gitExecuted": false,
   "targetExecuted": false,
-  "publicPublished": false,
-  "patches": [
+  "published": false,
+  "changedLogic": [
     {
       "component": "game",
-      "path": "patches/game.patch",
-      "sha256": "6f6d79d3242dee558b17258224a7134c6412cf40fe895de7a8c59f92c40b5d7e"
+      "path": "src/main/boot/main.c",
+      "priorPublicSha256": "4c4e6c983bc414ee4166cc0b65f2f760aab96bb6edf8510b5df4d6cd709976e2",
+      "repairLogicReviewedSha256": "412759a2141ff5667aeb04b24ba13f477789db4cee4df0327b6843dd3d4d3365",
+      "afterPublicSha256": "412759a2141ff5667aeb04b24ba13f477789db4cee4df0327b6843dd3d4d3365"
+    },
+    {
+      "component": "game",
+      "path": "src/main/boot/settings_overlay.h",
+      "priorPublicSha256": "2010277615b62757b64cbebea4b18fc6bf32f710b3cf71dca9ffd14f8ea6afc8",
+      "repairLogicReviewedSha256": "721c7043e21aa5cdb1818ac1fe77bd62724dcc5d1f097a3a6b97b77ae50260f1",
+      "afterPublicSha256": "26cdf9f358272b85129f9e43cff558c6e839173740c0242006d821f94b8ff685"
+    },
+    {
+      "component": "game",
+      "path": "src/main/render/dialogue_alpha.c",
+      "priorPublicSha256": "ab2f7641233c07734e53fea37b8d4d61697e2c38990c47cdf85c06d13fef5ef0",
+      "repairLogicReviewedSha256": "11dc9df8c2ce593bbe817d97d0163863a35a1cd8f550927e252f7807b442251c",
+      "afterPublicSha256": "11dc9df8c2ce593bbe817d97d0163863a35a1cd8f550927e252f7807b442251c"
     },
     {
       "component": "psyz",
-      "path": "patches/psyz.patch",
-      "sha256": "79bbc133b0a60bfbe22fb4443da19ecd9469a39f422b76b9bbdaaf8424245b29"
-    },
-    {
-      "component": "sdl",
-      "path": "patches/sdl.patch",
-      "sha256": "17ec682deebf34481c286064ced88e95e6918892fe5dea89c0cee352494463ba"
+      "path": "psyz/src/platform/sdl3_gpu.c",
+      "priorPublicSha256": "03b2de3e685619eb1b4affcf4dc10a84a6fabf53fa394f66e3946f9982cf822d",
+      "repairLogicReviewedSha256": "5956791e5a29b87e5a759df083bf76911f6f8e7ba8bc67454343a81584e4848b",
+      "afterPublicSha256": "5956791e5a29b87e5a759df083bf76911f6f8e7ba8bc67454343a81584e4848b"
     }
   ],
-  "requiredOwnerPointSpriteInputPending": true,
-  "publicDifferences": [
-    "Required216-byte original-data input omitted; caller must pin supplied authorized data",
-    "No private seed fingerprint, factory settings, UI index, texture PNG, saves, runtime logs or binaries",
-    "Public recipe selects disabled checkpoint UI/work; ordinary card saves unchanged"
+  "baselinePublishedApp": "v0.1.1/8310 unchanged; no new public binary from this export",
+  "repairScope": [
+    "Retro-only common glyph scale/baseline",
+    "Back / Return to Title / Quit Game, actual exit restored",
+    "PS5 initial defined black swapchain handoff; flash result unqualified"
   ],
-  "actualPublicBinaryBuilt": false
+  "notClaimed": [
+    "rat-fire or new electrical binding",
+    "full menu/selection hand remaster",
+    "human typography/flash/launcher qualification"
+  ],
+  "originalInputBoundary": "Same required caller216-byte input omission; generated initializer/input proofs not included",
+  "launcherArt": "Recipe only, no owner/private art binary; Microsoft DirectXTex may2026 MIT provenance retained"
 }

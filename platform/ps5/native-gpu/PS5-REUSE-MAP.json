@@ -1,9 +1,9 @@
 {
   "scope": "PS5 contribution only; no separate PC implementation/build",
   "basis": {
-    "selectedBuild": "game-test-theater-material-owned-20261102-a1",
-    "selectedPrivateEboot": "50b8c2403c4bcf552409fcd11cba4f58acee380afe4920b5b1174dee5b72fb19",
-    "privateSourceCohort": "1f64de225c3855c5b3a7e3250961f7360e189781d6a548413c92ee6065b3c64b"
+    "selectedBuild": "public-repairs-20261103-source",
+    "earlierMechanismsRetained": true,
+    "sourceOnly": true
   },
   "reusableMechanisms": [
     "Typed preflight before checkpoint writes and rollback ownership",

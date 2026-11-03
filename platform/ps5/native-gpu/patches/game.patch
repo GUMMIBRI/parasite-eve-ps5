@@ -8661,35 +8661,33 @@
  static void Host_ApplySettingsAction(
      HostOverlayState *state,
      int action,
-@@ -1153,29 +1926,96 @@
+@@ -1153,29 +1926,90 @@
      int pureCount = Host_SettingsPureRowCount(state->page);
      if (state->row >= pureCount) {
          if (activate_only) {
 -            if (state->row == pureCount) {
-+            if (state->row == pureCount
+-                state->open = 0;
+-            } else {
+-                state->quit = 1;
+-                state->open = 0;
 +#ifdef PE_PS5_GPU_NATIVE
-+                ||state->row==pureCount+1
-+#endif
-+            ) {
-+#ifdef PE_PS5_GPU_NATIVE
-+                if(state->row==pureCount+1&&Host_SettingsBack(state))return;
-+#endif
-                 state->open = 0;
-             } else {
-+#ifdef PE_PS5_GPU_NATIVE
++            if(state->row==pureCount){
++                state->open=0; /* Back always resumes; Circle retains category navigation. */
++            }else if(state->row==pureCount+1){
 +                if(!Host_ReturnTitleAvailable()){
 +                    state->status="Return to title is available during gameplay after active jobs finish.";
 +                    state->dirty=1;return;
 +                }
-+                state->status=NULL;
-+                state->return_title_row=state->row;
-+                state->prompt=2;state->row=1; /* No is the safe default. */
++                state->status=NULL;state->return_title_row=state->row;
++                state->prompt=2;state->row=1; /* No remains the safe default. */
 +                state->dirty=1;
-+#else
-                 state->quit = 1;
-                 state->open = 0;
-+#endif
++            }else if(state->row==pureCount+2){
++                state->quit=1;state->open=0; /* Existing application shutdown owner. */
              }
++#else
++            if(state->row==pureCount)state->open=0;
++            else{state->quit=1;state->open=0;}
++#endif
          }
          return;
      }
@@ -8761,7 +8759,7 @@
          state->status=Host_HdStatus();state->dirty=1;return;
      } else if (state->page == HOST_PAGE_IMAGES) {
          if (!activate_only) {
-@@ -1237,11 +2077,17 @@
+@@ -1237,11 +2071,17 @@
  
  static void Host_ControlGraphics(int geometry, int antialiasing, int filtering) {
      const int values[3] = {geometry, antialiasing, filtering};
@@ -8782,7 +8780,7 @@
      }
  }
  
-@@ -1304,13 +2150,39 @@
+@@ -1304,13 +2144,39 @@
          int isStepper = hitRow < pureCount &&
                          !(state->page == HOST_PAGE_CONTROLS && hitRow >= 1 && hitRow != HOST_ANALOG_RUN_ROW) &&
                          state->page != HOST_PAGE_IMAGES &&
@@ -8823,7 +8821,7 @@
      state->skip = skip;
      state->open = 0;
  }
-@@ -1485,6 +2357,9 @@
+@@ -1485,6 +2351,9 @@
          switch (event->key.scancode) {
          case SDL_SCANCODE_ESCAPE:
              if (!repeat) {
@@ -8833,7 +8831,7 @@
                  state->open = 0;
              }
              break;
-@@ -1533,9 +2408,22 @@
+@@ -1533,9 +2402,22 @@
          default:
              break;
          }
@@ -8856,7 +8854,7 @@
          case SDL_GAMEPAD_BUTTON_START:
              state->open = 0;
              break;
-@@ -1571,14 +2459,22 @@
+@@ -1571,14 +2453,22 @@
              break;
          }
      } else if (event->type == SDL_EVENT_MOUSE_WHEEL) {
@@ -8881,7 +8879,7 @@
                  state->dirty = 1;
              }
          }
-@@ -1590,10 +2486,19 @@
+@@ -1590,10 +2480,19 @@
      }
  }
  
@@ -8901,7 +8899,7 @@
  
      int useGpuOverlay = (game != NULL && s_overlayGpuDevice != NULL);
      SDL_Window *fallbackWindow = NULL;
-@@ -1602,6 +2507,15 @@
+@@ -1602,6 +2501,15 @@
      int fallbackTexW = 0, fallbackTexH = 0;
  
      if (!useGpuOverlay) {
@@ -8917,7 +8915,7 @@
          fallbackWindow = SDL_CreateWindow(
              "Parasite Eve - Settings", 640, 600, SDL_WINDOW_HIGH_PIXEL_DENSITY
          );
-@@ -1613,6 +2527,7 @@
+@@ -1613,6 +2521,7 @@
              SDL_DestroyWindow(fallbackWindow);
              return;
          }
@@ -8925,7 +8923,7 @@
          SDL_PumpEvents();
          SDL_FlushEvents(SDL_EVENT_WINDOW_FIRST, SDL_EVENT_WINDOW_LAST);
      }
-@@ -1625,7 +2540,11 @@
+@@ -1625,7 +2534,11 @@
  
      s_overlayState = (HostOverlayState){
          .open = 1,
@@ -8937,7 +8935,7 @@
          .row = 0,
          .bind_device = HOST_BIND_KEYBOARD,
          .capturing_binding = 0,
-@@ -1634,10 +2553,20 @@
+@@ -1634,10 +2547,20 @@
          .status = NULL
      };
  
@@ -8959,7 +8957,7 @@
          if (useGpuOverlay) {
              Host_OverlayRefreshGPU(s_overlayGpuDevice, game, &s_overlayState);
              Psyz_VideoVSync(0);
-@@ -1657,16 +2586,32 @@
+@@ -1657,16 +2580,32 @@
          }
      }
  
@@ -8992,7 +8990,7 @@
      }
      if (fallbackTexture != NULL) {
          SDL_DestroyTexture(fallbackTexture);
-@@ -1675,7 +2620,9 @@
+@@ -1675,7 +2614,9 @@
          SDL_DestroyRenderer(fallbackRenderer);
      }
      if (fallbackWindow != NULL) {
@@ -9002,7 +9000,7 @@
      }
  
      /* Avoid a held menu key leaking into the resumed original pad poll. */
-@@ -1684,6 +2631,22 @@
+@@ -1684,6 +2625,22 @@
      if (!paused) {
          Psyz_AudioUnpause();
      }
@@ -9025,7 +9023,7 @@
      if (quit) {
          SDL_Event event;
          SDL_zero(event);
-@@ -1694,6 +2657,22 @@
+@@ -1694,6 +2651,22 @@
  
  /* g_BootMovieSkipConfirm: the movie, game clock and audio stay paused until
   * the question is answered. No keeps watching. */
@@ -9048,7 +9046,7 @@
  static int Host_ConfirmMovieSkip(void) {
      SDL_Window *game = Psyz_GetWindow_SDL3();
      int paused = Psyz_AudioIsPaused();
-@@ -1718,6 +2697,26 @@
+@@ -1718,6 +2691,26 @@
          quit = s_overlayState.quit;
          s_overlayState = (HostOverlayState){0};
      } else {
@@ -9075,7 +9073,7 @@
          SDL_MessageBoxButtonData buttons[] = {
              {0, 1, "Yes"},
              {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT | SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "No"}
-@@ -1732,6 +2731,7 @@
+@@ -1732,6 +2725,7 @@
          };
          int choice = 0;
          skip = SDL_ShowMessageBox(&box, &choice) && choice == 1;
@@ -9083,7 +9081,7 @@
      }
  
      /* Avoid the answering key leaking into the resumed original pad poll. */
-@@ -1826,7 +2826,13 @@
+@@ -1826,7 +2820,13 @@
  }
  
  static bool Host_SettingsEvent(const SDL_Event *event) {
@@ -9097,7 +9095,7 @@
      if (s_overlayState.open) {
          if (event->type == SDL_EVENT_WINDOW_RESIZED ||
              event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
-@@ -1844,6 +2850,18 @@
+@@ -1844,6 +2844,18 @@
          Host_PauseForFocus(game);
          return true;
      }
@@ -9116,7 +9114,7 @@
      if (event->type == SDL_EVENT_KEY_DOWN && event->key.scancode == SDL_SCANCODE_ESCAPE) {
          if (!event->key.repeat) {
              Host_Settings(game);
-@@ -1854,12 +2872,50 @@
+@@ -1854,12 +2866,50 @@
  }
  
  static void Host_InstallSettingsOverlay(void) {
@@ -9167,7 +9165,7 @@
  #define STATE_FLAG_IMAGE_BUSY 0x00100000U
  #define STATE_FLAG_READY 0x00000100U
  
-@@ -1927,14 +2983,24 @@
+@@ -1927,14 +2977,24 @@
      Host_CrashAppend(out, size, &used,
                       "\r\n== Settings ==\r\n"
                       "Settings file: %s\r\n"
@@ -9193,7 +9191,7 @@
                       kAspectNames[host_options.aspect != 0], kDitherNames[host_options.dither != 0],
                       kSwitchNames[host_options.geometry_correction != 0], kAntialiasNames[host_options.antialiasing != 0],
                       kFilterNames[host_options.model_filtering != 0], host_options.volume, host_options.speed_factor,
-@@ -2145,10 +3211,16 @@
+@@ -2145,10 +3205,16 @@
  }
  
  int main(int argc, char **argv) {
@@ -9210,7 +9208,7 @@
      const char *paths[2] = {NULL, NULL};
      int result = EXIT_FAILURE;
      int interactive = 1;
-@@ -2171,6 +3243,20 @@
+@@ -2171,6 +3237,20 @@
      CrashReport_SetMods(pe_mod_crash_describe);
  #endif
      Host_InitOptions(interactive);
@@ -9231,7 +9229,7 @@
      if(argc==2 && (!strcmp(argv[1],"--download-backgrounds") || !strcmp(argv[1],"--verify-backgrounds")))return Host_HdCli(!strcmp(argv[1],"--verify-backgrounds"));
      unsigned internal_resolution = host_options.scale;
      int resolution_argument = 0;
-@@ -2202,7 +3288,11 @@
+@@ -2202,7 +3282,11 @@
              errno = 0;
              const char *value = argv[++arg];
              unsigned long scale = strtoul(value, &end, 10);
@@ -9244,7 +9242,7 @@
                  fprintf(stderr, "Invalid internal resolution\n");
                  return EXIT_FAILURE;
              }
-@@ -2301,6 +3391,26 @@
+@@ -2301,6 +3385,26 @@
          }
      }
  
@@ -9271,7 +9269,7 @@
      if (interactive) {
          if (!paths[0] && !paths[1]) {
              for (unsigned i = 0; i < 2; ++i) {
-@@ -2321,6 +3431,9 @@
+@@ -2321,6 +3425,9 @@
          return EXIT_FAILURE;
      }
  
@@ -9281,7 +9279,7 @@
      const char *headless_mode = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "PSYZ_HEADLESS");
      if ((host_options.antialiasing || host_options.model_filtering) &&
          headless_mode && !strcmp(headless_mode, "1")) {
-@@ -2384,7 +3497,7 @@
+@@ -2384,7 +3491,7 @@
          if (!paths[slot]) {
              continue;
          }
@@ -9290,7 +9288,7 @@
              fprintf(stderr, "Cannot open image: %s\n", images[slot].error);
              goto image_error;
          }
-@@ -2405,6 +3518,9 @@
+@@ -2405,6 +3512,9 @@
      g_CdImageVolumes[0] = g_CdImageVolumes[1] = NULL;
      pe_disc_close(&images[0]);
      pe_disc_close(&images[1]);
@@ -9300,7 +9298,7 @@
      if (!interactive) {
          goto shutdown;
      }
-@@ -2464,7 +3580,16 @@
+@@ -2464,7 +3574,16 @@
  
      g_BootHostActive = 1;
      PE_HOOK(PE_HOOK_INIT, (&(PeHookInit){interactive, host_options.user_file}));
@@ -9318,7 +9316,7 @@
          fprintf(stderr, "Cannot select internal resolution\n");
          goto shutdown;
      }
-@@ -2480,7 +3605,20 @@
+@@ -2480,7 +3599,20 @@
       * ends (mesh_list.c); kept on so switching it on mid-game works. */
      Psyz_GpuSetVramCopy(1);
      Boot_InitSystem();
@@ -9340,7 +9338,7 @@
          fprintf(stderr, "Requested internal resolution unavailable\n");
          goto shutdown;
      }
-@@ -2600,6 +3738,11 @@
+@@ -2600,6 +3732,11 @@
      }
  
  shutdown:
@@ -9352,7 +9350,7 @@
      Host_HdStop();
      if (g_BootDisplayPlaybackActive) {
          BootDisplay_WaitForCdAndRestoreCallbacks();
-@@ -2620,5 +3763,52 @@
+@@ -2620,5 +3757,52 @@
      g_BootHostPadEvents = NULL;
      g_BootHostPadEventCount = 0;
      return result;
@@ -10171,7 +10169,7 @@
  
              DrawText(p->surface, (float)OVERLAY_PAD * s, baseline, 17.0f * s,
 +#ifdef PE_PS5_GPU_NATIVE
-+                     quit ? "Return to Title" : row==pureCount+1 ? "Back" : "Resume game",quit?kDanger:label,
++                     quit ? "Quit Game" : row==pureCount+1 ? "Return to Title" : "Back",(quit||row==pureCount+1)?kDanger:label,
 +#else
                       quit ? "Quit game" : "Resume game", quit ? kDanger : label,
 +#endif
@@ -10218,9 +10216,9 @@
 +#ifdef PE_PS5_GPU_NATIVE
 +    int customCount=Host_SettingsPureRowCount(state->page);
 +    if(state->row<customCount&&(state->page==OVERLAY_PAGE_MODS||state->page==OVERLAY_PAGE_CHEATS||state->page==OVERLAY_PAGE_STATES||(state->page==OVERLAY_PAGE_DISCS&&state->row>=3)))return Host_ModernRowHelp(state->page,state->row);
-+    if(state->row==customCount)return "Resume the game with your current settings.";
-+    if(state->row==customCount+1)return (state->page==OVERLAY_PAGE_MODS||state->page==OVERLAY_PAGE_CHEATS)?"Return to the parent page, or resume from a category root. Choices are kept.":"Back to the game; current choices are kept, like Circle.";
-+    if(state->row==customCount+2)return state->status?state->status:"Return to title after confirmation. Unsaved progress is lost; close the app through the PS5 menu.";
++    if(state->row==customCount)return "Back to gameplay with your current settings; progress is not reset.";
++    if(state->row==customCount+1)return state->status?state->status:"Return to the title after confirmation. Unsaved progress is lost.";
++    if(state->row==customCount+2)return "Exit the application. Unsaved progress is lost; the PS5 closing error is still under investigation.";
 +#endif
 +#ifdef PE_PS5_GPU_NATIVE
 +    if(state->page==OVERLAY_PAGE_MODS&&state->row==5)
@@ -12575,7 +12573,7 @@
                                      s32 s2_flags2;
 --- /dev/null
 +++ b/src/main/render/dialogue_alpha.c
-@@ -0,0 +1,258 @@
+@@ -0,0 +1,278 @@
 +/* SPDX-License-Identifier: MIT -- original game-side queued glyph adapter.
 + * Font: retained IBM Plex OFL1.1; rasterizer: retained stb_truetype license.
 + * These dependencies retain their notices; not relicensed by this header. */
@@ -12698,6 +12696,23 @@
 +    const unsigned char *font=f->enabled==2?chakra_petch_bold_ttf:ibm_plex_sans_ttf;
 +    stbtt_fontinfo info;int offset=stbtt_GetFontOffsetForIndex(font,0);
 +    if(offset<0||!stbtt_InitFont(&info,font,offset)){free(rgba);return;}
++    /* Retro uses one actual-font coordinate system for the supported alphabet.
++     * Per-original-glyph auto-fit changes O/U proportions and bottom placement.
++     * Bound the common scale to the existing48px cell, including its contour;
++     * original12px advances/packet geometry and Modern's existing fit stay intact. */
++    float retro_scale=0;int retro_baseline=0;
++    if(f->enabled==2){
++        int min_y=0,max_y=0,max_w=0;
++        for(unsigned code=0;code<78;code++){
++            int cp=ascii(code),x0,y0,x1,y1;
++            if(cp<0||!stbtt_FindGlyphIndex(&info,cp)||!stbtt_GetCodepointBox(&info,cp,&x0,&y0,&x1,&y1))continue;
++            if(y0<min_y)min_y=y0;if(y1>max_y)max_y=y1;if(x1-x0>max_w)max_w=x1-x0;
++        }
++        if(max_y<=min_y||max_w<=0){free(rgba);return;}
++        retro_scale=44.0f/(max_y-min_y);
++        if(retro_scale*max_w>44.0f)retro_scale=44.0f/max_w;
++        retro_scale*=0.98f;retro_baseline=2+(int)STBTT_iceil(max_y*retro_scale);
++    }
 +    unsigned char valid[78]={0};unsigned count=0;
 +    for(unsigned code=0;code<78;code++){
 +        int cp=ascii(code);if(cp<0||(f->enabled==2&&!stbtt_FindGlyphIndex(&info,cp)))continue;
@@ -12714,11 +12729,14 @@
 +         * glyph advance, packet geometry, palette, or marker change. */
 +        const int contour=2,boxw=(maxx-minx+1)*4,boxh=(maxy-miny+1)*4;
 +        if(boxw<=2*contour||boxh<=2*contour)continue;
-+        float fitx=(float)(boxw-2*contour)/bw,fity=(float)(boxh-2*contour)/bh;scale*=(fitx<fity?fitx:fity)*0.98f;
++        if(f->enabled==2)scale=retro_scale;
++        else{float fitx=(float)(boxw-2*contour)/bw,fity=(float)(boxh-2*contour)/bh;scale*=(fitx<fity?fitx:fity)*0.98f;}
 +        unsigned char *bitmap=stbtt_GetCodepointBitmap(&info,scale,scale,cp,&bw,&bh,&x0,&y0);if(!bitmap)continue;
-+        if(bw>0&&bh>0&&bw<=(maxx-minx+1)*4&&bh<=(maxy-miny+1)*4){
-+            int left=(code%8)*FONT_CELL+2+minx*4+((maxx-minx+1)*4-bw)/2;
-+            int top=(code/8)*FONT_CELL+2+(maxy+1)*4-bh-contour;
++        int cell_left=(code%8)*FONT_CELL+2,cell_top=(code/8)*FONT_CELL+2;
++        int left=f->enabled==2?cell_left+(48-bw)/2:cell_left+minx*4+((maxx-minx+1)*4-bw)/2;
++        int top=f->enabled==2?cell_top+retro_baseline+y0:cell_top+(maxy+1)*4-bh-contour;
++        int fits=f->enabled==2?(left-contour>=cell_left&&top-contour>=cell_top&&left+bw+contour<=cell_left+48&&top+bh+contour<=cell_top+48):(bw<=(maxx-minx+1)*4&&bh<=(maxy-miny+1)*4);
++        if(bw>0&&bh>0&&fits){
 +            /* The authored font has dark coverage as well as bright ink.
 +             * Recreate its dark contour around the new alpha, then composite
 +             * the ink in straight RGBA (shader premultiplies exactly once).

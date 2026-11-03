@@ -1,7 +1,5 @@
 {
-  "selectedBuild": "combined-graphics-ui-owned-20261103-a1",
-  "selectedPrivateEboot": "14bee2cb1bc034d6df7ff9991052bd1d4e5d59ffe2aac39ebbb24712da88d101",
-  "privateSourceCohort": "425636b2c446f47c1d9917d31ac67f42536ed265af460f48c3a614da46b143ec",
+  "selectedBuild": "public-repairs-20261103-source",
   "sourceOnly": true,
   "platform": "PS5 native",
   "fullPublicBuildRun": false,
@@ -111,5 +109,20 @@
     "selectionHandBound": false
   },
   "knownMaterialQualityImproved": true,
-  "authoredColorActorLightImproved": true
+  "authoredColorActorLightImproved": true,
+  "repairBatch": {
+    "retroCommonFontMetrics": true,
+    "originalAndModernPreserved": true,
+    "pauseOrder": [
+      "Back",
+      "Return to Title",
+      "Quit Game"
+    ],
+    "quitRealExit": true,
+    "returnTitleConfirmationDefaultNo": true,
+    "initialBlackScanout": true,
+    "flashEliminationClaimed": false,
+    "ratFireBindingAdded": false,
+    "launcherFormatRecipeOnly": true
+  }
 }

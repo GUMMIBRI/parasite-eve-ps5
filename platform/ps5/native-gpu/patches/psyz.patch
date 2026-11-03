@@ -14572,7 +14572,7 @@
      if (!device) {
          ERRORF("SDL_CreateGPUDevice: %s", SDL_GetError());
          return false;
-@@ -859,6 +1388,11 @@
+@@ -859,9 +1388,38 @@
      swapchain_ok = !hidden_gpu_renderer &&
                     SDL_ClaimWindowForGPUDevice(device, sdl3_window);
      if (!swapchain_ok && !hidden_gpu_renderer) {
@@ -14584,7 +14584,34 @@
          WARNF("no swapchain, presentation disabled: %s", SDL_GetError());
      }
  
-@@ -881,9 +1415,34 @@
++#ifdef PE_PS5_GPU_NATIVE
++    if(swapchain_ok){
++        /* PS5 has a physical full-screen output, not a desktop hidden window.
++         * Give its newly claimed display one defined black scanout before
++         * allocating shaders/VRAM. Native VRAM black initialization alone
++         * does not initialize a swapchain image. No title/movie pixels or
++         * simulation clock are touched, and no artificial hold is inserted.
++         * Keep is_window_visible's existing display-configuration transition. */
++        if(!SDL_ShowWindow(sdl3_window))return GpuFail("initial display show",false);
++        SDL_GPUCommandBuffer *initial_display=AcquireCmd();
++        if(!initial_display)return false;
++        SDL_GPUTexture *initial_surface=NULL;
++        if(!SDL_WaitAndAcquireGPUSwapchainTexture(initial_display,sdl3_window,&initial_surface,NULL,NULL))
++            return GpuFail("initial display acquire",true);
++        if(!initial_surface)return GpuFail("initial display unavailable",false);
++        const SDL_GPUColorTargetInfo initial_black={.texture=initial_surface,
++            .clear_color={0,0,0,1},.load_op=SDL_GPU_LOADOP_CLEAR,.store_op=SDL_GPU_STOREOP_STORE};
++        SDL_GPURenderPass *initial_pass=SDL_BeginGPURenderPass(initial_display,&initial_black,1,NULL);
++        if(!initial_pass)return GpuFail("initial display black clear",false);
++        SDL_EndGPURenderPass(initial_pass);
++        if(!SubmitCmdAndWait())return false;
++        INFOF("Startup display initialized: swapchain=black completion=fence game-frame-count=unchanged title/movie=untouched visual-result=human-unverified");
++    }
++#endif
+     if (!CreateGpuResources()) {
+         return false;
+     }
+@@ -881,9 +1439,34 @@
  static bool UseSoftwareBackend(void) {
      if (!is_platform_initialized)
          InitPlatform();
@@ -14619,7 +14646,7 @@
  static bool PlatformBackend_SetDriverVsync(bool enable) {
      if (!device || !swapchain_ok) {
          return false;
-@@ -911,6 +1470,7 @@
+@@ -911,6 +1494,7 @@
  
  static SDL_Rect vram_dirty = {0, 0, 0, 0};
  static void MarkVramDirty(SDL_Rect r) {
@@ -14627,7 +14654,7 @@
      if (r.w <= 0 || r.h <= 0) {
          return;
      }
-@@ -921,6 +1481,7 @@
+@@ -921,6 +1505,7 @@
      if (x1 <= x0 || y1 <= y0) {
          return;
      }
@@ -14635,7 +14662,7 @@
      if (vram_dirty.w <= 0 || vram_dirty.h <= 0) {
          vram_dirty = (SDL_Rect){x0, y0, x1 - x0, y1 - y0};
          return;
-@@ -937,20 +1498,22 @@
+@@ -937,20 +1522,22 @@
  
  // mirror a native VRAM region into the scaled render target
  static void SyncNativeVramToScaled(int x, int y, int w, int h) {
@@ -14661,7 +14688,7 @@
                          .x = (Uint32)(x * internal_res),
                          .y = (Uint32)(y * internal_res),
                          .w = (Uint32)(w * internal_res),
-@@ -959,17 +1522,40 @@
+@@ -959,17 +1546,40 @@
          .filter = SDL_GPU_FILTER_NEAREST,
      };
      SDL_BlitGPUTexture(cmd, &blit);
@@ -14710,7 +14737,7 @@
      const SDL_GPUTextureCreateInfo info = {
          .type = SDL_GPU_TEXTURETYPE_2D,
          .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-@@ -980,20 +1566,23 @@
+@@ -980,20 +1590,23 @@
          .layer_count_or_depth = 1,
          .num_levels = 1,
      };
@@ -14744,7 +14771,7 @@
      return true;
  }
  
-@@ -1016,25 +1605,43 @@
+@@ -1016,25 +1629,43 @@
  static void ApplyPendingInternalRes(void) {
      unsigned n =
          AdjustInternalRes(set_internal_res * (set_antialiasing ? 2u : 1u));
@@ -14797,7 +14824,7 @@
              // upscale the whole native VRAM into the freshly created scaled
              // target
              SDL_GPUCommandBuffer* cmd = ReserveDrawDescriptors(1);
-@@ -1053,20 +1660,39 @@
+@@ -1053,20 +1684,39 @@
              }
          }
      } else if (!want_scaled && scaled_vram_render) {
@@ -14838,7 +14865,7 @@
      UpdateScissor();
      INFOF("internal resolution set to %dx (%dx%d), geometry_correction=%d", n,
            VRAM_W * n, VRAM_H * n, (int)geometry_correction);
-@@ -1084,6 +1710,17 @@
+@@ -1084,6 +1734,17 @@
  static unsigned title_texture_width, title_texture_height;
  static bool title_present_active;
  
@@ -14856,7 +14883,7 @@
  int Psyz_VideoSetRgb24Backdrop(const char *filename, const unsigned char *reference,
                               int width, int height, int top, int bottom) {
      if (filename && reference && (width<=0 || width>1024 || height<=0 || top<0 || bottom<0 ||
-@@ -1096,7 +1733,7 @@
+@@ -1096,7 +1757,7 @@
      if (title_output) SDL_DestroySurface(title_output);
      title_image=title_base=title_output=NULL;
      free(title_reference);title_reference=NULL;title_path[0]=0;title_hash=0;
@@ -14865,7 +14892,7 @@
      if (width<=0 || width>1024 || height<=0 || top<0 || bottom<0 ||
          height>512 || top>512-height || bottom>512-height-top || strlen(filename)>=sizeof(title_path)) return -1;
      SDL_Surface *source=LoadHdImage(filename);
-@@ -1114,9 +1751,10 @@
+@@ -1114,9 +1775,10 @@
  }
  
  static SDL_Surface *BuildTitleDisplay(const u8 *rgb) {
@@ -14878,7 +14905,7 @@
      if (!title_output || title_output->w!=(int)w || title_output->h!=(int)h) {
          if (title_base) SDL_DestroySurface(title_base);
          if (title_output) SDL_DestroySurface(title_output);
-@@ -1128,14 +1766,20 @@
+@@ -1128,14 +1790,20 @@
              title_base=title_output=NULL;return NULL;
          }
          SDL_Rect source={0,0,title_image->w,title_image->h};
@@ -14901,7 +14928,7 @@
      int margin=((int)w-title_width*(int)n)/2;
      for (int y=0;y<title_height;++y) for (int x=0;x<title_width;++x) {
          size_t at=((size_t)y*title_width+x)*3;
-@@ -1150,16 +1794,23 @@
+@@ -1150,16 +1818,23 @@
  }
  
  static SDL_GPUTexture *UploadTitleDisplay(SDL_Surface *surface) {
@@ -14928,7 +14955,7 @@
      }
      if (!title_texture || !title_transfer) return NULL;
      if (title_uploaded==title_generation) return title_texture;
-@@ -1246,8 +1897,8 @@
+@@ -1246,8 +1921,8 @@
              .num_levels = 1,
          };
          presentation_display = SDL_CreateGPUTexture(device, &info);
@@ -14939,7 +14966,7 @@
      }
      if (!presentation_display)
          return src;
-@@ -1276,8 +1927,8 @@
+@@ -1276,8 +1951,8 @@
                  .num_levels = 1,
              };
              antialias_display = SDL_CreateGPUTexture(device, &info);
@@ -14950,7 +14977,7 @@
          }
          if (antialias_display) {
              const SDL_GPUBlitInfo resolve = {
-@@ -1367,8 +2018,159 @@
+@@ -1367,8 +2042,159 @@
              SDL_clamp((Uint32)SDL_lroundf((y1 - y0) * (float)ky), 1u, ph - py)};
  }
  
@@ -15110,7 +15137,7 @@
          finish_time = SDL_GetPerformanceCounter();
          return;
      }
-@@ -1381,7 +2183,15 @@
+@@ -1381,7 +2207,15 @@
      }
  
      ApplyPendingInternalRes();
@@ -15126,7 +15153,7 @@
      SDL_GPUTexture* rgb24 =
          disp_on && display_rgb24 && !debug_show_vram && !present_skip
              ? PrepareRgb24Display()
-@@ -1400,9 +2210,11 @@
+@@ -1400,9 +2234,11 @@
              sc_h = ws_capture_height;
          } else if (!SDL_WaitAndAcquireGPUSwapchainTexture(
                         cmd, sdl3_window, &swapchain, &sc_w, &sc_h)) {
@@ -15139,7 +15166,7 @@
              if (!disp_on) {
                  const SDL_GPUColorTargetInfo blank_target = {
                      .texture = swapchain,
-@@ -1414,11 +2226,14 @@
+@@ -1414,11 +2250,14 @@
                      SDL_BeginGPURenderPass(cmd, &blank_target, 1, NULL);
                  SDL_EndGPURenderPass(blank_pass);
              } else {
@@ -15156,7 +15183,7 @@
                      .w = (Uint32)display_size.x * n,
                      .h = (Uint32)display_size.y * n,
                  };
-@@ -1429,6 +2244,9 @@
+@@ -1429,6 +2268,9 @@
                  float game_aspect =
                      GetCurrentGameAspectRatio(display_size.x, display_size.y);
                  if (rgb24 && title_present_active && widescreen) game_aspect=16.0f/9.0f;
@@ -15166,7 +15193,7 @@
                  if (debug_show_vram) {
                      src.x = 0;
                      src.y = 0;
-@@ -1443,6 +2261,12 @@
+@@ -1443,6 +2285,12 @@
                  WndSize win = {(int)sc_w, (int)sc_h};
                  SDL_Rect dst = FitGameToWindow(game_aspect, win);
                  bool ws_view = false;
@@ -15179,7 +15206,7 @@
  
                  /* Widescreen: the buffer holds 4/3 of the screen's width,
                   * around the screen's centre plus the view's shift (see
-@@ -1451,17 +2275,19 @@
+@@ -1451,17 +2299,19 @@
                   * the picture the swapchain clear leaves black; a room
                   * narrower than the window shows 4:3, with even bars. */
                  if (widescreen && !rgb24 && !debug_show_vram &&
@@ -15202,7 +15229,7 @@
                      const float pivot = WidescreenPivot(shift);
                      /* the room is shown where it belongs: the rest of its
                       * shift past the step drawn (WidescreenFieldStep) */
-@@ -1469,19 +2295,22 @@
+@@ -1469,19 +2319,22 @@
                      if (picture >= 0 && ws_picture[picture].field) {
                          float qx, qy;
                          WidescreenFieldStep(picture, (float)n, &qx, &qy);
@@ -15230,7 +15257,7 @@
                      }
                      const float view_l = centre + (float)shift - half;
                      const float view_r = centre + (float)shift + half;
-@@ -1521,9 +2350,43 @@
+@@ -1521,9 +2374,43 @@
                       * show the room up to half a pixel up or down */
                      const float sy = rest_y * (float)n;
                      ws_view = true;
@@ -15275,7 +15302,7 @@
  
                  const SDL_GPUBlitInfo blit = {
                      .source = src,
-@@ -1537,7 +2400,11 @@
+@@ -1537,7 +2424,11 @@
                          },
                      // clear the swapchain to black first so the horizontal or
                      // vertical bars around the game output are black
@@ -15288,7 +15315,7 @@
                      .clear_color = {0.0f, 0.0f, 0.0f, 1.0f},
                      // the widescreen stretch is 4/3 per game pixel: nearest
                      // would make every third column wider, so the view is
-@@ -1546,6 +2413,9 @@
+@@ -1546,6 +2437,9 @@
                                        : SDL_GPU_FILTER_NEAREST,
                  };
                  SDL_BlitGPUTexture(cmd, &blit);
@@ -15298,7 +15325,7 @@
              }
              if (!ws_capture_active && overlay_frame_cb) {
                  overlay_frame_cb();
-@@ -1561,28 +2431,74 @@
+@@ -1561,28 +2455,74 @@
                  overlay_render_cb(cmd, pass);
                  SDL_EndGPURenderPass(pass);
              }
@@ -15381,7 +15408,7 @@
          if (sprite_atlas_texture) SDL_ReleaseGPUTexture(device,sprite_atlas_texture);
          sprite_atlas_texture=NULL;sprite_atlas_cells=0;
          sprite_atlas_count=0;sprite_atlas_bytes=0;next_sprite_atlas=NULL;
-@@ -1607,23 +2523,13 @@
+@@ -1607,23 +2547,13 @@
          if (title_texture) SDL_ReleaseGPUTexture(device,title_texture);
          if (title_transfer) SDL_ReleaseGPUTransferBuffer(device,title_transfer);
          title_texture=NULL;title_transfer=NULL;title_uploaded=title_generation=0;
@@ -15408,7 +15435,7 @@
          if (vram_render) {
              SDL_ReleaseGPUTexture(device, vram_render);
              vram_render = NULL;
-@@ -1686,16 +2592,22 @@
+@@ -1686,16 +2616,22 @@
          sdl3_window = NULL;
          is_window_visible = false;
      }
@@ -15431,7 +15458,7 @@
      antialiasing = set_antialiasing = model_filtering = set_model_filtering =
          false;
      Psyz_PgxpSetActive(0);
-@@ -1817,13 +2729,13 @@
+@@ -1817,13 +2753,13 @@
          }
      }
      if (UseSoftwareBackend() || display_rgb24 ||
@@ -15447,7 +15474,7 @@
          display_area.y < 0 || display_size.x <= 0 || display_size.y <= 0 ||
          display_area.x > VRAM_W - display_size.x ||
          display_area.y > VRAM_H - display_size.y)
-@@ -1877,16 +2789,23 @@
+@@ -1877,16 +2813,23 @@
          return NULL;
      }
      SDL_GPUBlitRegion visible = {
@@ -15474,7 +15501,7 @@
      SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
      if (!copy) {
          free(pixels);
-@@ -1905,7 +2824,8 @@
+@@ -1905,7 +2848,8 @@
      SDL_EndGPUCopyPass(copy);
      if (!SubmitCmdAndWait()) {
          free(pixels);
@@ -15484,7 +15511,7 @@
          return NULL;
      }
      const u8* rgba = SDL_MapGPUTransferBuffer(device, transfer, false);
-@@ -1948,6 +2868,10 @@
+@@ -1948,6 +2892,10 @@
  }
  
  int Psyz_VideoSetInternalResolution(unsigned multiplier) {
@@ -15495,7 +15522,7 @@
      if (multiplier < 1) {
          return -1;
      }
-@@ -1968,17 +2892,28 @@
+@@ -1968,17 +2916,28 @@
  }
  
  int Psyz_VideoSetGeometryCorrection(int enabled) {
@@ -15525,7 +15552,7 @@
      set_antialiasing = enabled != 0;
      if (sdl3_window && is_platform_init_successful)
          ApplyPendingInternalRes();
-@@ -1986,20 +2921,70 @@
+@@ -1986,20 +2945,70 @@
  }
  int Psyz_VideoGetAntialiasing(void) { return set_antialiasing; }
  int Psyz_VideoSetModelFiltering(int enabled) {
@@ -15598,7 +15625,7 @@
          ws_picture[0].y = ws_picture[1].y = -1;
          ws_centred = false;
      }
-@@ -2044,7 +3029,8 @@
+@@ -2044,7 +3053,8 @@
      /* The view slides towards the side that has picture at a room's end, so
       * the end of the picture lines up with the view's edge, but never so far
       * that the game's own screen leaves the view. A picture narrower than
@@ -15608,7 +15635,7 @@
       * Drawing into the buffer squeezes around the shifted point from here
       * on, so the buffer holds the shifted view. */
      Draw_FlushBuffer();
-@@ -2060,10 +3046,11 @@
+@@ -2060,10 +3070,11 @@
      bool ends_move = false;
      dx = SDL_clamp(dx, -2.0f, 2.0f);
      dy = SDL_clamp(dy, -2.0f, 2.0f);
@@ -15624,7 +15651,7 @@
          /* whole pixels, rounded towards the picture so no sliver of black shows
           */
          if (centre - half < (float)left) {
-@@ -2091,6 +3078,21 @@
+@@ -2091,6 +3102,21 @@
      ws_picture[slot].ex = field ? dx - (exact_shift - shift) : 0.0f;
      ws_picture[slot].ey = field ? dy : 0.0f;
      ws_picture[slot].camera_x = camera_x;
@@ -15646,7 +15673,7 @@
  }
  
  static void ApplyDisplayPendingChanges() {
-@@ -2135,8 +3137,14 @@
+@@ -2135,8 +3161,14 @@
  }
  
  void Draw_DisplayEnable(unsigned int on) {
@@ -15662,7 +15689,7 @@
      disp_on = on;
      if (on) {
          ApplyDisplayPendingChanges();
-@@ -2144,6 +3152,12 @@
+@@ -2144,6 +3176,12 @@
  }
  
  void Draw_DisplayArea(unsigned int x, unsigned int y) {
@@ -15675,7 +15702,7 @@
      /* A buffer's picture span lasts until the display leaves it: the next
       * frame drawn there sets a new one, or draws without one (all shown). */
      if ((int)y != display_area.y) {
-@@ -2162,6 +3176,10 @@
+@@ -2162,6 +3200,10 @@
  }
  
  void Draw_DisplayHorizontalRange(unsigned int start, unsigned int end) {
@@ -15686,7 +15713,7 @@
      if (UseSoftwareBackend())
          return;
      set_disp_horiz = (int)(end - start) / 10;
-@@ -2169,6 +3187,12 @@
+@@ -2169,6 +3211,12 @@
  }
  
  void Draw_DisplayVerticalRange(unsigned int start, int unsigned end) {
@@ -15699,7 +15726,7 @@
      set_disp_vert = (int)(end - start);
      display_size.y = set_disp_vert * (display_double_height ? 2 : 1);
      if (UseSoftwareBackend())
-@@ -2177,6 +3201,11 @@
+@@ -2177,6 +3225,11 @@
  }
  
  void Draw_SetDisplayMode(DisplayMode* mode) {
@@ -15711,7 +15738,7 @@
      display_rgb24 = mode->rgb24;
      // TODO the interlace flag is ignored
      if (mode->reversed) {
-@@ -2264,11 +3293,48 @@
+@@ -2264,11 +3317,48 @@
          }
      }
  }
@@ -15762,7 +15789,7 @@
      bool isPoly = !(code & 0x40);
      bool isLine = (code & 0x40) && !(code & 0x20);
      bool isTile = (code & 0x40) && (code & 0x20);
-@@ -2288,7 +3354,14 @@
+@@ -2288,7 +3378,14 @@
      // This also covers Gouraud's fifth-slot colour read-ahead.
      Draw_EnsureBufferWillNotOverflow(6, 6);
      v = vertex_cur;
@@ -15778,7 +15805,7 @@
      if (isShadeTex) {
          v->r = (unsigned char)(*packets >> 0);
          v->g = (unsigned char)(*packets >> 8);
-@@ -2365,6 +3438,17 @@
+@@ -2365,6 +3462,17 @@
                          max_w = w;
                      }
                  }
@@ -15796,7 +15823,7 @@
                  if (!pgxp_valid) {
                      for (int i = 0; i < nVertices; ++i) {
                          vertex_cur[i].pgxp_pos[2] = -1.0f;
-@@ -2376,8 +3460,60 @@
+@@ -2376,8 +3484,60 @@
                  }
              }
  
@@ -15859,7 +15886,7 @@
              if (nVertices == 4) {
                  Vertex second[3] = {vertex_cur[1], vertex_cur[3],
                                      vertex_cur[2]};
-@@ -2497,7 +3633,10 @@
+@@ -2497,7 +3657,10 @@
                      lt |= TPAGE_DITHER;
                  }
                  for (int k = 0; k < 4; k++) {
@@ -15871,7 +15898,7 @@
                      SET_TC(&q[k], lt, -1);
                  }
                  index_cur[0] = base + 0;
-@@ -2603,6 +3742,17 @@
+@@ -2603,6 +3766,17 @@
                  vertex_cur[i].hd_uv[2]=atlas_extension?(widescreen&&sprite_atlases_enabled?2:3):(sprite_atlases_enabled?1:0);
              }
          }
@@ -15889,7 +15916,7 @@
          SET_TC_ALL(vertex_cur, tpage, clut);
          Draw_EnqueueBuffer(4, 6);
      }
-@@ -2613,6 +3763,7 @@
+@@ -2613,6 +3787,7 @@
  void Draw_SetAreaStart(int x, int y) {
      if (UseSoftwareBackend()) {
          software_rasterizer.area_start(x, y);
@@ -15897,7 +15924,7 @@
          return;
      }
      draw_area_start.x = x;
-@@ -2621,6 +3772,7 @@
+@@ -2621,6 +3796,7 @@
  void Draw_SetAreaEnd(int x, int y) {
      if (UseSoftwareBackend()) {
          software_rasterizer.area_end(x, y);
@@ -15905,7 +15932,7 @@
          return;
      }
      draw_area_end.x = x;
-@@ -2758,6 +3910,7 @@
+@@ -2758,6 +3934,7 @@
      SDL_UploadToGPUTexture(copy, &src, &dst, false);
      SDL_EndGPUCopyPass(copy);
      MarkVramDirty((SDL_Rect){rect->x, rect->y, rect->w, rect->h});
@@ -15913,7 +15940,7 @@
      SyncNativeVramToScaled(rect->x, rect->y, rect->w, rect->h);
  }
  
-@@ -2792,6 +3945,16 @@
+@@ -2792,6 +3969,16 @@
      free(rgba);
  }
  
@@ -15930,7 +15957,7 @@
  void Draw_MoveImage(PS1_RECT* rect, unsigned int x, unsigned int y) {
      if (UseSoftwareBackend()) {
          software_rasterizer.move_image(rect, x, y);
-@@ -2862,6 +4025,8 @@
+@@ -2862,6 +4049,8 @@
  }
  
  void Draw_ResetBuffer(void) {
@@ -15939,7 +15966,7 @@
      if (UseSoftwareBackend()) {
          software_rasterizer.reset_buffer();
          return;
-@@ -2883,6 +4048,9 @@
+@@ -2883,6 +4072,9 @@
      }
      SDL_GPUCommandBuffer* cmd = AcquireCmd();
      if (!cmd) {
@@ -15949,7 +15976,7 @@
          Draw_ResetBuffer();
          return;
      }
-@@ -2890,6 +4058,9 @@
+@@ -2890,6 +4082,9 @@
      u8* map = SDL_MapGPUTransferBuffer(device, vtx_transfer, true);
      if (!map) {
          ERRORF("SDL_MapGPUTransferBuffer: %s", SDL_GetError());
@@ -15959,7 +15986,7 @@
          Draw_ResetBuffer();
          return;
      }
-@@ -2946,21 +4117,39 @@
+@@ -2946,21 +4141,39 @@
      /* Native VRAM is independently rasterized: gameplay readback and texture
       * feedback must not depend on high-resolution sample positions. */
      for (unsigned target_index = 0;
@@ -16005,7 +16032,7 @@
              /* Three sampled textures, up to two draws (color and mask). Reserve
               * both heaps' worst-case sampler use before any destination copy.
               */
-@@ -2975,19 +4164,22 @@
+@@ -2975,19 +4188,22 @@
                  int x1 = clip.x * (int)target_scale;
                  int y1 = clip.y * (int)target_scale;
                  for (int i = start; i < end; ++i) {
@@ -16032,7 +16059,7 @@
                          target_scale;
                      float y = (draw_offset.y + vy + bias) * target_scale;
                      x0 = SDL_min(x0, (int)SDL_floorf(x) - 1);
-@@ -3007,7 +4199,7 @@
+@@ -3007,7 +4223,7 @@
                  }
                  SDL_GPUCopyPass* blend_copy = SDL_BeginGPUCopyPass(cmd);
                  SDL_GPUTextureLocation from = {
@@ -16041,7 +16068,7 @@
                      .x = (Uint32)x0,
                      .y = (Uint32)y0};
                  SDL_GPUTextureLocation to = from;
-@@ -3018,7 +4210,7 @@
+@@ -3018,7 +4234,7 @@
                  SDL_EndGPUCopyPass(blend_copy);
              }
              const SDL_GPUColorTargetInfo target = {
@@ -16050,7 +16077,7 @@
                  .load_op = SDL_GPU_LOADOP_LOAD,
                  .store_op = SDL_GPU_STOREOP_STORE,
              };
-@@ -3049,8 +4241,8 @@
+@@ -3049,8 +4265,8 @@
              const SDL_GPUTextureSamplerBinding sampler_binding[3] = {
                  {.texture=vram_sample,.sampler=vram_sampler},
                  {.texture=destination_sample,.sampler=vram_sampler},
@@ -16061,7 +16088,7 @@
              SDL_BindGPUFragmentSamplers(pass,0,sampler_binding,3);
              /* The viewport maps shader x to offset * (1 - grid) + x * grid;
               * the shader squeezes around the centre in its own space, so
-@@ -3059,10 +4251,14 @@
+@@ -3059,10 +4275,14 @@
              const float offset_ubo[8] = {
                  (float)draw_offset.x,
                  (float)draw_offset.y,
@@ -16078,7 +16105,7 @@
                  sub_x,
                  sub_y};
              SDL_PushGPUVertexUniformData(
-@@ -3071,6 +4267,7 @@
+@@ -3071,6 +4291,7 @@
                  semi ? 2u : 0u, target_scale,
                  draw_grid_source_width == draw_grid_target_width,
                  (target_index && model_filtering ? 1u : 0u) |
@@ -16086,7 +16113,7 @@
                      (dither_mode == PSYZ_DITHER_OFF ? 2u : 0u)};
              SDL_PushGPUFragmentUniformData(
                  cmd, 0, color_pass, sizeof(color_pass));
-@@ -3087,6 +4284,7 @@
+@@ -3087,6 +4308,7 @@
                      1, target_scale,
                      draw_grid_source_width == draw_grid_target_width,
                      (target_index && model_filtering ? 1u : 0u) |
@@ -16094,7 +16121,7 @@
                          (dither_mode == PSYZ_DITHER_OFF ? 2u : 0u)};
                  SDL_PushGPUFragmentUniformData(
                      cmd, 0, mask_pass, sizeof(mask_pass));
-@@ -3099,5 +4297,240 @@
+@@ -3099,5 +4321,240 @@
          }
      }
      MarkVramDirty(scissor_rect);
