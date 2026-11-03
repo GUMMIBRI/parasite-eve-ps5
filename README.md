@@ -6,7 +6,7 @@ Native PS5 homebrew adaptation of [Parasite Eve PC](https://github.com/khasinski
 
 *Theater exterior in widescreen (owner-supplied capture). This retained capture is not tied to the latest beta build.*
 
-PS5 community and support: https://discord.gg/Yg88tHYXK
+Parasite Eve 1&2 Port community: https://discord.gg/Yg88tHYXK
 
 ## Download and install
 
