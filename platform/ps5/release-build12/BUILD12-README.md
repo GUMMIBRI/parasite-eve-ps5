@@ -1,0 +1,1 @@
+Build12 upgrade applies after pinned baseline preparation, validating every changed source preimage and postimage. Existing public empty pack, caller-input omission and no-seed boundaries retained. No private cohort or generated owner input is distributed. Public checkpoint policy remains1.

@@ -1,0 +1,115 @@
+{
+  "selectedBuild": "combined-graphics-ui-owned-20261103-a1",
+  "selectedPrivateEboot": "14bee2cb1bc034d6df7ff9991052bd1d4e5d59ffe2aac39ebbb24712da88d101",
+  "privateSourceCohort": "425636b2c446f47c1d9917d31ac67f42536ed265af460f48c3a614da46b143ec",
+  "sourceOnly": true,
+  "platform": "PS5 native",
+  "fullPublicBuildRun": false,
+  "checkpoint": {
+    "pm": "PEPMID30",
+    "gpu": "PEVRAM06",
+    "gpuSchema": 6,
+    "fontInner": "PEDIAL02",
+    "fontOuter": "PEDIAL03",
+    "legacyVm": "PEFXVM04",
+    "legacyFx": "PELEGFX4",
+    "legacyBytes": 92160,
+    "theater": "PETCTX15",
+    "tasks": "PETASK13",
+    "startupModels": "PESTMD04",
+    "startupModelBytes": 31168,
+    "experimental": true,
+    "arbitraryFrame": false,
+    "crossProcess": false,
+    "runtimeCaptureQualified": false,
+    "publicEnabled": false,
+    "publicLabel": "Coming soon-ish*"
+  },
+  "fonts": {
+    "styles": [
+      "Original",
+      "Modern IBM Plex",
+      "Retro Chakra Petch"
+    ],
+    "contextsIndependent": true
+  },
+  "menus": [
+    "Graphics",
+    "Mods",
+    "Save states",
+    "Cheats",
+    "Controls",
+    "System"
+  ],
+  "audioTab": false,
+  "privateFactorySettingsIncluded": false,
+  "laterOrbFlameIncluded": true,
+  "toast": {
+    "exactBuiltinFrameCallbackOnly": true,
+    "requiresIdle": true,
+    "wireChanged": false,
+    "captureSuccessQualified": false
+  },
+  "nativeMaterials": {
+    "sources": [
+      "P117 RoomM005 CrossFlare phase2 joints9/20 age<35",
+      "P115 OrbitFlareController",
+      "P109 RisingEmber state1",
+      "P118 exact M023 JointGlow first0x80 quad"
+    ],
+    "selectors": [
+      6,
+      7,
+      8
+    ],
+    "kinds": [
+      1,
+      2,
+      3
+    ],
+    "invalidSentinel": 4,
+    "atomicPackedWords": 11,
+    "maximumQuads": 8,
+    "maximumLights": 8,
+    "maximumArenaBytes": 512,
+    "originalPacketsRetained": true,
+    "originalModeAddsNone": true,
+    "defaultsChanged": false,
+    "newAssets": 0,
+    "newTextures": 0,
+    "newHeapAllocations": 0,
+    "appearanceOrAlligatorCoverageQualified": false
+  },
+  "pointSprite": {
+    "typedControls": [
+      0,
+      1,
+      2
+    ],
+    "requiredOwnerSuppliedWords": 54,
+    "newRetailTailWordsDistributed": 0,
+    "completePublicBuildWithoutInput": false,
+    "missingInputFailsClosed": true
+  },
+  "publicPolicy": {
+    "compileDefinition": "PE_NATIVE_PUBLIC_RELEASE=1",
+    "cmakeSelection": "PE_NATIVE_PUBLIC_RELEASE=ON",
+    "checkpointLabel": "Coming soon-ish*",
+    "checkpointUiAndWorkDisabled": true,
+    "ordinaryCardsPreserved": true,
+    "publicBinaryBuilt": false
+  },
+  "returnToTitle": {
+    "ps5Only": true,
+    "confirmationDefaultNo": true,
+    "deferredOriginalSoftReset": true,
+    "runtimeQualified": false
+  },
+  "curatedUi": {
+    "selector": 9,
+    "privateMappingIncluded": false,
+    "selectionHandBound": false
+  },
+  "knownMaterialQualityImproved": true,
+  "authoredColorActorLightImproved": true
+}
