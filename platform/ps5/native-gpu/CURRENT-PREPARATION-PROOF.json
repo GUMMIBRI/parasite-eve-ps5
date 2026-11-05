@@ -1,8 +1,11 @@
 {
-  "schema": 4,
-  "selectedBuild": "game-test-point7-owned-20261102-a1",
-  "selectedPrivateEboot": "58058fe6287667b980c1a19cc4542157119a183552ed09e99e147b34d29b9520",
-  "privateSourceCohort": "97b40f82c23218e69f2cff9900377a57b0d0be759afc3d361d31df500f2998e9",
+  "schema": 6,
+  "selectedBuild": "public-repairs-20261103-source",
+  "reviewedLogicRevision": "integrated-repairs-owned-20261103-a1",
+  "sourceOnly": true,
+  "sourceRecordsVerified": 213,
+  "SDLSourceMirrorsVerified": 40,
+  "supportStateSourceInputsVerified": 80,
   "originalArchivePins": [
     {
       "name": "game",
@@ -23,17 +26,41 @@
       "archiveSha256": "7b36fe7f802450aa0c98af2e151159c6c8d0e28ea8b0e4356187a21c2d3680a1"
     }
   ],
-  "sourceRecordsVerified": 213,
-  "SDLSourceMirrorsVerified": 40,
-  "supportStateSourceInputsVerified": 80,
-  "allSevenSelectedShaderHeadersReproduced": true,
-  "compilerSha256": "9643709c02c83e26773f96b6a87f197ab2e84f78be0879ad8fb3619418b5d9ad",
+  "patches": [
+    {
+      "component": "game",
+      "path": "patches/game.patch",
+      "sha256": "3b70182fe6d15135f11639d17e55bcada0953fafb830655bdddf2a39d6fa8162"
+    },
+    {
+      "component": "psyz",
+      "path": "patches/psyz.patch",
+      "sha256": "d57e5d088f44c3b7d771354352ed83f0f7a2f5a4b685d42a69afde23e084ff7e"
+    },
+    {
+      "component": "sdl",
+      "path": "patches/sdl.patch",
+      "sha256": "17ec682deebf34481c286064ced88e95e6918892fe5dea89c0cee352494463ba"
+    }
+  ],
+  "publicPolicy": {
+    "compileDefinition": "PE_NATIVE_PUBLIC_RELEASE=1",
+    "cmakeSelection": "PE_NATIVE_PUBLIC_RELEASE=ON",
+    "checkpointLabel": "Coming soon-ish*",
+    "checkpointUiAndWorkDisabled": true,
+    "ordinaryCardsPreserved": true,
+    "publicBinaryBuilt": false
+  },
   "publicSourceCohortGenerated": false,
   "publicFullGameBuildRun": false,
+  "shaderSourcesAndSevenExpectedHeaderHashesUnchanged": true,
+  "shaderRecompileRun": false,
+  "priorShaderProof": "Reviewed combined source export; all seven retained-source headers reproduced there",
+  "requiredCallerPointSpriteInputPending": true,
+  "originalDataInitializerIncluded": false,
+  "privateUiMappingIncluded": false,
+  "privateCohortIdentityIncluded": false,
   "gitExecuted": false,
   "targetExecuted": false,
-  "publicPublished": false,
-  "requiredOriginalPointSpriteInputDistributed": false,
-  "completePublicBuildPossibleWithoutOwnerInput": false,
-  "originalDataLicenseCleared": false
+  "published": false
 }

@@ -24,12 +24,12 @@
     {
       "component": "game",
       "path": "patches/game.patch",
-      "sha256": "9b87a514be723a69a1ae33f968dee31523a0b552089cd89b14450e9057f44b06"
+      "sha256": "3b70182fe6d15135f11639d17e55bcada0953fafb830655bdddf2a39d6fa8162"
     },
     {
       "component": "psyz",
       "path": "patches/psyz.patch",
-      "sha256": "900fa75d087242b6629c8b3e3dbe3590a708e7800b71d88c200f3a29154dbed2"
+      "sha256": "d57e5d088f44c3b7d771354352ed83f0f7a2f5a4b685d42a69afde23e084ff7e"
     },
     {
       "component": "sdl",
@@ -658,9 +658,9 @@
       "component": "game",
       "path": "src/main/boot/frame_loop.c",
       "added": false,
-      "size": 9727,
+      "size": 10344,
       "before": "b0196698bd0eb3d2cdb7f6b374e74e863b1a7a3cfa1deeddad0154b25b9427e7",
-      "after": "4d570ce57b5cf83aac112b27d461e7189885bf96628742e1152e904851eaa968"
+      "after": "2b5c7592f213094dc0ce5f982f67e72a7fb1ccb66acdf81b1b5433b28c7619f2"
     },
     {
       "component": "game",
@@ -746,9 +746,9 @@
       "component": "game",
       "path": "src/main/boot/main.c",
       "added": false,
-      "size": 177020,
+      "size": 179557,
       "before": "1b43b1264a57cc201a275fc619137e8907ed2cb73072760f15f5ab67209d6e8c",
-      "after": "e97488c48b127eb05d8e739dc65427f44ee4401527abff92ba3675c01c97a01a"
+      "after": "412759a2141ff5667aeb04b24ba13f477789db4cee4df0327b6843dd3d4d3365"
     },
     {
       "component": "game",
@@ -770,25 +770,25 @@
       "component": "game",
       "path": "src/main/boot/native_tabs.h",
       "added": true,
-      "size": 6873,
+      "size": 7572,
       "before": null,
-      "after": "d4089d655123baa179e900c1bdb38dbf0628efb09de36e289e0a3d88c4b08208"
+      "after": "57b9487de75846d30d791aee7f282f2017c43cd1667817e8c3e439b2d48c9f18"
     },
     {
       "component": "game",
       "path": "src/main/boot/settings_overlay.h",
       "added": false,
-      "size": 75928,
+      "size": 76971,
       "before": "27325339465873edfc2d481dfdd78c42283fc8d4ce9dda6f7990a6a92271cc87",
-      "after": "099371b5342e1d129b393d5aab21e6884c1957381d60caa41a572b62c6f31515"
+      "after": "26cdf9f358272b85129f9e43cff558c6e839173740c0242006d821f94b8ff685"
     },
     {
       "component": "game",
       "path": "src/main/boot/state_ui.h",
       "added": true,
-      "size": 23738,
+      "size": 28596,
       "before": null,
-      "after": "8f154ecdff61007dc80a116edab9aa70f586b649e642216c69de50f19990f0ec"
+      "after": "1dc11f96bf57cdf84899fa7320879141e5221ec82173d523dfd4ab79acf03e4f"
     },
     {
       "component": "game",
@@ -914,9 +914,9 @@
       "component": "game",
       "path": "src/main/fieldfx/particle_mesh/pe_particle_light_native.h",
       "added": true,
-      "size": 8037,
+      "size": 8489,
       "before": null,
-      "after": "e4232c249d84ae6be3f001da3c0fd7eceb9d35e1f20f1c87f84d32137d0e41f1"
+      "after": "b3994686bde01870cbff5471ec22bfba174d4c9447146aca273138a22f71e8ae"
     },
     {
       "component": "game",
@@ -930,9 +930,9 @@
       "component": "game",
       "path": "src/main/fieldfx/particle_mesh/pe_particle_render.c",
       "added": true,
-      "size": 40777,
+      "size": 40803,
       "before": null,
-      "after": "12a79e65b3ea16ec6e705cbd236532ed8f9bb558d683c516dd67d7cd7563d256"
+      "after": "8efb956c1a1cafcfd08f4226c4c1e6ac41c77d503b07bd0cfa98b7e749079f37"
     },
     {
       "component": "game",
@@ -978,9 +978,9 @@
       "component": "game",
       "path": "src/main/render/dialogue_alpha.c",
       "added": true,
-      "size": 21053,
+      "size": 22339,
       "before": null,
-      "after": "ab2f7641233c07734e53fea37b8d4d61697e2c38990c47cdf85c06d13fef5ef0"
+      "after": "11dc9df8c2ce593bbe817d97d0163863a35a1cd8f550927e252f7807b442251c"
     },
     {
       "component": "game",
@@ -1274,9 +1274,9 @@
       "component": "psyz",
       "path": "psyz/src/platform/duck_models.h",
       "added": true,
-      "size": 32200,
+      "size": 35765,
       "before": null,
-      "after": "61faa621efb8b4f99e153023a80baec272ef2d22dc181daf512748bc0274c370"
+      "after": "01c00617da58e73e9d5192aafe492a72ea38407925c42c1dbfe0e260e095c944"
     },
     {
       "component": "psyz",
@@ -1482,9 +1482,9 @@
       "component": "psyz",
       "path": "psyz/src/platform/sdl3_gpu.c",
       "added": false,
-      "size": 209444,
+      "size": 211331,
       "before": "f1c848057214c0330d03e01ee48149444e262c27b7d925460330785f83436184",
-      "after": "7f2817786e2a215745aa66487b0c90dffa1cec9c56f2ed9ef781bcbde8f985b3"
+      "after": "5956791e5a29b87e5a759df083bf76911f6f8e7ba8bc67454343a81584e4848b"
     },
     {
       "component": "psyz",
@@ -1498,9 +1498,9 @@
       "component": "psyz",
       "path": "psyz/src/platform/shaders/psx.frag.glsl",
       "added": false,
-      "size": 13010,
+      "size": 14503,
       "before": "aef7b7f12dc00def2b36b1e44bcd58981246ab0ba01101c1c1458bdd48ef7926",
-      "after": "e393224feeb64fac696bea717302974a4be3d8926dd7a1e7d06bd92d60cf5bc8"
+      "after": "095aae2bb6fcc70b20433ce3260661f11b0c13e91fbf048f72dc9d029f6e0637"
     },
     {
       "component": "psyz",
@@ -1760,7 +1760,7 @@
     {
       "component": "psyz",
       "path": "psyz/src/platform/shaders/psx_frag_spv.h",
-      "after": "12f7a0b978ea7beb412ac92f0882ad0e2a5a8c40a03e97cab0f05f5f038a719c"
+      "after": "2a17cd3df3ef8d6a352724e450b4b3e8a75e127187bf8f3be0fb9b073d37d6ba"
     },
     {
       "component": "psyz",
@@ -1788,10 +1788,9 @@
       "after": "444beeabcae47d78e5e8d53337f39475c69bd201b852c41b64845737ba57332c"
     }
   ],
-  "selectedEboot": "58058fe6287667b980c1a19cc4542157119a183552ed09e99e147b34d29b9520",
   "shaderHeaderComments": {
     "psx_vert_spv.h": "// Generated by native60 vertex ABI build; see SHADER-ABI-PROOF.json.",
-    "psx_frag_spv.h": "/* Project-authored particle material additions; retained PsyZ MPL-2.0 shader. */",
+    "psx_frag_spv.h": "/* Project-authored particle/UI additions; retained PsyZ MPL-2.0 shader. */",
     "clear_vert_spv.h": "// Generated from clear.vert.glsl by pinned glslang; see SHADER-PROVENANCE.json.",
     "clear_frag_spv.h": "// Generated from clear.frag.glsl by pinned glslang; see SHADER-PROVENANCE.json."
   },
@@ -2037,7 +2036,7 @@
       "after": "b33d51ee2feb28890cb5b2db3cd4c8b0553553d81c71d6057ed91bb5029d844e"
     }
   ],
-  "selectedBuild": "game-test-point7-owned-20261102-a1",
+  "selectedBuild": "public-repairs-20261103-source",
   "publicSourceExceptions": [
     "Private native pack index absent/caller-generated; explicit no-pack failure guard",
     "Source-cohort identity regenerated for actual public-prepared sources/dependencies",
@@ -2083,8 +2082,8 @@
     },
     {
       "path": "support/pe-build-identity.h",
-      "sha256": "7f5bff86f6ca3ff8c27a4ada8e1b77ce2b29c71dff414a4043a6bc43d661e135",
-      "bytes": 256
+      "sha256": "a6b5119acc8e450699640a33cd4f45d1e4e7fb5f4265ec8978662e6dd492a421",
+      "bytes": 248
     },
     {
       "path": "support/pe-game-directory.c",
@@ -2143,8 +2142,8 @@
     },
     {
       "path": "support/startup-log.cmake",
-      "sha256": "e4e6573f2141ed43d4f9bd3125b1a13fc3a0d547e2a68c48c8ab807bb0c67980",
-      "bytes": 7002
+      "sha256": "374a2f6b1745a7bd6e5981ef7204ef38d00038da318ef5589c9afc4bcb57bdb4",
+      "bytes": 7260
     },
     {
       "path": "support/startup-project.cmake",
@@ -2158,8 +2157,8 @@
     },
     {
       "path": "state/pe_state.c",
-      "sha256": "6ff6b1182a4cf8876650e0f41af4ac24e962032913e7b0a0d9009e99797b79d5",
-      "bytes": 16172
+      "sha256": "59f01326be88ab0d4bc7948ec35c2f15be17f33b006ddfc70366623d78b03a6b",
+      "bytes": 16170
     },
     {
       "path": "state/pe_state.h",
@@ -2228,8 +2227,8 @@
     },
     {
       "path": "state/pe_state_checkpoint.c",
-      "sha256": "3faf04b4d74fbf87e38bc135bca2f6699aea40fba9def08a99ab4a62c40f6ac6",
-      "bytes": 13436
+      "sha256": "8bacc6b705c43d5372a09ad2660b2617397e349e697c4be3ae8f807cc5ab1d82",
+      "bytes": 13434
     },
     {
       "path": "state/pe_state_checkpoint.h",
@@ -2238,13 +2237,13 @@
     },
     {
       "path": "state/pe_state_field_models.c",
-      "sha256": "da2c852ef1e43430fd1665f235aca67fef87736059fcded815dfdb1937e36218",
-      "bytes": 13134
+      "sha256": "2e12d1f510cea9c9f4abe3e205e3c6f52cdb5f2951ff63b49e11367185a16226",
+      "bytes": 13125
     },
     {
       "path": "state/pe_state_field_models.h",
-      "sha256": "1d22b88fd68acd770d1624fe45cb297b68fcd86a50e24a4d1308114070333abe",
-      "bytes": 1084
+      "sha256": "c8db5d698a47a3f33bace96e98bff73d14c8a4ac43a925bbcf4cf4a7ec2d67e8",
+      "bytes": 1079
     },
     {
       "path": "state/pe_state_files.c",
@@ -2398,13 +2397,13 @@
     },
     {
       "path": "state/pe_state_theater_tasks.c",
-      "sha256": "85394a6a167216cfe6a921ccf5ca6b3f54aa31e3100e46a43755726e585da599",
-      "bytes": 58484
+      "sha256": "004b80fd8e9d4ecd496e203c9e1647c88c02de206cc4409d6655bb99a6c4a34f",
+      "bytes": 58469
     },
     {
       "path": "state/pe_state_theater_tasks.h",
-      "sha256": "a011a565e5596f37da6f50f37eb17accfd00f80e1b699f53e2f3d6e6ddd02c6f",
-      "bytes": 1158
+      "sha256": "b66ce11654f711cd1a5365374ab372882de4683425d579d02315f56fc2ebfce9",
+      "bytes": 1155
     },
     {
       "path": "state/pe_state_transition.c",
@@ -2453,7 +2452,7 @@
       "suffix": "\n};\nunsigned int psx_vert_spv_len = {{BYTES}};\n"
     },
     "psx_frag_spv.h": {
-      "prefix": "/* Project-authored particle material additions; retained PsyZ MPL-2.0 shader. */\nunsigned char psx_frag_spv[]={\n",
+      "prefix": "/* Project-authored particle/UI additions; retained PsyZ MPL-2.0 shader. */\nunsigned char psx_frag_spv[]={\n",
       "suffix": ",\n};\nunsigned int psx_frag_spv_len={{BYTES}};\n"
     },
     "clear_vert_spv.h": {
@@ -2474,5 +2473,15 @@
       "distributed": false,
       "requiredForBuild": true
     }
-  ]
+  ],
+  "publicPolicy": {
+    "compileDefinition": "PE_NATIVE_PUBLIC_RELEASE=1",
+    "cmakeSelection": "PE_NATIVE_PUBLIC_RELEASE=ON",
+    "checkpointLabel": "Coming soon-ish*",
+    "checkpointUiAndWorkDisabled": true,
+    "ordinaryCardsPreserved": true,
+    "publicBinaryBuilt": false
+  },
+  "reviewedLogicRevision": "integrated-repairs-owned-20261103-a1",
+  "sourceOnly": true
 }

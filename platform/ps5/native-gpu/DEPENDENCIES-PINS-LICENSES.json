@@ -318,13 +318,21 @@
     "privateTextureImagesOrIndexIncluded": false
   },
   "currentExport": {
-    "selectedBuild": "game-test-point7-owned-20261102-a1",
-    "selectedPrivateEboot": "58058fe6287667b980c1a19cc4542157119a183552ed09e99e147b34d29b9520",
-    "privateSourceCohort": "97b40f82c23218e69f2cff9900377a57b0d0be759afc3d361d31df500f2998e9",
+    "selectedBuild": "public-repairs-20261103-source",
     "scope": "PS5 public logic/data-boundary adapter only",
     "noOriginalRetailInputDistributed": true,
     "noOriginalDataLicenseClearanceClaim": true,
     "retroFontLicense": "notices/OFL-ChakraPetch.txt",
-    "noSeparatePcBuild": true
+    "noSeparatePcBuild": true,
+    "sourceOnly": true,
+    "publicCheckpointPolicy": "OFF"
+  },
+  "launcherArtTool": {
+    "repository": "https://github.com/microsoft/DirectXTex",
+    "version": "may2026",
+    "license": "MIT",
+    "sha256": "dcfdec10244e02cf5037fba089c55fb7e1326b1c8181742d77d15fa5cb5eef06",
+    "binaryIncluded": false,
+    "callerArtIncluded": false
   }
 }

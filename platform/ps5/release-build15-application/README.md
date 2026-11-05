@@ -1,0 +1,1 @@
+PPSA77022 app metadata for v1.1.5 Build15. Binary and licensed runtime are release assets, not Git files. Source recipe is ../release-build15. See docs/PS5-v1.1.5.md for installation and save migration.

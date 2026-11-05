@@ -1,0 +1,7 @@
+{
+  "schema": "pe.duck-ui-selection.v1",
+  "metadata": "C:/.pe/caller-owned/private-pack-metadata.json",
+  "metadataSha256": "CALLER_SHA256_REQUIRED",
+  "baseModelIndexSha256": "CALLER_SHA256_REQUIRED",
+  "entries": []
+}
