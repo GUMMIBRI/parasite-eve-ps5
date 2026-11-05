@@ -1,39 +1,27 @@
-# Parasite Eve — PS5 Beta
-
-Native PS5 homebrew adaptation of [Parasite Eve PC](https://github.com/khasinski/parasite-eve-pc), using the public PsyZ / SDL3 GPU stack. **Beta 1** is for community testing; full-game stability and experimental checkpoints are not certified.
-
-![Theater exterior in widescreen](docs/images/ps5-theater-widescreen.png)
-
-*Theater exterior in widescreen (owner-supplied capture). This retained capture is not tied to the latest beta build.*
+# Parasite Eve — PS5
 
 Parasite Eve 1&2 Port community: https://discord.gg/Yg88tHYXK
 
-## Download and install
+Based heavily on khasinski/parasite-eve-pc. Native PS5 homebrew using public PsyZ / SDL3 GPU and payload runtime work.
 
-Get the PS5 app from [PS5 beta releases](https://github.com/GUMMIBRI/parasite-eve-ps5/releases). Bring your own North American disc images and any compatible optional texture packs; game assets and personal saves are not distributed.
+## v1.1.5 (Build15)
 
-- Copy `PS5GameTest` into your `homebrew` folder.
-- Copy `parasite-eve` into `/mnt/usb0/`.
+Download the [v1.1.5 release](https://github.com/GUMMIBRI/parasite-eve-ps5/releases/tag/v1.1.5). This normal release uses title ID and app folder **PPSA77022**, content version 01.000.015. See [release notes and save migration](docs/PS5-v1.1.5.md).
 
-The app may live at `/data/homebrew/PS5GameTest` while assets stay on USB. `/data/parasite-eve` is also supported. Existing explicit saved paths take precedence. The public asset folder is a layout for your own files, not a bundled game or HD pack.
+- Install PPSA77022 under homebrew, on supported internal or external storage.
+- Its parasite-eve-data folder can remain inside the app or be moved as a whole to a USB root or /data.
+- Put your own compatible North American discs at parasite-eve-data/discs/disc1.bin and disc2.bin. The shipped disc directories are empty; no discs or private texture packs are bundled.
+- Back up the entire old PS5GameTest/user folder and any app-local personal files. This new console identity does not automatically migrate saves/settings; restore cards deliberately without overwriting newer saves.
 
-## Included PS5 work
+Save States and the disc-copy/install flow are removed. Normal memory cards remain supported. Plex menu/title/save typography is improved, with Original/Retro preferences respected. Native rendering, display options, compatible optional HD paths, bounded directional attack lighting, P109 fire and exact M005 endpoint effects retain Original fallback. Coverage is specific, not all attacks or menus. Day2–6 chapter art remains unfinished.
 
-Native hardware rendering; widescreen and display preferences; optional HD background and character-texture paths; Original / Modern / Retro font choices; bounded particle materials and lighting; normal memory-card routing; and experimental typed checkpoints. Graphics / Mods / Save states / Cheats / Controls / System remain the main tabs. Fresh-install cheats are off.
-
-Analytic materials cover specific P109/P115/P117/P118 sources, including the first-theater CrossFlare. They are enabled by Hybrid/New particle modes, retain original sprites and do not establish Alligator attack coverage. Character textures are not replacement meshes. No DLSS or ray-tracing support is promised.
-
-Checkpoints require compatible resources, settings, scene and the same launch; unsupported owners reject. PM30 checkpoints are incompatible with older checkpoint versions. Normal card saves remain separate. The newest beta derivative requires human console verification; prior owner tests demonstrated boot/gameplay on earlier builds. Compilation and package audits do not establish appearance, performance or reliable capture/restore.
+The owner tested the internal Build15 and reported it working. SDK, conversion, source reconstruction and package checks are separate evidence; no claim covers every scene, firmware or performance. The reported sig12 startup failure has not been independently explained.
 
 ## Source and upstream
 
-The repository base is synced through upstream `0ce223f5a` (0.10). The beta binary uses the separately pinned and reviewed native recipe; the repository sync is not a claim that every 0.10 change is in that binary.
+Reconstruction, dependency pins, notices and caller-input boundaries for this release are in [platform/ps5/release-build15](platform/ps5/release-build15). App metadata is in [release-build15-application](platform/ps5/release-build15-application). Locally generated caller input stays outside the source export; no private pack index, seed, title fingerprint table, original asset pack, personal save or proprietary Sony module is published.
 
-Current PS5 source, pins, notices and build instructions are under [platform/ps5/native-gpu](platform/ps5/native-gpu). Some original-data inputs must be generated locally from authorized owner input; these are omitted from Git and missing input fails clearly. No proprietary Sony SDK or system modules are included. Existing license and original-source limitations remain explicit.
-
-Earlier contribution [PR #42](https://github.com/khasinski/parasite-eve-pc/pull/42) was merged upstream. Newer changes are offered separately for review; PS5-gated implementations do not automatically enable PC features.
-
-See [beta notes](docs/PS5_BETA.md), [contribution policy](CONTRIBUTING.md), [license](LICENSE.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
+The repository base includes upstream 0ce223f5a; newer PS5 recipe changes are reviewed on the contribution branch. This does not claim that the branch is merged to main. Earlier upstream PR42 was merged; current contributions remain separate. Preserve [licenses](LICENSE.md), [component notices](THIRD_PARTY_NOTICES.md), and [contribution rules](CONTRIBUTING.md). Historical beta notes and recipes describe their original versions.
 
 ---
 

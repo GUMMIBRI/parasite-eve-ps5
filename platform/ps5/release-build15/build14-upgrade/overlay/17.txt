@@ -1,0 +1,71 @@
+[experience]
+presentation = 1
+movie_policy = 1
+
+[modern_visuals]
+interpolation = 1
+scale = 8
+aspect = 0
+dither = 1
+antialiasing = 1
+model_filtering = 1
+dynamic_lighting = 1
+effect_precision = 1
+widescreen = 1
+backgrounds = 1
+models = 1
+fill = 1
+fsr = 1
+sharpness = 1
+model_fill = 2
+movie_mode = 1
+movie_cleanup = 2
+particles = 2
+particle_lights = 1
+dialogue = 1
+menu_font = 1
+player_shadow = 1
+
+[graphics]
+internal_resolution = 8
+fullscreen = true
+square_pixels = false
+disable_dithering = true
+geometry_correction = true
+antialiasing = true
+model_filtering = true
+dynamic_lighting = true
+frame_interpolation = true
+effect_geometry_correction = true
+widescreen = true
+sprite_filtering = false
+movie_cleanup = 2
+gameplay_fill = true
+fsr1 = true
+fsr1_sharpness = 1
+model_fill_lighting = 2
+particle_lighting = true
+dialogue_text = 1
+triangle_menu_font = 1
+movie_blur = true
+movie_presentation = 1
+battle_debris_3d = 2
+player_shadow = 1
+
+[discs]
+disc1 = "discs/disc1.bin"
+disc2 = "discs/disc2.bin"
+
+[mods]
+hd_backgrounds = true
+hd_field_materials = false
+hd_field_directory = "mods/upscale/0.1-ded1557f6c1e"
+hd_title_directory = "mods/upscale/0.1-ded1557f6c1e"
+hd_models = true
+hd_model_directory = "mods/characters/duck-models"
+
+[interface]
+show_fps = 1
+menu_style = 1
+menu_text_size = 1
+menu_pointer = 1

@@ -1,0 +1,151 @@
+/* MPL-2.0. Original bounded, render-only point-light contribution.
+ * Included after particle renderer ownership globals. No original simulation
+ * or lighting cache is modified: temporary native RGB words are restored as
+ * soon as the actual synchronous PsyZ enqueue has copied them. */
+#ifndef PE_PARTICLE_LIGHT_NATIVE_H
+#define PE_PARTICLE_LIGHT_NATIVE_H
+#include "pe1/field_actor.h"
+#include <math.h>
+extern int Render_ParticleVertexFrame(const RenderObjectEntity*,unsigned,double[3],double[3]);
+extern FieldActor *g_FieldActorListHead;
+enum { PARTICLE_LIGHT_CAP=8,PARTICLE_LIGHT_MODEL_CAP=16,PARTICLE_LIGHT_COLOUR_CAP=8192,PARTICLE_LIGHT_ACTOR_SCAN_CAP=64 };
+extern unsigned long long Psyz_GpuAuthoredFlareGeneration(void);
+typedef struct { int x,y,z;unsigned r,g,b,radius;unsigned long long source_generation; int incoming[3],shot; double shot_length; } ParticleWorldLight;
+typedef struct { u32 *word;u32 original; } ParticleColourRestore;
+static ParticleWorldLight particle_lights[PARTICLE_LIGHT_CAP];
+static ParticleColourRestore particle_light_restore[PARTICLE_LIGHT_COLOUR_CAP];
+static unsigned particle_light_count,particle_light_restore_count,particle_light_logs,particle_light_source_logs;
+static int particle_lighting,particle_light_frame_open,particle_light_applied,particle_light_fault;
+void FieldFx_SetParticleLighting(int mode){mode=!!mode;if(mode!=particle_lighting)SDL_Log("[Particle lights] requested=%d scope=source-known-sparks/flame model-colours=world-normal-directional original-particle-mode-disables=1",mode);particle_lighting=mode;}
+int FieldFx_GetParticleLighting(void){return particle_lighting;}
+int FieldFx_ParticleLightStateIdle(void){return !particle_light_frame_open&&!particle_light_count&&!particle_light_restore_count&&!particle_light_applied&&!particle_light_fault;}
+static void FieldFx_ParticleLightsBegin(void){
+    if(particle_light_restore_count||particle_light_applied){particle_light_fault=1;SDL_Log("[Particle lights] pending colour restoration at frame begin; disabled until restart");return;}
+    particle_light_count=0;particle_light_frame_open=1;
+}
+void FieldFx_RestoreParticleLights(void){
+    if(particle_light_fault)return;
+    for(unsigned i=0;i<particle_light_restore_count;i++)*particle_light_restore[i].word=particle_light_restore[i].original;
+    particle_light_restore_count=0;particle_light_applied=0;
+}
+static void FieldFx_ParticleLightsEnd(void){
+    FieldFx_RestoreParticleLights();particle_light_count=0;particle_light_frame_open=0;
+}
+static void FieldFx_EmitParticleLight(int x,int y,int z,unsigned r,unsigned g,unsigned b,unsigned radius){
+    if(!particle_lighting||!particle_enabled||!particle_light_frame_open||!particle_frame_open||particle_slot!=g_ActiveDrawSlot||particle_light_fault||particle_light_applied||particle_light_count==PARTICLE_LIGHT_CAP||!radius||radius>512||!(r|g|b))return;
+    if(r>255)r=255;if(g>255)g=255;if(b>255)b=255;
+    particle_lights[particle_light_count++]=(ParticleWorldLight){x,y,z,r,g,b,radius};
+    if(particle_light_source_logs<8){particle_light_source_logs++;SDL_Log("[Particle lights source] world=(%d,%d,%d) rgb=(%u,%u,%u) radius=%u source-known-render-callback=1 no-simulation-change=1",x,y,z,r,g,b,radius);}
+}
+void FieldFx_QueueShotImpactLight(int x,int y,int z,const int incoming[3],unsigned r,unsigned g,unsigned b){
+    if(!incoming||!(incoming[0]||incoming[1]||incoming[2]))return;
+    unsigned before=particle_light_count;
+    FieldFx_EmitParticleLight(x,y,z,r,g,b,256);
+    if(particle_light_count==before)return;
+    ParticleWorldLight*l=&particle_lights[before];
+    l->source_generation=Psyz_GpuAuthoredFlareGeneration();l->shot=1;
+    for(unsigned c=0;c<3;c++)l->incoming[c]=incoming[c];
+    /* Addon-owned queue slot, immutable until whole-slot reuse. Preserve the
+     * receiver's double conversion, sum order, sqrt and division (no reciprocal).
+     * Emit's aggregate initialization clears this field for every reused slot. */
+    double direction[3]={l->incoming[0],l->incoming[1],l->incoming[2]};
+    double length=direction[0]*direction[0]+direction[1]*direction[1]+direction[2]*direction[2];
+    l->shot_length=(!isfinite(length)||length<1e-8)?0.0:sqrt(length);
+}
+static void FieldFx_LightColour(u32 *word,unsigned r,unsigned g,unsigned b){
+    if(particle_light_restore_count==PARTICLE_LIGHT_COLOUR_CAP)return;
+    u32 base=*word;unsigned red=base&255,green=(base>>8)&255,blue=(base>>16)&255;
+    /* Colored light must illuminate a dark channel too: multiplying each
+     * channel by itself made a red attack barely affect blue/green clothing.
+     * Authored peak gates energy, so true black and every source fade stay
+     * black/faded. Existing per-channel48 gain cap still bounds the result. */
+    unsigned peak=red>green?red:green;if(blue>peak)peak=blue;
+    red+=(peak*r+64)/128;green+=(peak*g+64)/128;blue+=(peak*b+64)/128;
+    if(red>255)red=255;if(green>255)green=255;if(blue>255)blue=255;
+    u32 lit=(base&0xff000000u)|red|(green<<8)|(blue<<16);
+    if(lit==base)return;
+    particle_light_restore[particle_light_restore_count++]=(ParticleColourRestore){word,base};*word=lit;
+}
+static void FieldFx_LightVertexColour(u32 *word,unsigned index,const unsigned char gain[2048][3],unsigned count){
+    if(index<count)FieldFx_LightColour(word,gain[index][0],gain[index][1],gain[index][2]);
+}
+void FieldFx_ApplyParticleLights(void){
+    if(!particle_lighting||!particle_enabled||!particle_light_frame_open||!particle_frame_open||particle_slot!=g_ActiveDrawSlot||particle_light_fault||particle_light_applied||!particle_light_count||(unsigned)g_ActiveDrawSlot>=2)return;
+    particle_light_applied=1;
+    struct { uintptr_t first,last; } spans[PARTICLE_LIGHT_MODEL_CAP];unsigned model_count=0,visited=0;
+    unsigned vertex_budget=8192;
+    FieldActor *actor=g_FieldActorListHead;
+    for(;actor&&visited<PARTICLE_LIGHT_ACTOR_SCAN_CAP;actor=actor->next,visited++){
+        RenderObjectEntity *o=&actor->render_object;RenderObjectHeader *h=o->header;
+        if(model_count==PARTICLE_LIGHT_MODEL_CAP)break;
+        /* Match the original normal actor draw path. No UI/background/floor
+         * sprite, actor-owned shadow, morph-only or hidden model conversion. */
+        if((actor->flags&0x20000040u)||!h||!o->draw_count||o->variant_visible!=1||!o->primitive_buffer)continue;
+        if(!o->primitive_descriptors||h->vertex_count>2048||h->vertex_count>vertex_budget||h->part_count>64)continue;
+        if(h->packet34_count>256||h->packet28_count>256||h->packet24_count>256||h->packet1c_count>256)continue;
+        unsigned words=4u*h->packet34_count+3u*h->packet28_count+4u*h->packet24_count+3u*h->packet1c_count;
+        if(words>PARTICLE_LIGHT_COLOUR_CAP-particle_light_restore_count)continue;
+        size_t bytes=2u*((size_t)h->packet34_count*sizeof(RenderPacket34)+(size_t)h->packet28_count*sizeof(RenderPacket28)+(size_t)h->packet24_count*sizeof(RenderPacket24)+(size_t)h->packet1c_count*sizeof(RenderPacket1C));
+        uintptr_t first=(uintptr_t)o->primitive_buffer,last=first+bytes;int overlaps=last<first;
+        for(unsigned i=0;i<model_count;i++)if(first<spans[i].last&&spans[i].first<last)overlaps=1;
+        if(overlaps)continue;
+        /* Cache one bounded contribution per actual model vertex. Descriptor
+         * lookup_indices are the same mapping used by Render_UpdateClutTable.
+         * Invalid geometry receives no light, never a whole-model fallback. */
+        unsigned any_gain=0;unsigned char gain[2048][3]={{0}};vertex_budget-=h->vertex_count;
+        for(unsigned v=0;v<h->vertex_count;v++){
+            double point[3],normal[3];if(!Render_ParticleVertexFrame(o,v,point,normal))continue;
+            unsigned rgb[3]={0};
+            for(unsigned i=0;i<particle_light_count;i++){
+                ParticleWorldLight*l=particle_lights+i;
+                if(l->source_generation&&l->source_generation!=Psyz_GpuAuthoredFlareGeneration())continue;
+                double d[3]={l->x-point[0],l->y-point[1],l->z-point[2]};
+                double distance=d[0]*d[0]+d[1]*d[1]+d[2]*d[2],radius=(double)l->radius*l->radius;
+                if(!isfinite(distance)||distance>=radius)continue;
+                /* Shot energy is local to the authored impact, but incoming
+                 * facing is towards its sampled muzzle, not the impact point.
+                 * A vertex exactly at that point has a valid shot direction. */
+                double direction[3]={d[0],d[1],d[2]};
+                if(l->shot)for(unsigned c=0;c<3;c++)direction[c]=l->incoming[c];
+                double length=l->shot_length;
+                if(!l->shot){
+                    length=direction[0]*direction[0]+direction[1]*direction[1]+direction[2]*direction[2];
+                    if(!isfinite(length)||length<1e-8)continue;
+                    length=sqrt(length);
+                }else if(!length)continue;
+                double ndl=(normal[0]*direction[0]+normal[1]*direction[1]+normal[2]*direction[2])/length;
+                if(ndl<=0)continue;if(ndl>1)ndl=1;
+                double fade=1.0-distance/radius;double weight=fade*fade*ndl*32.0/255.0;
+                rgb[0]+=(unsigned)(l->r*weight+0.5);rgb[1]+=(unsigned)(l->g*weight+0.5);rgb[2]+=(unsigned)(l->b*weight+0.5);
+            }
+            for(unsigned c=0;c<3;c++){gain[v][c]=rgb[c]>48?48:rgb[c];any_gain|=gain[v][c];}
+        }
+        if(!any_gain)continue;
+        RenderPrimitiveDescriptor*descriptor=o->primitive_descriptors;
+        spans[model_count].first=first;spans[model_count++].last=last;
+        RenderPacket34 *q=(RenderPacket34*)o->primitive_buffer;
+        for(unsigned i=0;i<h->packet34_count;i++,q+=2,descriptor++){RenderPacket34 *p=q+g_ActiveDrawSlot;if(!p->tag||p->length!=12||(p->values0.bytes.command&~3u)!=0x3cu)continue;
+            FieldFx_LightVertexColour(&p->values0.value,descriptor->lookup_indices[0],gain,h->vertex_count);
+            FieldFx_LightVertexColour(&p->value1,descriptor->lookup_indices[1],gain,h->vertex_count);
+            FieldFx_LightVertexColour(&p->value2,descriptor->lookup_indices[2],gain,h->vertex_count);
+            FieldFx_LightVertexColour(&p->value3,descriptor->lookup_indices[3],gain,h->vertex_count);}
+        RenderPacket28 *t=(RenderPacket28*)q;
+        for(unsigned i=0;i<h->packet28_count;i++,t+=2,descriptor++){RenderPacket28 *p=t+g_ActiveDrawSlot;if(!p->tag||p->length!=9||(p->values0.bytes.command&~3u)!=0x34u)continue;
+            FieldFx_LightVertexColour(&p->values0.value,descriptor->lookup_indices[0],gain,h->vertex_count);
+            FieldFx_LightVertexColour(&p->value1,descriptor->lookup_indices[1],gain,h->vertex_count);
+            FieldFx_LightVertexColour(&p->value2,descriptor->lookup_indices[2],gain,h->vertex_count);}
+        RenderPacket24 *uq=(RenderPacket24*)t;
+        for(unsigned i=0;i<h->packet24_count;i++,uq+=2,descriptor++){RenderPacket24 *p=uq+g_ActiveDrawSlot;if(!p->tag||p->length!=8||(p->values0.bytes.command&~3u)!=0x38u)continue;
+            FieldFx_LightVertexColour(&p->values0.value,descriptor->lookup_indices[0],gain,h->vertex_count);
+            FieldFx_LightVertexColour(&p->value1,descriptor->lookup_indices[1],gain,h->vertex_count);
+            FieldFx_LightVertexColour(&p->value2,descriptor->lookup_indices[2],gain,h->vertex_count);
+            FieldFx_LightVertexColour(&p->value3,descriptor->lookup_indices[3],gain,h->vertex_count);}
+        RenderPacket1C *ut=(RenderPacket1C*)uq;
+        for(unsigned i=0;i<h->packet1c_count;i++,ut+=2,descriptor++){RenderPacket1C *p=ut+g_ActiveDrawSlot;if(!p->tag||p->length!=6||(p->values0.bytes.command&~3u)!=0x30u)continue;
+            FieldFx_LightVertexColour(&p->values0.value,descriptor->lookup_indices[0],gain,h->vertex_count);
+            FieldFx_LightVertexColour(&p->value1,descriptor->lookup_indices[1],gain,h->vertex_count);
+            FieldFx_LightVertexColour(&p->value2,descriptor->lookup_indices[2],gain,h->vertex_count);}
+    }
+    if(particle_light_logs<16&&particle_light_restore_count){particle_light_logs++;SDL_Log("[Particle lights] emitter-count=%u live-models=%u temporary-colour-words=%u same-frame=1 normals=original-inverse-transpose original-colours-restored-after-enqueue=1 visible-pixels=human-unverified",particle_light_count,model_count,particle_light_restore_count);}
+}
+#endif

@@ -1,0 +1,57 @@
+/* SPDX-License-Identifier: MIT -- same native renderer/device, no SDL_Renderer. */
+#include "pe_character_pack.h"
+static int InstallUsbPath(const char*p){return p&&!strncmp(p,"/mnt/usb",8)&&p[8]>='0'&&p[8]<='7'&&(p[9]=='/'||!p[9])&&!strstr(p,"/../");}
+static SDL_EnumerationResult InstallEnumerate(void*unused,const char*dirname,const char*fname){
+    (void)unused;if(!strcmp(fname,".")||!strcmp(fname,"..")||strlen(fname)>=256)return SDL_ENUM_CONTINUE;
+    if(++s_install.scanned>4096){s_install.truncated=2;return SDL_ENUM_SUCCESS;}
+    char path[4096];int n=snprintf(path,sizeof(path),"%s%s%s",dirname,dirname[strlen(dirname)-1]=='/'?"":"/",fname);if(n<0||(size_t)n>=sizeof(path))return SDL_ENUM_CONTINUE;
+    SDL_PathInfo info;if(!SDL_GetPathInfo(path,&info))return SDL_ENUM_CONTINUE;const char*ext=strrchr(fname,'.');
+    if(info.type!=SDL_PATHTYPE_DIRECTORY)return SDL_ENUM_CONTINUE;
+    if(s_install.count==128){s_install.truncated=1;return SDL_ENUM_SUCCESS;}
+    PeInstallEntry*entry=&s_install.entries[s_install.count++];SDL_strlcpy(entry->name,fname,sizeof(entry->name));entry->directory=info.type==SDL_PATHTYPE_DIRECTORY;return SDL_ENUM_CONTINUE;
+}
+static void InstallList(void){s_install.count=s_install.cursor=s_install.scroll=s_install.truncated=s_install.scanned=0;s_install.enumeration_failed=!SDL_EnumerateDirectory(s_install.directory,InstallEnumerate,NULL);s_overlayState.dirty=1;}
+static void InstallBrowse(int target){s_install.browser_selected=0;s_install.target=target;s_install.phase=PE_IV_BROWSER;
+    const char*p=s_install.characters;
+    if(InstallUsbPath(p)){s_install.usb=p[8]-'0';SDL_strlcpy(s_install.directory,p,sizeof(s_install.directory));}
+    else snprintf(s_install.directory,sizeof(s_install.directory),"/mnt/usb%d",s_install.usb);InstallList();
+}
+static void InstallSelectFolder(void){s_install.browser_selected=1;SDL_strlcpy(s_install.characters,s_install.directory,sizeof(s_install.characters));s_install.phase=PE_IV_FORM;}
+static void InstallAction(int button){
+    if(button==SDL_GAMEPAD_BUTTON_EAST){if(s_install.phase==PE_IV_BROWSER){char root[32];snprintf(root,sizeof(root),"/mnt/usb%d",s_install.usb);
+        if(!strcmp(s_install.directory,root))s_install.phase=PE_IV_FORM;else{char*p=strrchr(s_install.directory,'/');if(p)*p=0;if(strlen(s_install.directory)<strlen(root))SDL_strlcpy(s_install.directory,root,sizeof(s_install.directory));InstallList();}}
+        else s_install.cancel=1;return;}
+    if(s_install.phase==PE_IV_PROGRESS)return;
+    if(s_install.phase==PE_IV_ERROR){if(button==SDL_GAMEPAD_BUTTON_SOUTH)s_install.phase=PE_IV_FORM;return;}
+    if(s_install.phase==PE_IV_SUCCESS){if(button==SDL_GAMEPAD_BUTTON_SOUTH)s_install.accept=1;return;}
+    if(s_install.phase==PE_IV_BROWSER){
+        if(button==SDL_GAMEPAD_BUTTON_LEFT_SHOULDER||button==SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER){s_install.usb=(s_install.usb+(button==SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER?1:7))%8;snprintf(s_install.directory,sizeof(s_install.directory),"/mnt/usb%d",s_install.usb);InstallList();}
+        else if(button==SDL_GAMEPAD_BUTTON_DPAD_UP&&s_install.count)s_install.cursor=(s_install.cursor+s_install.count-1)%s_install.count;
+        else if(button==SDL_GAMEPAD_BUTTON_DPAD_DOWN&&s_install.count)s_install.cursor=(s_install.cursor+1)%s_install.count;
+        else if(button==SDL_GAMEPAD_BUTTON_NORTH&&s_install.target>=2)InstallSelectFolder();
+        else if(button==SDL_GAMEPAD_BUTTON_SOUTH&&s_install.count){PeInstallEntry*e=&s_install.entries[s_install.cursor];char path[4096];int n=snprintf(path,sizeof(path),"%s/%s",s_install.directory,e->name);if(n>0&&(size_t)n<sizeof(path)){
+            if(e->directory){SDL_strlcpy(s_install.directory,path,sizeof(s_install.directory));InstallList();}
+            }}
+        if(s_install.cursor<s_install.scroll)s_install.scroll=s_install.cursor;if(s_install.cursor>=s_install.scroll+9)s_install.scroll=s_install.cursor-8;return;
+    }
+}
+
+static int Host_InstallerEvent(const SDL_Event*event){
+    int button=-1;if(event->type==SDL_EVENT_QUIT||event->type==SDL_EVENT_WINDOW_CLOSE_REQUESTED){s_install.cancel=1;return 1;}
+    if(event->type==SDL_EVENT_GAMEPAD_BUTTON_DOWN)button=event->gbutton.button;
+    else if(event->type==SDL_EVENT_KEY_DOWN&&!event->key.repeat){switch(event->key.scancode){case SDL_SCANCODE_UP:button=SDL_GAMEPAD_BUTTON_DPAD_UP;break;case SDL_SCANCODE_DOWN:button=SDL_GAMEPAD_BUTTON_DPAD_DOWN;break;case SDL_SCANCODE_LEFT:button=SDL_GAMEPAD_BUTTON_DPAD_LEFT;break;case SDL_SCANCODE_RIGHT:button=SDL_GAMEPAD_BUTTON_DPAD_RIGHT;break;case SDL_SCANCODE_RETURN:button=SDL_GAMEPAD_BUTTON_SOUTH;break;case SDL_SCANCODE_ESCAPE:button=SDL_GAMEPAD_BUTTON_EAST;break;case SDL_SCANCODE_SPACE:button=SDL_GAMEPAD_BUTTON_NORTH;break;default:break;}}
+    else if(event->type==SDL_EVENT_GAMEPAD_AXIS_MOTION&&(event->gaxis.axis==SDL_GAMEPAD_AXIS_LEFTX||event->gaxis.axis==SDL_GAMEPAD_AXIS_LEFTY)){
+        int vertical=event->gaxis.axis==SDL_GAMEPAD_AXIS_LEFTY;int*p=vertical?&s_install.axis_y:&s_install.axis_x;int v=event->gaxis.value;int next=v>16000?1:v< -16000?-1:(v>-8000&&v<8000?0:*p);
+        if(next!=*p){*p=next;if(next)button=vertical?(next>0?SDL_GAMEPAD_BUTTON_DPAD_DOWN:SDL_GAMEPAD_BUTTON_DPAD_UP):(next>0?SDL_GAMEPAD_BUTTON_DPAD_RIGHT:SDL_GAMEPAD_BUTTON_DPAD_LEFT);}}
+    if(button>=0){InstallAction(button);s_overlayState.dirty=1;return 1;}return 0;
+}
+static void InstallFrame(void){SDL_Window*w=Psyz_GetWindow_SDL3();if(!w||!s_overlayGpuDevice){s_install.cancel=1;return;}Host_OverlayRefreshGPU(s_overlayGpuDevice,w,&s_overlayState);Psyz_VideoVSync(0);if(Psyz_GpuFailed())s_install.cancel=1;}
+static int InstallProgress(const char*phase,uint64_t done,uint64_t total,void*unused){
+    (void)unused;static Uint64 last;Uint64 now=SDL_GetTicks();if(now-last>=16||done==total){last=now;SDL_strlcpy(s_install.status,phase,sizeof(s_install.status));s_install.done=done;s_install.total=total;s_overlayState.dirty=1;InstallFrame();}return !s_install.cancel;
+}
+static int InstallCheckCharacters(const char*path,void*unused){(void)unused;PeCharacterPackReport r={0};int ok=InstallUsbPath(path)&&pe_install_verify_character_pack(path,InstallProgress,NULL,&r);if(!ok&&r.error[0])SDL_strlcpy(s_install.status,r.error,sizeof s_install.status);return ok;}
+static void InstallFindCharacters(void){
+ static const char*const suffix[]={"parasite-eve-data/mods/characters/duck-models","parasite-eve-data/mods/duck-models","duck-models","parasite-eve-data/mods/characters/duck-models-67"};
+ /* At most32 exact header reads; no recursive scan, no implicit activation. */
+ for(unsigned usb=0;usb<8;usb++)for(unsigned j=0;j<4;j++){char path[4096];snprintf(path,sizeof path,"/mnt/usb%u/%s",usb,suffix[j]);if(pe_install_character_pack_hint(path)){SDL_strlcpy(s_install.characters,path,sizeof s_install.characters);s_install.characters_found=1;SDL_Log("[Character folder] character-subset-hint=%s selected=0 verification=pending",path);return;}}
+}
