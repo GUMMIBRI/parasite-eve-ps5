@@ -1,0 +1,21 @@
+{
+  "version": "1.1.6",
+  "tag": "v1.1.6",
+  "build": 20,
+  "contentVersion": "01.000.020",
+  "titleId": "PPSA77022",
+  "appFolder": "PPSA77022",
+  "ebootSha256": "29ae82cf95942cf968d653305a03b97dc00116c49329f7dd244e01307feeb8a4",
+  "ebootBytes": 24290381,
+  "privateSeedEnabled": false,
+  "nativePackIndex": "public empty sentinel",
+  "titleTextBinding": "runtime loaded-bank ownership; no private title fingerprint constants",
+  "sourceRecipe": "source/native-public/BUILD20-README.md",
+  "finalP5IconSha256": "484b493e9e8c3dd17baf71ce7480be3800ae943f5c3f706f19dde839288e0819",
+  "noGameDiscsOrHDBackgroundPack": true,
+  "originalGameCodeAndInstructionDataInherentToNativeApplication": true,
+  "noIndependentOriginalGameLicenseGrant": true,
+  "humanReport": "Owner authorized publication of current Build20; successor save/font visual confirmation pending, no broad compatibility certification",
+  "saveMigration": "Stable PPSA77022; old PS5GameTest/PEVG cards require deliberate manual restore; backup whole app/user, never overwrite newer saves",
+  "displayName": "Parasitic Event Revisited"
+}

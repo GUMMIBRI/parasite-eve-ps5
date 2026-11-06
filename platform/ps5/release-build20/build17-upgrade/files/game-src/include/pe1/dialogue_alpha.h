@@ -1,0 +1,54 @@
+/* SPDX-License-Identifier: MIT -- optional decoded dialogue ASCII only. */
+#ifndef PE_DIALOGUE_ALPHA_H
+#define PE_DIALOGUE_ALPHA_H
+#include "pe1/textbox.h"
+#include "pe1/render_prim.h"
+/* Independent styles:0Original,1Modern(Plex),2Retro(Chakra Petch Bold),3Atkinson. Stable saved IDs. */
+enum { PE_FONT_STYLE_ORIGINAL=0, PE_FONT_STYLE_PLEX=1, PE_FONT_STYLE_RETRO=2, PE_FONT_STYLE_ATKINSON=3, PE_FONT_STYLE_COUNT=4 };
+void PeFont_SetStyle(unsigned context,int style);
+/* Immutable bundled TTF for native font producers; Original/invalid returns NULL. */
+const unsigned char *PeFont_TrueTypeData(int style);
+int PeFont_GetStyle(unsigned context);
+void PeDialogue_SetEnabled(int enabled);
+int PeDialogue_GetEnabled(void);
+int PeDialogue_GetEffective(void);
+/* Enabled is supported by explicit native font-reference ownership. */
+int PeDialogue_StateSafe(void);
+void PeDialogue_Prepare(void);
+/* Source-owned field font-bank load notification; does not enable the option. */
+void PeDialogue_FontBankLoaded(void);
+void PeDialogue_Tag(RenderNativeTag *ordering,TextboxGlyphPacket *packet,unsigned code);
+/* Only the actual original dialogue choice packet; independent of font style. */
+void PeDialogue_TagChoice(RenderNativeTag *ordering,TextboxGlyphPacket *packet);
+#if PE_NATIVE_STATE_CPU_COMPONENTS
+#include <stddef.h>
+#define PE_FONT_CONTEXT_STATE_BYTES (64u+64u*48u*2u)
+#define PE_DIALOGUE_STATE_BYTES (16u+2u*PE_FONT_CONTEXT_STATE_BYTES)
+int PeDialogue_StateCapture(unsigned char *,size_t);
+int PeDialogue_StateValidate(const unsigned char *,size_t);
+int PeDialogue_StateRestore(const unsigned char *,size_t);
+#endif
+
+/* Original Triangle-menu FT4 text only, independent default-Original setting. */
+void PeMenuFont_SetEnabled(int);
+int PeMenuFont_GetEnabled(void);
+int PeMenuFont_GetEffective(void);
+void PeMenuFont_Prepare(void);
+/* Producer-owned complete save fields. No VRAM guessing or generic sprite replacement. */
+int PeMenuFont_SupportsAscii(const char *);
+int PeMenuFont_BeginText(const unsigned char *);
+void PeMenuFont_EndText(int previous);
+int Draw_MenuSemanticReady(unsigned packets);
+void Draw_MenuSemanticText(const char *,int width,int height,int yOffset);
+void Draw_MenuSemanticNumber(int value,int places);
+void PeMenuFont_Tag(RenderNativeTag *,RenderTexturedQuad *,unsigned,unsigned,unsigned);
+#if PE_NATIVE_STATE_CPU_COMPONENTS
+int PeFont_StateCapture(unsigned,unsigned char *,size_t);
+int PeFont_StateValidate(unsigned,const unsigned char *,size_t);
+int PeFont_StateRestore(unsigned,const unsigned char *,size_t);
+#endif
+
+void PeMenuFont_SourceBegin(void);
+void PeMenuFont_SourceUpload(const RECT *,const void *);
+
+#endif /* PE_DIALOGUE_ALPHA_H */

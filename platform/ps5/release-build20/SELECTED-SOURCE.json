@@ -1,0 +1,1426 @@
+{
+  "build": 20,
+  "normalization": "LF; root -> @ROOT@; retained prefix -> @BASE@",
+  "files": [
+    {
+      "path": "game-src/cmake/ps5/bootstrap.cmake",
+      "sha256": "1214558412197ab3fb73e63db2d1083f8310b444b355a9d0c49fbc4243a07154"
+    },
+    {
+      "path": "game-src/cmake/ps5/game.cmake",
+      "sha256": "7d0b8929ef5239c8e66c4b7cfed2397e665fa99710bde0ad4f15b9b281984333"
+    },
+    {
+      "path": "game-src/cmake/ps5/payload.cmake",
+      "sha256": "0434b04b8df7bf979c7500a7057389661300052b839b8851dedc4f493db178d0"
+    },
+    {
+      "path": "game-src/CMakeLists.txt",
+      "sha256": "f0e43f6f58278915e8fc3b74ae7f424738ce785b75c8002bd967e3c7b6988513"
+    },
+    {
+      "path": "game-src/include/pe1/dialogue_alpha.h",
+      "sha256": "79379d0bf8c737b94be0f57951603b5a3522fccd537e28096e1a011f155ab74b"
+    },
+    {
+      "path": "game-src/include/pe1/geom_state.h",
+      "sha256": "7db8430e99ee47cd827d237908cd5ca495d1d0f74d516cae5d71a3ff0cc25a3c"
+    },
+    {
+      "path": "game-src/include/pe1/gte.h",
+      "sha256": "fa473fadef57b0531650c637c57904dabab30a024d8c320505e3ddeb0f096f95"
+    },
+    {
+      "path": "game-src/include/pe1/hp_loss_hook.h",
+      "sha256": "f782027894c40a851d996b2570b4e2a89528d724af243ae9358d283a59487c5c"
+    },
+    {
+      "path": "game-src/include/pe1/model_fill_lighting.h",
+      "sha256": "b8fd83f0ef662d47252813b860a6711d9ec3050b8dfb6e8651944a1c06cb620f"
+    },
+    {
+      "path": "game-src/include/pe1/particle_augment.h",
+      "sha256": "d0c99c7f5c6fcc73fa1cf4b001b8ff1d301fff58fde680ee3e37c5ad956a0af2"
+    },
+    {
+      "path": "game-src/include/pe1/planar_shadow.h",
+      "sha256": "62eacb32ef596eab506aa46788801729a5229285ef1dc4dc2af60bb0f515248d"
+    },
+    {
+      "path": "game-src/include/pe1/point_sprite_owner_data.h",
+      "sha256": "ad124d8b9be7d87bf1b708eb87803da3b16c4e6ff766b9cabf52ab11abd611bf"
+    },
+    {
+      "path": "game-src/include/pe1/render_object.h",
+      "sha256": "ddf3f42327b79869cbf5b225a05c3cd71a1ec2955a6d3577032551dbbc9f2b58"
+    },
+    {
+      "path": "game-src/include/pe_actor_texture_pages.h",
+      "sha256": "87dc592224ded42c5d485623741f2e40dda818c250517903de7b4ebc48c99bdd"
+    },
+    {
+      "path": "game-src/include/pe_hooks.h",
+      "sha256": "1d80811ab9abb593ffe0bafd9ccc53897a37ab585dcf510ac9ff9c164fbb1015"
+    },
+    {
+      "path": "game-src/include/pe_model_texture_pages.h",
+      "sha256": "fbbe4eddd6e33e1b3ee1b3e517dfc56faf5617a9bf763d3e25642df66140298c"
+    },
+    {
+      "path": "game-src/mods/CMakeLists.txt",
+      "sha256": "15dc14eb7a8ffb23c48d1ba344944995c21f7230fef49e27aed544b558ceed26"
+    },
+    {
+      "path": "game-src/mods/host/pe_checkpoint_collection.h",
+      "sha256": "3941617260d761c9b455b4ba7f28dcdaff6c835cd2e31a2898c0c52a6df402a8"
+    },
+    {
+      "path": "game-src/mods/host/pe_checkpoint_economy.h",
+      "sha256": "a1b28370c5f40027367309b2868ea593f7091e684f32329d5455d2040b38ddd5"
+    },
+    {
+      "path": "game-src/mods/host/pe_checkpoint_qol.h",
+      "sha256": "292e0df7284663735aeb00ae487591d36024941ae250493999a8c3c85ccdb86e"
+    },
+    {
+      "path": "game-src/mods/host/pe_checkpoint_rebalance.h",
+      "sha256": "9baf5015517fc4ebd32ddeb52a9fc7b69ae735b869511545185ba2829ee1ca5d"
+    },
+    {
+      "path": "game-src/mods/host/pe_checkpoint_wire.h",
+      "sha256": "012650382e2127c511a46fbdab4cab9b90fd5d48338c53ae1faf0ba8254850cf"
+    },
+    {
+      "path": "game-src/mods/host/pe_equip_sync.c",
+      "sha256": "c90d9d47023f388b1a4d930561c028daa66d842a9d36369ec2830a1839eabe41"
+    },
+    {
+      "path": "game-src/mods/host/pe_main_menu.c",
+      "sha256": "81e786e86c4d0090f86193004dbcc1b2876e99621140f285c592b8a7175f9294"
+    },
+    {
+      "path": "game-src/mods/host/pe_mod_host.c",
+      "sha256": "de06790206ea79803d017eeeb9053a6d62f3b826c57946bd25006137eadefe29"
+    },
+    {
+      "path": "game-src/mods/host/pe_mod_host.h",
+      "sha256": "2f6e3a53b84e6a3c4f36be56fcfe6c6e9f9b6439f3da0899b1fe877b68d4775b"
+    },
+    {
+      "path": "game-src/mods/host/pe_mod_menu.h",
+      "sha256": "b8eab59275110ce7db53584545d0713889c13957f9bdf6aa0401c7f53194139b"
+    },
+    {
+      "path": "game-src/mods/host/pe_mod_panel.c",
+      "sha256": "afe0144298291e54624f258be17bfda402624e83fc8b072d4772f8d7c826fc66"
+    },
+    {
+      "path": "game-src/mods/host/pe_present.c",
+      "sha256": "308c22b1a700c94f4225c4b7b93be3f93508295ca0d4314ef200c90ff77bed84"
+    },
+    {
+      "path": "game-src/mods/host/pe_save.c",
+      "sha256": "f2a9619643198dc0fc11039cc2a6ecfb875d6c858032b6a8cdaff8bdeb7326bf"
+    },
+    {
+      "path": "game-src/mods/host/ui/pe_toast.c",
+      "sha256": "0ae7e09660a288ec4d2d18a7987387753f5e6b0addd548741aa5288939f1bd6d"
+    },
+    {
+      "path": "game-src/mods/host/ui/pe_ui_gpu.c",
+      "sha256": "4db996aa5337f8e446ce9c125e4a97d860812ae411c30fb94e42c06b8c1d225d"
+    },
+    {
+      "path": "game-src/mods/host/ui/pe_ui_ps5_cpu.c",
+      "sha256": "d2e140312c664ae43ec82912d2d529f256ee23084c1fb6ff7d6c48a2399da94f"
+    },
+    {
+      "path": "game-src/mods/host/ui/pe_ui_raster.c",
+      "sha256": "8c9cb235107cb3b2040dbe21ddf827bc6879791e45fc0cf96dccee26575162b1"
+    },
+    {
+      "path": "game-src/mods/pe_assists/pe_assists.c",
+      "sha256": "dcd47c11782d60019669d7e2ef0c9eb98a2a8008bf1626326381562091cbf277"
+    },
+    {
+      "path": "game-src/mods/pe_collection/pe_bestiary.c",
+      "sha256": "8b1c573cbe3c718cb63bc36d645ae2178d81d459a0e7de943f971d002e9f6034"
+    },
+    {
+      "path": "game-src/mods/pe_collection/pe_bestiary_menu.c",
+      "sha256": "60c27cb2219bbcd6d99bdf7abd1e4227155b43de928687374773ec4f3583b86f"
+    },
+    {
+      "path": "game-src/mods/pe_collection/pe_collection.c",
+      "sha256": "eebab879243aa8bde59fd72427e76a0da28e4dc45a2dff2ff2eb8b395360288a"
+    },
+    {
+      "path": "game-src/mods/pe_collection/pe_profile.c",
+      "sha256": "3bc8f2cec6790cb8b6eff9144ca600886733b0a259eb8131ced0bad4f4197e74"
+    },
+    {
+      "path": "game-src/mods/pe_collection/pe_skin_loader.c",
+      "sha256": "45ae6e0a4ed5626d07e0ca9a4face4ca03e824375dd1b89826a1cbc6ff935552"
+    },
+    {
+      "path": "game-src/mods/pe_collection/pe_wardrobe.c",
+      "sha256": "ecd46dd4833bca827852b9aac832655ff80105161d9f92bbce7e6e01d066bf4f"
+    },
+    {
+      "path": "game-src/mods/pe_collection/pe_wardrobe_menu.c",
+      "sha256": "99a433640ee06b525491fa93f012bd65f98ab6d47f560b0c32eaa0e0a543bc69"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_catalog.c",
+      "sha256": "b309269a4492a5f9e027691563164d5ae632bc5117c4350207b5d68292c0eefe"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_catalog_menu.c",
+      "sha256": "4c4c84d9c4924cd6254fead0b1422b7902fcf204b3e3c42aad1275cc1491b338"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_catalog_pages.c",
+      "sha256": "41ba707c0e0793506ebdc39542ddf567900171d613cd5391aff43a9a3a8c8c69"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_discard_dismantle.c",
+      "sha256": "12061cdd870e8e6607cdb437a75810e5361ad716ef432cd95aa50242089292a6"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_dismantle.c",
+      "sha256": "6f1fe4e4dfec97619e7dfeee19a0cf6f7916abfb989f8dc4a57069ab3c32d835"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_economy.c",
+      "sha256": "7052ffa452bfedeb4c8d493da3b217297989c9de208941822eb9e90b9017b82b"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_field_wayne.c",
+      "sha256": "ef70efdaed693c5ad98650d9deb4ef9d2a39344cc41e7bacb2c6a8e79a585243"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_junk_counter.c",
+      "sha256": "1844b9cce7fb816d19b8b0e86f4eb50f349fb13379e7dd37b789b8aaa84f8593"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_loot.c",
+      "sha256": "b28a5de0de73be828da88ba9f9d4f328cff5729f74c2dcda8875c83c4f39c028"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_requisition.c",
+      "sha256": "d3559765c03adf71ffc40bc831b17f0e9a073c7b8cf4ec44465466cdef49dfd1"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_requisition_menu.c",
+      "sha256": "30e4be08deb7da3a1d319608c341744dce059487284a39ad45ef161629eb02b8"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_smoke.c",
+      "sha256": "aeebf3892360c3832f6ff388cab368d234a58040460fb93cefc2c9fb429323da"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_wayne_menu.c",
+      "sha256": "c345607498d1a11bc4cdfe9e43fb88c18f0a6845c868a4e55b06b782a6a4da69"
+    },
+    {
+      "path": "game-src/mods/pe_economy/pe_wayne_refund.c",
+      "sha256": "6ed7185a784b62ce6f1e35a90511c9b5ab4ac3320e04bc6a6b07691122b52d9d"
+    },
+    {
+      "path": "game-src/mods/pe_qol/pe_bag_sort.c",
+      "sha256": "d38d2111e49416d3d8b3cf50eb30431dea58914aac26b5c89da0182695a32583"
+    },
+    {
+      "path": "game-src/mods/pe_qol/pe_battle_frequency.c",
+      "sha256": "5d4896f45ff8c8cd8ef27ea91da3786cd9d56f908b165e5a3c644344cf83d555"
+    },
+    {
+      "path": "game-src/mods/pe_qol/pe_encounters.c",
+      "sha256": "6c5837d94794ff7df5aaa3d4d989bf75968f0a5a3d1654961f757262a6542800"
+    },
+    {
+      "path": "game-src/mods/pe_qol/pe_inventory_menu.c",
+      "sha256": "996526ec29e7f84eec5692446d21bdc7fdde9a366cb83186e4319faa18de97c1"
+    },
+    {
+      "path": "game-src/mods/pe_qol/pe_key_items.c",
+      "sha256": "990ca4ddf1e94e8f8cc5d086db14923996d98be813bcc057454bcf9221519c0f"
+    },
+    {
+      "path": "game-src/mods/pe_qol/pe_key_menu.c",
+      "sha256": "e7427e136fa4f70c7a51ec07e489a56dd47292d0bd94918c47a455566e56d162"
+    },
+    {
+      "path": "game-src/mods/pe_qol/pe_move.c",
+      "sha256": "ea90bb30a77849ac075e87f0380bed885d5f69d41b1c961917346db1a00534cf"
+    },
+    {
+      "path": "game-src/mods/pe_qol/pe_qol.c",
+      "sha256": "eeb922f3c8a28898dc542aa9409f175352c0019df263644f8daa87e194e9ec59"
+    },
+    {
+      "path": "game-src/mods/pe_rebalance/pe_atb_items.c",
+      "sha256": "897acbd77f167dac8a7052f6eb45e467c7bdc5164dab028932f79098976ce7af"
+    },
+    {
+      "path": "game-src/mods/pe_rebalance/pe_combine.c",
+      "sha256": "26b1149cdb72cb05e06f881aacf6bbc862703a91df1d153ad17cdb968b421dc0"
+    },
+    {
+      "path": "game-src/mods/pe_rebalance/pe_mod_effects.c",
+      "sha256": "f901682df15474a0d12735182eee25eae55406b5237522243e4617c903a9eb91"
+    },
+    {
+      "path": "game-src/mods/pe_rebalance/pe_panacea.c",
+      "sha256": "840edd55e77427dfbea44ed3c3dea22051181c3e963e411b87d296598553c168"
+    },
+    {
+      "path": "game-src/mods/pe_rebalance/pe_pe_balance.c",
+      "sha256": "eadeff2276a51b915d3be40910d9d78cfeb12ec1fd706b0de0fd3e391923586d"
+    },
+    {
+      "path": "game-src/mods/pe_rebalance/pe_rebalance.c",
+      "sha256": "e20d3e413153cdee299ab67f6a96c1ab72275c81ccb90936dbe63c3c5b45d8ec"
+    },
+    {
+      "path": "game-src/mods/pe_rebalance/pe_weapon_power.c",
+      "sha256": "e654ffbffb9e2b835eba5969fe0c2528cdb0621a3f280eb4adb566dce9e97f94"
+    },
+    {
+      "path": "game-src/platform/ps5/bootstrap.c",
+      "sha256": "f1480f1ba9cb175248f1431a768c4f1db7c91b06648f41649ba0d053f2dff5e3"
+    },
+    {
+      "path": "game-src/src/main/akao/voice_bank.c",
+      "sha256": "e2cc86f3bcf3b668ec79b183e623630af6d0a11f4b8c22af74efe9cb1068e0a8"
+    },
+    {
+      "path": "game-src/src/main/battle/attack.c",
+      "sha256": "40d15630835a9348ecd4e8d09c71caa1ba8276dc84f66dff0f25708228c99959"
+    },
+    {
+      "path": "game-src/src/main/battle/enemy_actions.c",
+      "sha256": "3201ded65d67c6755c7993341e146d39a5fb93fe436d2d2c426905d024a17f6d"
+    },
+    {
+      "path": "game-src/src/main/boot/fonts/chakra_petch_bold.ttf.inc",
+      "sha256": "686418946f733f3211e79e3077cbeec97fa12772b13215107813d0c723e0407b"
+    },
+    {
+      "path": "game-src/src/main/boot/fonts/OFL-ChakraPetch.txt",
+      "sha256": "a065aab8d03c01acf1df9ea15de745e81c94202c984e68e7bc5bbcf1091eeabc"
+    },
+    {
+      "path": "game-src/src/main/boot/frame_loop.c",
+      "sha256": "2b5c7592f213094dc0ce5f982f67e72a7fb1ccb66acdf81b1b5433b28c7619f2"
+    },
+    {
+      "path": "game-src/src/main/boot/installer/pe_character_pack.c",
+      "sha256": "b0bf4a914bc188c14ac2f15b55f4a46a763d840c00bc7329460ccac5ca034cd6"
+    },
+    {
+      "path": "game-src/src/main/boot/installer/pe_character_pack.h",
+      "sha256": "1ae724a6ffdf0d9d1056e75d06a94ad4b7846132f129159bbbfb34ed58058fc8"
+    },
+    {
+      "path": "game-src/src/main/boot/installer/pe_install_paint.h",
+      "sha256": "e5c6bd6fabbbe337460004a0fb6b2fb1df0256cee1707c3f340530d672ac04ad"
+    },
+    {
+      "path": "game-src/src/main/boot/installer/pe_install_view.h",
+      "sha256": "3796f5a2105a74e31ddde24e4b062f862fb69feee130431556eddaabfaac01e3"
+    },
+    {
+      "path": "game-src/src/main/boot/installer/pe_native_install_ui.h",
+      "sha256": "a50c82b0f36a01ac6bf8d9bc4677ae278813c9ab3ef949553090fbd56962e48f"
+    },
+    {
+      "path": "game-src/src/main/boot/installer/pe_pack_check.c",
+      "sha256": "58f31a10ec238c0f1b1374ccce95bf6ee0b302025dda19b68fa3378dd781369f"
+    },
+    {
+      "path": "game-src/src/main/boot/installer/pe_pack_check.h",
+      "sha256": "ac792dd41458e1540c03e49d674c841c612e9099148b05ed5c48a9698557fe7a"
+    },
+    {
+      "path": "game-src/src/main/boot/main.c",
+      "sha256": "b66208f327fa467c70ce779a9da19e2be561b830736c0b71851c10450be359fe"
+    },
+    {
+      "path": "game-src/src/main/boot/native_experience.h",
+      "sha256": "f5e10a4d81797e6509d7cbd89e763b45135a75330796afdcce8aa7a1147658eb"
+    },
+    {
+      "path": "game-src/src/main/boot/native_registry.h",
+      "sha256": "064f581b10a80a800258f500e1e0469e9ddf941a6c14133250b236a10eeb14a2"
+    },
+    {
+      "path": "game-src/src/main/boot/native_tabs.h",
+      "sha256": "9c8485c6ae8afc94dded15aa1fa0b7944980bc835066ecee83a3e70a60ffd7c9"
+    },
+    {
+      "path": "game-src/src/main/boot/settings_overlay.h",
+      "sha256": "b243c6a0b9e74b9129bf54b50b5011d5b5d098cec30d4247ac5f1d4b3c32619c"
+    },
+    {
+      "path": "game-src/src/main/boot/state_ui.h",
+      "sha256": "d8c823cdece5c86cb846c8dc510647507be9822cf5c7a419d7805659820f198d"
+    },
+    {
+      "path": "game-src/src/main/cdrom/scene_assets.c",
+      "sha256": "13d189fe26a1d8bef8eecb04531a5b6eaab9c33a48306631bc4a50b3191275dc"
+    },
+    {
+      "path": "game-src/src/main/draw/frame.c",
+      "sha256": "8bb10d056bb77edb34e875f23fe688098880d705955997fbbf76eb04551bf103"
+    },
+    {
+      "path": "game-src/src/main/draw/text.c",
+      "sha256": "9c32a202c6fafa1149ab2ebcdbcddc258db3a0a84b36324b758aff0b05c842b5"
+    },
+    {
+      "path": "game-src/src/main/draw/textbox.c",
+      "sha256": "8aa629784ba81b91166cd829c5cb4b5a163c8528960b6f989abeef8479eb94c8"
+    },
+    {
+      "path": "game-src/src/main/entity/allocation.c",
+      "sha256": "2a39caa508bf8ee5ddee6770a834edbd18f1663d47dfed2eb6dfabc9db933e2a"
+    },
+    {
+      "path": "game-src/src/main/entity/combat.c",
+      "sha256": "0366569dd4a19f413ee8523c51239a50a1dfd0d12fc167ddeb45cf1162ab62b2"
+    },
+    {
+      "path": "game-src/src/main/entity/frame_update.c",
+      "sha256": "4918a094ba350c352f01acbd4d03377777d70f8c3f27b2338408630fe460f73c"
+    },
+    {
+      "path": "game-src/src/main/entity/pool.c",
+      "sha256": "c400cfd559d5ec80da421698f6529f67bae36ad51787c90a96fcb63164af0b71"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/burst.c",
+      "sha256": "6630ce90f2117fffb9306c768fb0f295370f493ac9831730d37fe6246b23d928"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/emitters.c",
+      "sha256": "b32c0fe182689f1f36725871620fd19a4f1572e0b353f7b4e9993361ebd32812"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/geometry.c",
+      "sha256": "63d443099064bb0f4cf5566ffec75fec9d2c634a9e4748b87a538c57ecfa83df"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/model.c",
+      "sha256": "f0105de3f0c1ab1532fc8fa9391890b981c6f8fba8e2d274ac0a5df4bcb12519"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/particle_mesh/pe_battle_particle_mesh.c",
+      "sha256": "89ca8cc0f0ab067b9a82355df2b10cba4aaab31f2efc20fb39daa7ddfe8f6a9c"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/particle_mesh/pe_battle_particle_mesh.h",
+      "sha256": "6e05828b49337962bc96ee3917f1ad99a39e6696475df57027d8630884fc7034"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/particle_mesh/pe_falling_sprite_adapter.c",
+      "sha256": "ad65aa50cf4c2a038c965710de95979de792395fa537a3e4631821fa575f20d1"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/particle_mesh/pe_particle_light_native.h",
+      "sha256": "a6cbc9adf82018d100f7927b5c1304e5b81af167a6bd351049a4817f3b39c716"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/particle_mesh/pe_particle_project.h",
+      "sha256": "196ad4252b838df7af8f6c366493b405f56372513ed35ba2a1bb5817455c81b5"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/particle_mesh/pe_particle_render.c",
+      "sha256": "e6a1004862e91be8ac49135fad18e3ac501697e4eaffe5b35659d3d5c7fc0fa9"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/sprite_effects.c",
+      "sha256": "82a15e26be4cc2434af69419f94159c73680924d8f05a87a07bf91bbd0bdc244"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/sprite_render.c",
+      "sha256": "f0108e35055392368f6caa41f27a97ab7568560f618e1e196d2cb0c6e313168a"
+    },
+    {
+      "path": "game-src/src/main/memcard/save_flow.c",
+      "sha256": "295d6b4b65135ab4bfa0fa2091ffcef397bb595fc681e849c75f71f461545e66"
+    },
+    {
+      "path": "game-src/src/main/menu/input_queue.c",
+      "sha256": "bd5643afd851e14cd061294fbf197eb21d18be25dc64024654e7c540a4352aed"
+    },
+    {
+      "path": "game-src/src/main/menu/main_update.c",
+      "sha256": "2ca4d6f60d2dfc31859d1ba543b6786abe61c2d7b8507aaafc744e9a7c0ee6b5"
+    },
+    {
+      "path": "game-src/src/main/render/dialogue_alpha.c",
+      "sha256": "8c8c9e485f24ba8af5637c310565de770d669a726de4398ef24e4de168c03417"
+    },
+    {
+      "path": "game-src/src/main/render/mesh_entry.c",
+      "sha256": "64f22644ea6dd633d4276e2d25533a052e9a4809f0615511d3cb4100c6f13b7d"
+    },
+    {
+      "path": "game-src/src/main/render/mesh_list.c",
+      "sha256": "8d258d5278a4fa208fed69278c46a22acf380d6911535fe2d7574a00a5383874"
+    },
+    {
+      "path": "game-src/src/main/render/model_fill_lighting.c",
+      "sha256": "9cd81a95057dfa9a2af0d3c75aedc16d71690190ef0e3c28378237d97d16365b"
+    },
+    {
+      "path": "game-src/src/main/render/object.c",
+      "sha256": "a848b4630d02600a44372ec10b27a3628ec75712750a71ba9aa13d8eb8409785"
+    },
+    {
+      "path": "game-src/src/main/render/planar_shadow_native.h",
+      "sha256": "fd1ec25f034fedb729da00a3d2d1ac9967f0243bfd3616f6fcfad1bf57823e68"
+    },
+    {
+      "path": "game-src/src/main/render/shadow_trace_native.h",
+      "sha256": "c64262808ead77c883d3206dd7c38bf1eca65ed47bc91e538bf78c18dbd4888c"
+    },
+    {
+      "path": "game-src/src/main/scene/player_movement.c",
+      "sha256": "cdf84004081ebba0ac37b56af0839244c1f61558952c50168b4681907758e353"
+    },
+    {
+      "path": "game-src/src/main/scene/room_load.c",
+      "sha256": "0a91df43890b96590c92602a8294448898c5501c48eceacf024184c9f8635f47"
+    },
+    {
+      "path": "game-src/src/main/script/actor_opcodes.c",
+      "sha256": "569bef893f74b1a7d1b1cbb80298e078f489346a562ebc69221aafa986a95a96"
+    },
+    {
+      "path": "game-src/src/main/script/node_actions.c",
+      "sha256": "b43a59b7b1ab53bfd050e36d7e1454d829e88b7657eb3ccdadd7e2e92846346f"
+    },
+    {
+      "path": "game-src/src/main/script/node_pool.c",
+      "sha256": "838416418aa1ed297c75d152cb935b80d76de007c0b4c0c3cb34f7fb1cd17105"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/display_reset.inc",
+      "sha256": "ac19c4b0e8a255372d559a372def803316c82b6abecd8e8273fa1e65e0ba9c9a"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/glint_effects.c",
+      "sha256": "486e3410430e4078abb06703bfb5a908d7286a5e97dd4cbd929d1a241711cc13"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/page_flip.c",
+      "sha256": "57ebdbc0ab1152df917e6a4c373c2985a0b9246c0694758a95e6517ee693eb76"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/video_open.inc",
+      "sha256": "f33bc1642b7f1327acf0e02c08e31818020a6b6aa79020cc081006c5760a535b"
+    },
+    {
+      "path": "game-src/src/overlays/room_lib/mirror_model.c",
+      "sha256": "b56b5786e6a493f01c71bfa5e566cfa10f2aeea85b8013ebf563f3014f824c82"
+    },
+    {
+      "path": "game-src/src/overlays/room_lib/orbit_flare.c",
+      "sha256": "a41a3dd6b2fa0f957b407230dd035a9dc9bd93af346a269b3bf9e314e003e0e7"
+    },
+    {
+      "path": "game-src/src/overlays/room_lib/spark_attacks.c",
+      "sha256": "83b0e6e0cbe4c0b9acc6f27a443c34d5663733b5c227c6e62890f109f16962f9"
+    },
+    {
+      "path": "game-src/src/overlays/room_m005_theater/m005.c",
+      "sha256": "f2592e2f201cb9b29a88d52b321f5c7ba3ceec14f71a6e4036ab8f44147e1d1e"
+    },
+    {
+      "path": "game-src/src/overlays/room_m023_theater/m023.c",
+      "sha256": "2c738b0bef56c11e4a2429b093f1e1feaa27fd571243fa587b2f6b24ac9cce1e"
+    },
+    {
+      "path": "psyz-src/decomp/src/libgpu/sys.c",
+      "sha256": "5509210fd22364fe58fbdf66dcd6525d1fb5522dc4328845344c21414ca3f90e"
+    },
+    {
+      "path": "psyz-src/psyz/CMakeLists.txt",
+      "sha256": "312e17fbd138f600836f5ec0de64295b19ebcd0b679d887e3875d61fa523472e"
+    },
+    {
+      "path": "psyz-src/psyz/include/psyz/gpu.h",
+      "sha256": "a6bb7f011caf17966fc16a2fc3a2eff9fc3e4e72decd632be225db9eaf585199"
+    },
+    {
+      "path": "psyz-src/psyz/include/psyz/overlay_sdl3_gpu.h",
+      "sha256": "f05d7826617cbc4b61f764a200aa2bb49a2fb01fc1f000af6054ca2008b32ed3"
+    },
+    {
+      "path": "psyz-src/psyz/include/psyz/state_audio.h",
+      "sha256": "e955cb2b0b59ed6ea54b05efa5acd6d0544318c95ce606a2d25242b9ba22dde2"
+    },
+    {
+      "path": "psyz-src/psyz/include/psyz/state_gpu.h",
+      "sha256": "4fb588737b7d091d8855a9402a9b9c14e90f708aa2e0d4d7998a38360db28b24"
+    },
+    {
+      "path": "psyz-src/psyz/include/psyz/state_numeric.h",
+      "sha256": "498e2dc471c658e3d3b01c24cb2c14f4ea1c53ac720a75ec083463a9ed20fa1e"
+    },
+    {
+      "path": "psyz-src/psyz/include/psyz/state_producers.h",
+      "sha256": "ee02b1367adde855bef0d5476e8d69c7807941415d3b6143be2ed4c6a305113c"
+    },
+    {
+      "path": "psyz-src/psyz/include/psyz/video.h",
+      "sha256": "a0016f3b449d9f4cf1a3d9aed860682ddd0fa38f064d2bb274dd496175c83062"
+    },
+    {
+      "path": "psyz-src/psyz/src/internal.h",
+      "sha256": "e6170a10b0a4686d19e680f927fd604153ad9d18f66884699dab1289a165aac0"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/committed_presentation.h",
+      "sha256": "e2582fe43abcfa3192f87eabb83d569d55345162ad4f209c6f1ec05f95be79cd"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/cpu-material-adapter.h",
+      "sha256": "542d226a6d074c78b798b9ab75c9874cad2c13e174b8b8630b477c8c28998f4c"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/cpu-raster2x.h",
+      "sha256": "b14da934429505da9791af94f49d31ee8c069bca9e45baafa81d3c3cf78da9d2"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/cpu-widescreen.h",
+      "sha256": "d467725499636eae38dc37abe6313c5d4a34bff3b9c4990a7988ba0e4b2f7638"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/dialogue_font_generation.h",
+      "sha256": "a5a990900975e29cb382b695bc891cb2053684695d2ea619cdd1cac2e140f636"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/dialogue_font_gpu.h",
+      "sha256": "894c8ab2512eb76b730cfe5f1b11f931b9421b4cc7fbd27276525fca0a7e6b05"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/duck_models.h",
+      "sha256": "4349c07ccee52177007b3dde2df93489bd2cd1b67ed0f8ea392d03269e776297"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/duck_state_sha256.h",
+      "sha256": "919a4604b34a20e02f0f31f988fc4dc6cc8725a0ff66c576c7e44f45e59aa7f4"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/duck_xxhash.h",
+      "sha256": "17973c0dc49d9854ca26caa191f0e12f7a424b68858d9a78de3860d959d85e4b"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/fsr1/cpe_fsr1.c",
+      "sha256": "bc7891798f92566c534233e38983d3a83321439254a40f339fa0a7c66e95bb29"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/fsr1/cpe_fsr1.h",
+      "sha256": "c7b3bd2bc7d4f36fe97aabac678d4f67bba75cb2b8b60d5ab371ed62f95f7c46"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/fsr1/shaders/fsr1_easu.frag",
+      "sha256": "6d15bb256b7916c578fb635653da77cd9818afe8c9a72abb8298eccbe9116e78"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/fsr1/shaders/fsr1_rcas.frag",
+      "sha256": "6a628d67be093c63414f067147f6488014fca7da1a7190e17c33d1dae59b95da"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/fsr1/shaders/fullscreen.vert",
+      "sha256": "0679b971f50df475ff087db0e813049645b89c6cd138b8de3863e8a7822b75e2"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/fsr1/third_party/fsr1/ffx_a.h",
+      "sha256": "f60e2722fcd13989523b9164d776ab382b3692791767f3bf8bb19967f763f3fb"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/fsr1/third_party/fsr1/ffx_fsr1.h",
+      "sha256": "93c3922362ea7fc99cbcc698ca30c98de4f8c246d1fbb0b09e015ddef38ce3a5"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/fsr1/third_party/fsr1/LICENSE.txt",
+      "sha256": "db089274ce766da70f5b7d791029c3486f9f9e27c8c79c652689603d3192e802"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/movie_blur.frag",
+      "sha256": "d6f3c99eff55ca69092a1030c9d7cf569b13211bc1aae737b2e47b662367376a"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/movie_blur.h",
+      "sha256": "5f01407ccb9338719fb803cfc00198115e341088253497f3be0ddf989285189f"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/movie_cleanup/movie_cleanup.c",
+      "sha256": "f2473ba17ea1fbca16754a1c19388a695546cf61946947fce424b5b4d92222fe"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/movie_cleanup/movie_cleanup.frag",
+      "sha256": "5e5773ba33494bb7d9f0457520eefda7827938354ff295534c6aa208f6eb7b46"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/movie_cleanup/movie_cleanup.h",
+      "sha256": "a3da8c87b142271d85d206e5916ee4d8fcc5732b86789debe55994e375050e81"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/movie_cleanup/movie_cleanup.vert",
+      "sha256": "3cb1f93e60bb8e51aadfb1d70be45c4ad37d90c553f4ffade16e9c3f9c317cf8"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/movie_cleanup/present_movie_cleanup.h",
+      "sha256": "5c10e217f5818b4e4fc09c1262d48f48f6154d764c88de574b451ad4d16b9fcd"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/movie_lifecycle.h",
+      "sha256": "1ad8b8f97dcbaa006d8c7dcb49f4172ffa4f6b5bb4e8c0c28d76cb9cadb93bff"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/pe-ps5-render-buffer.h",
+      "sha256": "9196abb8ba90992fdc039855e3b6bb32e507ff4a2be233a2f9c9c4b285b55d44"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/present_fsr1.h",
+      "sha256": "3dd2f784968242dcdc31a2d78904ee335df3ac022822c107034cef7f0cea3d56"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/rasterizer.h",
+      "sha256": "390a93732f64f37d3f01cc2c3711f6dabc09fd8d75d9eff9cd001742c9bf6dd2"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/sdl3_audio.c",
+      "sha256": "a161660e823c97ad1ff6a2bc141af1e7eecb426c230f0437176ce7dcfaaa25c7"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/sdl3_common.h",
+      "sha256": "2c2a5d99718a426106e368aba38f2732cffa357362b45d94ddf0ef26029e0ae4"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/sdl3_draw.h",
+      "sha256": "5f959e411d2d7bc9b2dbf15caa15ea57c2da3c032148b7da84cc3c85993f64c9"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/sdl3_gl.c",
+      "sha256": "06f9bc04d780d92daa5adeac2d158cfc3bc5b76efbe4a7c57ed3f8b64dde4dec"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/sdl3_gpu.c",
+      "sha256": "4a1dae3d3087d9db872ed739789b57c7c91a2acd61d83179b2e2b33703e1788a"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/sdl3_software.c",
+      "sha256": "6b00b8478faa8e5be5c1f50b1534c6547ca923a04ed325ed409c5238130dacfc"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/shaders/psx.frag.glsl",
+      "sha256": "3a93093b314eadfb573eddfca08f3222fe6dc7a9b7eb8b1bf300d92a22204360"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/shaders/psx.vert.glsl",
+      "sha256": "15b4ea01337728241756d43e346231101d6bfc9f5f44af397873ae4c9e778c1d"
+    },
+    {
+      "path": "psyz-src/psyz/src/psyz/kernel.c",
+      "sha256": "75b914ca46fb80cd08cacd14be0a0c4357165ca5d18964fb914c36129c833d8b"
+    },
+    {
+      "path": "psyz-src/psyz/src/psyz/libcard.c",
+      "sha256": "6b56ac4249b7a9cdb36259ac31856456a9d5ceda0631bd0c5160722bdd8e5ea8"
+    },
+    {
+      "path": "psyz-src/psyz/src/psyz/libcd.c",
+      "sha256": "d223949444d706964d9645ecbb9e6f2a15762bb7ae7b0f817313368d2c5212e1"
+    },
+    {
+      "path": "psyz-src/psyz/src/psyz/libgpu.c",
+      "sha256": "f6d54f470475d07bbbe9cc6e3f97450e851d7265e4c203ff13c53e0bab45412e"
+    },
+    {
+      "path": "psyz-src/psyz/src/psyz/libgte.c",
+      "sha256": "9838529caca4711081b4660b54d32a611b0a64ad7f0aef46d472d10d39682bba"
+    },
+    {
+      "path": "psyz-src/psyz/src/psyz/psyz_spu.c",
+      "sha256": "bc9d9364d3d8adf43d1a09c58e8500c4b7c5938619ae0685fa2ce2142c28b7b3"
+    },
+    {
+      "path": "sdl3-src/cmake/sdlplatform.cmake",
+      "sha256": "7ace260713028ff13182db9add540a7635725cd7dea27806b2b538e91fd0e904"
+    },
+    {
+      "path": "sdl3-src/CMakeLists.txt",
+      "sha256": "2e76a38a0aa07a767a2eca78430045f135195d58441eae9854e323fcf7f90beb"
+    },
+    {
+      "path": "sdl3-src/include/build_config/SDL_build_config.h.cmake",
+      "sha256": "e3a32c8a8121b279d267c84e490fb878ac6246616f5128faab4c95d193e07e4d"
+    },
+    {
+      "path": "sdl3-src/include/SDL3/SDL_gpu.h",
+      "sha256": "4ff89236838f6d646624cfddb64aa550fd4ecf1ef2a3a53a2c3fb1bd64e7de85"
+    },
+    {
+      "path": "sdl3-src/pe-public-ps5.cmake",
+      "sha256": "580e5b914449f84e4270267783be756dde9a6cae6f58739dca6edc09dab08083"
+    },
+    {
+      "path": "sdl3-src/src/audio/ps5/SDL_ps5audio.c",
+      "sha256": "4a345ce1ce32ec9f342487943d1cebe19c898c42cc77175e9839b56f0146f249"
+    },
+    {
+      "path": "sdl3-src/src/audio/ps5/SDL_ps5audio.h",
+      "sha256": "e86783e32b91ff41e8d059746de12185e77c35791d2accb3363d1f8dd300cdf0"
+    },
+    {
+      "path": "sdl3-src/src/audio/SDL_audio.c",
+      "sha256": "f5bd058fa0126c67b95ed5d1601a5c0f61788d7f2d55109b5197d7555981015d"
+    },
+    {
+      "path": "sdl3-src/src/audio/SDL_sysaudio.h",
+      "sha256": "ef85a97a01e02a7093b5b4e9ca95415e34f3515308e218321ebcb14866ed138b"
+    },
+    {
+      "path": "sdl3-src/src/gpu/vulkan/SDL_gpu_vulkan.c",
+      "sha256": "8cffaf9805ed7b4c70815e32acadb9b148a01a51698b5a2358f880452b89d937"
+    },
+    {
+      "path": "sdl3-src/src/joystick/ps5/SDL_ps5joystick.c",
+      "sha256": "ffd45e62c548638fb6b55821bd54462e79d3c8093cf7190f9180c234f04ff51a"
+    },
+    {
+      "path": "sdl3-src/src/joystick/ps5/SDL_ps5pad.h",
+      "sha256": "a199ff025039ffc78c6f2156acfe2ccdcd0e1b4ccb26dd7ff5f44703d3802010"
+    },
+    {
+      "path": "sdl3-src/src/joystick/SDL_joystick.c",
+      "sha256": "baf4a66e8bfbe28f55549f52a5158774923c21690d5e42b0ebca7f6b8f14aff2"
+    },
+    {
+      "path": "sdl3-src/src/joystick/SDL_sysjoystick.h",
+      "sha256": "d2a9ee90ffe77c76ddc7d11fb490cb975675d6bf73f599697de834b1da668a75"
+    },
+    {
+      "path": "sdl3-src/src/SDL.c",
+      "sha256": "c9f43d7608060fa89c09d8bacb7cea1cc6775e6f6d271f1192586b8b934b3872"
+    },
+    {
+      "path": "sdl3-src/src/video/ps5/SDL_ps5native.h",
+      "sha256": "93b34e1e7a22459525f82efac35c885e7cd7be423d63770f0aaefd555a3d570a"
+    },
+    {
+      "path": "sdl3-src/src/video/ps5/SDL_ps5tilemap.c",
+      "sha256": "f2df0e44f8cea4a840aeacc197d40e82508cf24736d4ab4b3dc424a73dce1553"
+    },
+    {
+      "path": "sdl3-src/src/video/ps5/SDL_ps5tilemap.h",
+      "sha256": "f9f631a940ef46a25caecb7192031dc6909ae134651346c2442133d5898ea96f"
+    },
+    {
+      "path": "sdl3-src/src/video/ps5/SDL_ps5video.c",
+      "sha256": "630c437c40ff58c38d11277642504d3d29f1552902832674f51ec74924fe348d"
+    },
+    {
+      "path": "sdl3-src/src/video/ps5/SDL_ps5vulkan.c",
+      "sha256": "22189b120c351c4fa0536368345fb02b99e2256315d2a4e9b5475e24635ccc2c"
+    },
+    {
+      "path": "sdl3-src/src/video/SDL_sysvideo.h",
+      "sha256": "7f63f62a094f3066f084e8df031148fc7df9e9fde6c2421ba3aba6415b1626f8"
+    },
+    {
+      "path": "sdl3-src/src/video/SDL_video.c",
+      "sha256": "9f01dcad49823d1b8fd16ed2bd47af0e82c5712a5ab9576ac5c6298e65430c4b"
+    },
+    {
+      "path": "sdl3-src/src/video/SDL_vulkan_utils.c",
+      "sha256": "c4e13f2a849f0a9e6908694f74876661727c655c84ef167136222760ef22ffd3"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/pe_burst_light_native.h",
+      "sha256": "f6acaa2b5ce5fb21b616774ab807fa3a7e0e42d3c0969a843b4bc814a645bf7c"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/list_screen.c",
+      "sha256": "8a0f45c7361c3ece4d19568b4e4fe2c186f1bde13a6384b8ae20cb3cbaf3c75b"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/menu_memcard_screen.h",
+      "sha256": "4fc8ba25344299f670b209126e0bf3b9dd05445666a1ffd6b53744eda840b3cb"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/EGL/egl.h",
+      "sha256": "f5f41711f5d7517eb50d63726d786d471a3e84a52b94fd9aca9b6262b629347c"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/EGL/eglext.h",
+      "sha256": "efc117e5cbbf21fa4f2e9dbfb3899eedb3235c0152a2f6d9ca4510b7505e400f"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/EGL/eglplatform.h",
+      "sha256": "25b5391655effcf363a38fa00c3154f356a3eab3d35dc067847875513cf1e441"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/GLES2/gl2.h",
+      "sha256": "3a2855122942ddc6bed5195cae901a8468e7c633ac999e3f3d70b98949a28652"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/GLES2/gl2ext.h",
+      "sha256": "574de987d1f0751a132406abd893928cc7bc5b15c1df8ecea959f2732631b184"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/GLES2/gl2platform.h",
+      "sha256": "f5da0747540a50be5f44aad264aae45bdf157a192c40f17487dd9a2f99c71b6c"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/GLES3/gl3.h",
+      "sha256": "d2f93787d1493c0cd4ca15382b77355d1c248bb8d2af9f4f3e0a54cf6fb018c3"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/GLES3/gl31.h",
+      "sha256": "612fc3a3c483baa3b04dfa6be3cb44217ad5ebb92c3af05531dcac2c159b177a"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/GLES3/gl32.h",
+      "sha256": "e580e7db6bfc6b86860ae6b02fa27eb9acfe6726bab71f9c268568cdbf80baea"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/GLES3/gl3platform.h",
+      "sha256": "a9e060dae5a2b11c5a889b679692b7089a10a7e03ebfbb6cf28217f6e322fb08"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/KHR/khrplatform.h",
+      "sha256": "7b1e01aaa7ad8f6fc34b5c7bdf79ebf5189bb09e2c4d2e79fc5d350623d11e83"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vk_video/vulkan_video_codecs_common.h",
+      "sha256": "78cf3c99d3d57afa7ab1782ec6018b4bcdbe273f2843d76e3375282db875b71e"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vk_video/vulkan_video_codec_av1std.h",
+      "sha256": "f3ab53dbfdeb36a349f674656d50bd507f2e4b3c883343da74aace0df4f02a02"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vk_video/vulkan_video_codec_av1std_decode.h",
+      "sha256": "96f923dc01cd3e266c081d88fa020525a20d63ffe4ce09a4c807a04ef3aaf97e"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vk_video/vulkan_video_codec_h264std.h",
+      "sha256": "072ee6eac80e73d93bb4bfe0059f99e581fc8b55b1437236185bb4ff377914b1"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vk_video/vulkan_video_codec_h264std_decode.h",
+      "sha256": "e1708b3996a740eeedb79f51d0f0e379f9bcae13566538375acaf73301023b58"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vk_video/vulkan_video_codec_h264std_encode.h",
+      "sha256": "052a6e357be8d88bf4be0db1b3da5a9cc1a6011cf4b3533759ff588e1e26f9f1"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vk_video/vulkan_video_codec_h265std.h",
+      "sha256": "0cbdfd6c45ee8ca902e9c961cd7e49a4d601d443ea0ef2a60a8496b127ed397c"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vk_video/vulkan_video_codec_h265std_decode.h",
+      "sha256": "800946aa19d83d305d504e2e4141bc938f989e0cf8872cef97480238eefef1ea"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vk_video/vulkan_video_codec_h265std_encode.h",
+      "sha256": "7239f9f4e811546639111e562a8be1ec73ad5bef1c23d5fad80889f35e125e9c"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vk_icd.h",
+      "sha256": "6c80200a7fcc4c7da3170ef9dc674eab142c92767bfc9733c98649bce78aecb9"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vk_layer.h",
+      "sha256": "861cd0ea24c7d81b935e5726520d184dbbc00e571f9089e17a723ccbbc1944e2"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vk_platform.h",
+      "sha256": "c4cabbcf699c90cde344095ae54da9435d117951aad114ba3a540c5997d7906f"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan.h",
+      "sha256": "52297513cc6b6cc8db2921aa849f72e3f55d678b3a58a2c3eb297c02ded7a837"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_android.h",
+      "sha256": "f815593b7d20f291850b8d85e21e3d47fb123932805ba3606df631bdff4cb1e7"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_beta.h",
+      "sha256": "fd7eaa882fb01dd0b798f3d11aeba0f20fc7de1b27dff50cae0a2b8ceb3ed373"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_core.h",
+      "sha256": "439a6b8cb5c9688404947c9173a47c8a2d81a6382b5ddb514dc322b2400d9528"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_directfb.h",
+      "sha256": "dad1fe7c78d6d3113bc4416ee85530da221708bc2d505609e118115bf03b903f"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_fuchsia.h",
+      "sha256": "780e5d646ecc21e8884e8860be3c1afc0ac4aa165f5aaeca7cbd6238061d4a36"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_ggp.h",
+      "sha256": "fe67e4ff5d3442f4749096391a30bd4b7866f6ebf773739b06fe99a435013da5"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_ios.h",
+      "sha256": "341027604524623c7c8d9433b75d75e520f151fe691bd1bd92b212989391173b"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_macos.h",
+      "sha256": "5a2ac88f5ac809dab80a6353240302fac1d2fd7010eb377560996a12d392b030"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_metal.h",
+      "sha256": "ba1b8ef95c08ab6cf6213cb783d0bc54f37986980df94c13cee887decfc04a89"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_screen.h",
+      "sha256": "71bff61ec120bb60efdccf2fe7d40e64b52336232c32fbd85ae435ad23b43e54"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_vi.h",
+      "sha256": "73f34c7d87515ad6caf6d91bfad17d5d11959261f99386c14978ec7aba4d1f5a"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_wayland.h",
+      "sha256": "ebf1981d5b6cf3119f9945759e11f900918d911724bdd25ddf1706f1e323ac09"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_win32.h",
+      "sha256": "fa3a9263d1764b82b634180ec5d3010adc216108bae11c02b157f733073f87f8"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_xcb.h",
+      "sha256": "3d9c38165d2ffa24f585ae1b287ee89e32b54cc49bc28ac142f3ab92d00c8818"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_xlib.h",
+      "sha256": "e8878c1efe85ce965d3e5019c1ca48043671e1a782804c4ec68eb460d45f7042"
+    },
+    {
+      "path": "psyz-src/external/SDL/src/video/khronos/vulkan/vulkan_xlib_xrandr.h",
+      "sha256": "b33d51ee2feb28890cb5b2db3cd4c8b0553553d81c71d6057ed91bb5029d844e"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/shaders/psx_vert_spv.h",
+      "sha256": "41ff934d28dde53b242eb48fb2919d9a5b0ea9d67113d663f41d9189d5e0930a"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/shaders/psx_frag_spv.h",
+      "sha256": "849fc3d58fab8a8a1b7d175b170cdeb21d240ee8b7870be2e5b8737239602cbc"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/shaders/clear_vert_spv.h",
+      "sha256": "6f8d1d70b6d3f427ccad252cb317a4099885ec4bb7ca24d3a5cc4ceb101277da"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/shaders/clear_frag_spv.h",
+      "sha256": "2b66cdee7cd591468d05665842e3242906f108ac2bc2b37cdbd78c8124931e0a"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/fsr1/generated/fsr1_shaders.h",
+      "sha256": "c09a61ecab81471d2a8afe9bb0d4893c782d785bdc68bceb6450717b329a0eaa"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/movie_blur_shaders.h",
+      "sha256": "09abc4b8a49ce6114b3390b0053020487793f2eb065f655fbfdb26c024a05405"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/movie_cleanup/movie_cleanup_shaders.h",
+      "sha256": "444beeabcae47d78e5e8d53337f39475c69bd201b852c41b64845737ba57332c"
+    },
+    {
+      "path": "game-support/application-allocation-log.c",
+      "sha256": "30ff7c51833d5412048049e529d5d1f68612d5d7bf33eb2fabc4fb9d557a1eef"
+    },
+    {
+      "path": "game-support/application-startup-log.c",
+      "sha256": "4775c81c6b19036521be6eda600433493e48b073cd2f1fefdcf29026c301feef"
+    },
+    {
+      "path": "game-support/application-static-dlfcn.c",
+      "sha256": "bb150989018c64e9bb6ab2a1c77dfd42645b5eaf17e1c58430552140c64cc3f0"
+    },
+    {
+      "path": "game-support/application.cmake",
+      "sha256": "07975b2be6f2125fb1d997c299d4c92d21bf9ac48289a55068d4b55ed6f597af"
+    },
+    {
+      "path": "game-support/app_crt.cpp",
+      "sha256": "96fc51f0b4f432fe77d9b1b96826916ab882e1953c211e01854e479e8bb3853e"
+    },
+    {
+      "path": "game-support/gpu-trace.c",
+      "sha256": "8f7d13784828ac25087f967254e9c95815446f6f4d21cb9c6cbe8455bb491e50"
+    },
+    {
+      "path": "game-support/LINK-ARGS.template.rsp",
+      "sha256": "e2a0457769aa98cb5c512ab5606ce7d334855818dfdc2f1f0a8f39b4d6623f41"
+    },
+    {
+      "path": "game-support/pe-build-identity.h",
+      "sha256": "dd22bc3573db2b8b2de15c79f6f18dd1afaeb870eddda26792ee8b23ca7f1ebf"
+    },
+    {
+      "path": "game-support/pe-game-directory.c",
+      "sha256": "e0da1e72230ed44485b2a2413e4e0825c458fe6be7d5d8bb00888b3e2355a1b4"
+    },
+    {
+      "path": "game-support/pe-native-directory-bridge.c",
+      "sha256": "ffe64fca26ff755c8a9cad530226674216bea81dde50108467d2de3af909b923"
+    },
+    {
+      "path": "game-support/pe-native-directory.cmake",
+      "sha256": "4ecb31dd5cb135fb59fb4b89df6676b1e1d8d60f2ba0520aeb18e1984fed8fac"
+    },
+    {
+      "path": "game-support/pe-portable-root.c",
+      "sha256": "aa5317066b45f6f0cf1245795b7ecb4da0392c5a46c81fa9e6ae08726e443dd9"
+    },
+    {
+      "path": "game-support/pe-portable-root.h",
+      "sha256": "300b2a46fae4be8f0e55a04f6b84afc27b2a5ffc2b5181d6a210450ec8215c3e"
+    },
+    {
+      "path": "game-support/pe-portable-testkit.c",
+      "sha256": "b4627cd8850a7f881f5c094b49ca6b2a76ae66d4ea5a8ade1e3e27c747820bb0"
+    },
+    {
+      "path": "game-support/pe-portable-testkit.h",
+      "sha256": "a732d0c783f7fec928937014f656c6a73b94ded0f3836038faa788e07ba7551b"
+    },
+    {
+      "path": "game-support/provider-headers/errno.h",
+      "sha256": "0b360bf11808bfa2a61473f0df3c429f158386f08c461ea638cfff9b4897ef63"
+    },
+    {
+      "path": "game-support/SDL-application-filesystem.c",
+      "sha256": "bedfd04c4d1872e2a3b074f92dddad4a5f7470e1d6e85f75fc3f914b13b725a6"
+    },
+    {
+      "path": "game-support/SDL-native-iostream.c",
+      "sha256": "1a80a48dd8c90ba5c8807847c5bc7c53c140cafc8e041b7c7d0f1b1066c94ac8"
+    },
+    {
+      "path": "game-support/startup-log.c",
+      "sha256": "32f74b52d00d15314a2c93be98f21e2abb385af276cbb2abbcece7b6ad95c608"
+    },
+    {
+      "path": "game-support/startup-log.cmake",
+      "sha256": "865ea85f2233925ffa8da66d7327c353ecedbc08e58bc985b0d991555fee3195"
+    },
+    {
+      "path": "game-support/startup-project.cmake",
+      "sha256": "427b71795ae65ae9ba00ec4610250e32717c8a55b662c619e9d0091fd931176a"
+    },
+    {
+      "path": "game-support/unsupported.c",
+      "sha256": "5a496c2ee3e716e99b87de334e34be1220c78bad76b563a13f9605dfdd39d48a"
+    },
+    {
+      "path": "state/pe_state.c",
+      "sha256": "59f01326be88ab0d4bc7948ec35c2f15be17f33b006ddfc70366623d78b03a6b"
+    },
+    {
+      "path": "state/pe_state.h",
+      "sha256": "1c701485da161168375528c4015457e2d092c1375ee6d2dead2a24498bca4e18"
+    },
+    {
+      "path": "state/pe_state_actor_prepare.c",
+      "sha256": "035f435de21d58cb6599d32121552bb994651b3b802e6d99c5b11b06d2a33930"
+    },
+    {
+      "path": "state/pe_state_actor_prepare.h",
+      "sha256": "384849b4c6c49d3f828d25937c183f8d76fdf8c422a2b987bf10fa130dea716c"
+    },
+    {
+      "path": "state/pe_state_akao.c",
+      "sha256": "d4af5b50a75c5707129ee826d3b4bb3fdac2d5f89a7d90827eab81b645ce75af"
+    },
+    {
+      "path": "state/pe_state_assets.c",
+      "sha256": "14c4bfe836da88028112704ff76f9176a8886b577224f0761d6e064414ae6ca3"
+    },
+    {
+      "path": "state/pe_state_assets.h",
+      "sha256": "688d747677c2543dbbef73b2d7231cd18c452d39419a534b418ca7570a57a167"
+    },
+    {
+      "path": "state/pe_state_audio.c",
+      "sha256": "a4f8f525e54a8a9f6af4cfa1dd59618b3a07c5faaaf4643b207ea776f1bfd5f9"
+    },
+    {
+      "path": "state/pe_state_bank_sources.c",
+      "sha256": "8a86a9dc746def89fb08c61dbac5c45880e56a9d296063273c53d5c3ee28737f"
+    },
+    {
+      "path": "state/pe_state_bank_sources.h",
+      "sha256": "de29246b1ced546d9a2ec8d48ada0fd684dc0c9678c1d98679edea4640b6616a"
+    },
+    {
+      "path": "state/pe_state_battle.c",
+      "sha256": "9c0db9475182e5a106ff2613abd3d728a17ff66001104c20d5bb96e23ba213e7"
+    },
+    {
+      "path": "state/pe_state_battle.h",
+      "sha256": "e7bbb9d26efcbc03951ee44c54ffa2fff94810be0adfab29c2733a199b3b597d"
+    },
+    {
+      "path": "state/pe_state_boundary.c",
+      "sha256": "7d9a7b30e9f87141bd2963d10621255611a0a5ebad19c8ef54ef36671853d9a9"
+    },
+    {
+      "path": "state/pe_state_boundary.h",
+      "sha256": "1dbfef4ea2d543a84aeddf1170a18d53d0189909e30fb711aaeaa990e970cf62"
+    },
+    {
+      "path": "state/pe_state_checkpoint.c",
+      "sha256": "8bacc6b705c43d5372a09ad2660b2617397e349e697c4be3ae8f807cc5ab1d82"
+    },
+    {
+      "path": "state/pe_state_checkpoint.h",
+      "sha256": "c82c54a82b34d8a58e5b4bd456e9690cf562a1ba37c4cd576b4560a38ecac2aa"
+    },
+    {
+      "path": "state/pe_state_field_models.c",
+      "sha256": "2e12d1f510cea9c9f4abe3e205e3c6f52cdb5f2951ff63b49e11367185a16226"
+    },
+    {
+      "path": "state/pe_state_field_models.h",
+      "sha256": "c8db5d698a47a3f33bace96e98bff73d14c8a4ac43a925bbcf4cf4a7ec2d67e8"
+    },
+    {
+      "path": "state/pe_state_files.c",
+      "sha256": "127251e85537ecf81853f81b0fb1de5bcd2c5ee3f04d88bd8a0590bef322a0d2"
+    },
+    {
+      "path": "state/pe_state_files.h",
+      "sha256": "0ba0795265c110f654c9786a7774b38cd27595d4501be017df96ce8cc6b12f61"
+    },
+    {
+      "path": "state/pe_state_geometry.c",
+      "sha256": "fbf010ec68494d1669f120e6349c3b178c8a38f500ec94ae0e47c9b5c3340bb5"
+    },
+    {
+      "path": "state/pe_state_globals.c",
+      "sha256": "853701511ef81876529a302c84ec68123dfac592ee18bc3f90d7104028bafedc"
+    },
+    {
+      "path": "state/pe_state_gpu.c",
+      "sha256": "4fa5edc60c03184dd0c199e44e2db5e7965be0df423a3e5af26908fc67e1f913"
+    },
+    {
+      "path": "state/pe_state_graph_archive.c",
+      "sha256": "c0ae90f95827ba78b0b4db6a5a0b797d2d4e55f91cedb754a8338d9a0d04704d"
+    },
+    {
+      "path": "state/pe_state_graph_archive.h",
+      "sha256": "3f1555cd175789d2872f38ad20ab5260cb69c7943529db8110588fd10098b473"
+    },
+    {
+      "path": "state/pe_state_gte.c",
+      "sha256": "1350282429774353ce6dbb29b5c6a1f2a871023af869143334a9bc647753b560"
+    },
+    {
+      "path": "state/pe_state_legacy_fx.c",
+      "sha256": "456d15e6a24517c9093aecf751a167d0f85d6e69203ea05f31d37cc6f537e87d"
+    },
+    {
+      "path": "state/pe_state_legacy_fx.h",
+      "sha256": "7c70e5a4d06964fe9a95d91b712417128b3e05d3fb40abb0163c8856ea413cb8"
+    },
+    {
+      "path": "state/pe_state_lifetime.c",
+      "sha256": "b62bb522178442137acd7d5e1a88e588807d375afc6e95696a9e06e04554a112"
+    },
+    {
+      "path": "state/pe_state_lifetime.h",
+      "sha256": "f41bacf9fc866aa5998454adf1009b9de2e8f71d7db6fb9e67e3f3019ca29183"
+    },
+    {
+      "path": "state/pe_state_mirror.c",
+      "sha256": "2900419735ef43e2c07184673fcc3e7e1fea19234899cf5bc985dfe8ea05f1aa"
+    },
+    {
+      "path": "state/pe_state_mirror.h",
+      "sha256": "0d861136b4d2eb2409ca3d41cc158375fbaa5e81072bd4fdc3f3140523198da2"
+    },
+    {
+      "path": "state/pe_state_mod_contract.h",
+      "sha256": "d46dac515c331e38dfaab4c51efbf6f3d2941d1bc75f7fbe0f1d950cee69c782"
+    },
+    {
+      "path": "state/pe_state_node_types.c",
+      "sha256": "928e8a3b2e1af201a2500c60080a16235642558c76b863542a6fff4292e68c9d"
+    },
+    {
+      "path": "state/pe_state_node_types.h",
+      "sha256": "adf59451e2ab400ee3d5dcd9ffb5f4ca58ec9210624624a244c2d24f24d714a8"
+    },
+    {
+      "path": "state/pe_state_producers.c",
+      "sha256": "c767da1cfb1419ff743f528cefd4c4b749177afb32514b5b645f49f6ea5a4a8c"
+    },
+    {
+      "path": "state/pe_state_render.c",
+      "sha256": "13e1fd4c0d8f006a7f6111576b50e69bdb4e864377efde1aebf05b2be4bdf195"
+    },
+    {
+      "path": "state/pe_state_render.h",
+      "sha256": "d3948d09d24874698cd7993fc1903ac475e9bf4c5d0c628b0353d3b227c760ca"
+    },
+    {
+      "path": "state/pe_state_rng.c",
+      "sha256": "9d906d9335bc3a8a28db01390cc15eefe908be77490637786c388eadc0bd0445"
+    },
+    {
+      "path": "state/pe_state_room_object.c",
+      "sha256": "f4fa8be09f0f2900532739e80996b75e139c236286e8e38580538bc592cd2817"
+    },
+    {
+      "path": "state/pe_state_room_object.h",
+      "sha256": "d7e9b2078329f2c068ad7f6212bd48fe8ed8afa66f138e7cdedc31aa0574a782"
+    },
+    {
+      "path": "state/pe_state_script_sprites.h",
+      "sha256": "801b12985c1054769004b0d45ee6a266f8725fa66230070fca29dcb16e875d58"
+    },
+    {
+      "path": "state/pe_state_session.c",
+      "sha256": "4be13d6ce06269f54234120fc19df6f6c25d88aa3ec444db830bc4ee2600786e"
+    },
+    {
+      "path": "state/pe_state_session.h",
+      "sha256": "17545bc978d9d65860aaff0a07da7b885354d4073ad38408b8d5da1a8fbfa10f"
+    },
+    {
+      "path": "state/pe_state_startup_models.c",
+      "sha256": "f97c0abd5c73dae8166a0ea5e6b44580fb71dd2ffe3cf00ad2a4cd52181d6e9c"
+    },
+    {
+      "path": "state/pe_state_startup_models.h",
+      "sha256": "403f14cb3e88ccbadfd88f83087f183488a55d07741fd53bcdd3808dd3807dec"
+    },
+    {
+      "path": "state/pe_state_theater.c",
+      "sha256": "b26959c9d187a67684137f760a672a56dcf2e6d482d208fd3884e8c5b11461fb"
+    },
+    {
+      "path": "state/pe_state_theater.h",
+      "sha256": "8a5b036127ab9a31850b8363a615abb43f180fac10d8cf3c709f4fe8f278c3aa"
+    },
+    {
+      "path": "state/pe_state_theater_tasks.c",
+      "sha256": "004b80fd8e9d4ecd496e203c9e1647c88c02de206cc4409d6655bb99a6c4a34f"
+    },
+    {
+      "path": "state/pe_state_theater_tasks.h",
+      "sha256": "b66ce11654f711cd1a5365374ab372882de4683425d579d02315f56fc2ebfce9"
+    },
+    {
+      "path": "state/pe_state_transition.c",
+      "sha256": "abeb2ba6f7540fcebc4ab9083267979751c4d229e42714267c7175cf2a7ece25"
+    },
+    {
+      "path": "state/pe_state_transition.h",
+      "sha256": "fedcaad487b436a90d30c7ccfecd5b64634c70b8635aef96e7d8e78debded5d4"
+    },
+    {
+      "path": "state/pe_state_world.c",
+      "sha256": "87981d4dce2871e78209e96e8a0631b0dc985deb0f161fee679f52cb00aa2808"
+    },
+    {
+      "path": "state/pe_state_world.h",
+      "sha256": "84a12ac630796eacc70d37108bd1f872c2112e90fdbe51b91044bd231f0d965e"
+    },
+    {
+      "path": "state/state-assists.cmake",
+      "sha256": "6974c717588d2fd5e2b72dcbf89332bbe5fa9db7955ab9076bc76221dd7001dc"
+    },
+    {
+      "path": "state/state-bank-sources.cmake",
+      "sha256": "98e6fc59232e476257c355b72005664fe5f4b7069329afae1d9e9bb7f4d159ca"
+    },
+    {
+      "path": "state/state-components.cmake",
+      "sha256": "2ba717c4ee124cff16f156d310a8ca9b270a6be3e0e9c144c56448d905ebec54"
+    },
+    {
+      "path": "state/state-transition.cmake",
+      "sha256": "fc9ae0677ea5dff15311edf58e1f6f04b0b374bcc78aab368a870356240b00b7"
+    },
+    {
+      "path": "game-src/docs/choice-pointer-hd.md",
+      "sha256": "fe906c36d3b44aa43cb9111179105bf11b823fd7f6147d6541aef0a54e396f4f"
+    },
+    {
+      "path": "game-src/include/pe1/cdrom_buffers.h",
+      "sha256": "da65485319ab17b516a4edf3daf763b6a400dd979423bc223c1c53ee34ee5448"
+    },
+    {
+      "path": "game-src/src/main/menu/status_panels.c",
+      "sha256": "4e0f7c15fdd739035f95beff34fa7c90a2eaa771efd9611e245afa4fb2265af7"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/image_nodes.c",
+      "sha256": "bad09efbc426c2b69c92557d8c3a009bcd0f9ed1ca07477b504e7d2ad227f3d3"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/title_type.h",
+      "sha256": "2df8b244a00e060e7daab69235e98f565c2063fb4bd43c82e9daa65ea147b290"
+    },
+    {
+      "path": "game-support/factory-defaults.toml",
+      "sha256": "e24e43961c2b5d7e6fb3f87212980e1adb0b82ecaf464862904e35d2d6473795"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/display_filter/display_filter.frag.glsl",
+      "sha256": "e895422af70d4ff3988c4239e4dba9ddb7639309a4d498014d7b6bc78dafc41f"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/display_filter/display_filter.vert.glsl",
+      "sha256": "77306c87b679b27966d5f9d566a61764fbeb0885d25f59cc696cc07641d77642"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/display_filter/display_filter_shaders.h",
+      "sha256": "d0c184a8819a43df2adc80db0f12c1782989372b5dcc73ac5b8154e642a6a6f6"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/display_filter/present_display_filter.h",
+      "sha256": "47c173e1659c407613ebefdbf31a5639edb3daf81074253829d3f743f68a9d52"
+    },
+    {
+      "path": "game-src/src/main/boot/fonts/atkinson_hyperlegible_regular.ttf.inc",
+      "sha256": "0b7abcfb9ea32fdceec5ebfdec51eef8743b294d33be3797c519862ecf3b3920"
+    },
+    {
+      "path": "game-src/src/main/boot/fonts/OFL-AtkinsonHyperlegible.txt",
+      "sha256": "f32d22b3908fcad2c86a74000614ec22e6a7f66ea7e867e616026a27aebdc143"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/title_companion.h",
+      "sha256": "cc67ff02deb2c0527a8386c465e4982350bf3444b2df7eddc35212f86b854996"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/title_companion_raster.h",
+      "sha256": "aaf308227f051c37b8679a8bf87239dd56379aa381813c3b86113db3b357d8fe"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/menu_rgb24_present.h",
+      "sha256": "318a89b84a5a7ff7368d2bbd32fd24d5631f8ea78ac3accbb00857e866066a08"
+    }
+  ]
+}

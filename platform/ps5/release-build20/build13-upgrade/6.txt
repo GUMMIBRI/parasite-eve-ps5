@@ -1,0 +1,13 @@
+/* SPDX-License-Identifier: MIT.
+ * Build13: checkpoint UI and jobs removed in both application roles.
+ * Retain CPU-boundary entry points for linkage. No filesystem/job/identity work.
+ * Normal memory-card services are independent and remain unchanged. */
+#include "pe_state_session.h"
+#include "pe_state_boundary.h"
+#include "pe_state_checkpoint.h"
+#include "pe_state_mod_contract.h"
+#include "installer/pe_pack_check.h"
+#include "state_build_identity.h"
+#include "psyz/state_gpu.h"
+void CPE_StateUi_AfterModalClosed(void){}
+void CPE_StateUi_Poll(void){}

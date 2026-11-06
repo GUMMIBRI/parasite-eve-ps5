@@ -1,0 +1,53 @@
+Parasitic Event Revisited — Data Folder
+
+Choose ONE layout:
+
+A. Keep everything in the installed app folder:
+  homebrew/PPSA77022/eboot.bin
+  homebrew/PPSA77022/parasite-eve-data/discs/disc1.bin
+  homebrew/PPSA77022/parasite-eve-data/discs/disc2.bin
+
+B. Move the entire parasite-eve-data folder to the root of your USB:
+  homebrew/PPSA77022/eboot.bin
+  parasite-eve-data/discs/disc1.bin
+  parasite-eve-data/discs/disc2.bin
+
+The discs folder ships EMPTY. Add your own compatible North American BIN disc images. No copy/install wizard is needed. Automatic defaults prefer a readable, nonempty complete pair inside the app. If that app pair is missing/incomplete, exactly one readable complete external pair may supply defaults; external ambiguity or unreadability needs deliberate explicit paths. App access errors do not silently fall back. Saved/imported explicit paths remain authoritative.
+
+HD and optional pack directories travel with parasite-eve-data. Public HD background inclusion is pending author redistribution permission; do not interpret empty directories as bundled remastered artwork. Original rendering remains available.
+
+BEFORE UPDATING OR MOVING:
+Back up your entire existing app/user folder (memory cards and settings), plus any personal files placed inside the app. Store updates may replace app-local files. External USB-root data avoids keeping your supplied discs inside the app update directory; still keep your own backups.
+
+Existing PS5GameTest / PEVG00022 users: PPSA77022 is a new console identity. Your old cards/settings are not moved automatically. Preserve the old user folder and restore deliberately into the new app/user only after checking which saves are newer. Never blindly overwrite saves. No automatic file moves or deletions are performed by these instructions.
+
+C. Internal storage is supported too:
+  /data/parasite-eve-data/discs/disc1.bin
+  /data/parasite-eve-data/discs/disc2.bin
+The app and data may be on different supported storage locations. USB discovery is not limited to usb0. Use one complete data folder, or explicitly configure paths if you retain multiple copies.
+
+
+SAVE IMPORT STAGING (USB /saves)
+
+Copy the empty saves folder from USB-IMPORT-TEMPLATE to the ROOT of your USB:
+  /mnt/usb0/saves/   (or the USB mount actually in use, usb1 through usb6)
+Place your native PC-port save files there for importing. This is a transfer
+staging folder only, NOT the game's active save location.
+
+Active saves stay in the LOCAL INSTALL DIRECTORY:
+  /data/homebrew/PPSA77022/user/memory-cards/bu00/
+  /data/homebrew/PPSA77022/user/memory-cards/bu10/
+For an app installed elsewhere, use that app's own user/memory-cards folder.
+
+This release does NOT automatically import from USB /saves and its Save data row is
+informational, not a file browser. With the game closed, back up the complete
+local app/user folder, then manually COPY individual compatible native-PC
+8192-byte BASLUS-00662... save files into bu00 (slot 1) or bu10 (slot 2).
+Preserve the original filenames. Do not overwrite a newer save without keeping
+both copies. Whole .mcr/.mcd card images need conversion; do not rename them
+and assume they are individual saves. Never delete app files or change folder
+permissions to import. Keep PC originals and USB staging copies as backups.
+
+No saves are supplied. No automatic migration, deletion or overwrite occurs.
+
+This release automatic defaults prefer a readable, nonempty complete pair in APP/parasite-eve-data. App access errors stop automatic fallback. With no complete app pair, one unambiguous readable external pair can supply defaults. Saved/imported explicit paths remain authoritative; this update does not move or rewrite existing assets, preferences or memory cards. Exact app/executable discovery remains unchanged. Restart after changing data placement; no hotplug discovery is claimed.

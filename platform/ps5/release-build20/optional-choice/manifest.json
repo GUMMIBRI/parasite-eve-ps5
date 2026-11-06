@@ -1,0 +1,63 @@
+{
+  "optional": true,
+  "parentBuild": 13,
+  "releaseVersionAssigned": false,
+  "parentUpgradeManifestSha256": "d74abd672c70bd47946f34633c2671714430a87f3d6da5301e7152d320e16d9c",
+  "files": [
+    {
+      "path": "game-src/docs/choice-pointer-hd.md",
+      "before": null,
+      "after": "fe906c36d3b44aa43cb9111179105bf11b823fd7f6147d6541aef0a54e396f4f",
+      "file": "0.txt"
+    },
+    {
+      "path": "game-src/include/pe1/dialogue_alpha.h",
+      "before": "8d5b1673ff45dc93ce25febb6f1aa7a81c5f6ee6c83331699044aca9e5f33260",
+      "after": "5edf2df4dc12c5feae30dcebad907e376e49e07899c59d9d1342fe31c0ad3c97",
+      "file": "1.txt"
+    },
+    {
+      "path": "game-src/src/main/draw/textbox.c",
+      "before": "d88241d4762032a5a891dde465bd9ad276635bc8c6c3214deb35e21d08fda4f3",
+      "after": "8aa629784ba81b91166cd829c5cb4b5a163c8528960b6f989abeef8479eb94c8",
+      "file": "2.txt"
+    },
+    {
+      "path": "game-src/src/main/render/dialogue_alpha.c",
+      "before": "11dc9df8c2ce593bbe817d97d0163863a35a1cd8f550927e252f7807b442251c",
+      "after": "5d4b24f94c6b5b491def1e10b7591cc8009afe1c989f4ef7f0602d3634447ba6",
+      "file": "3.txt"
+    },
+    {
+      "path": "psyz-src/psyz/include/psyz/gpu.h",
+      "before": "c58d1565d1b7379531bca225604c87cdf50141dc8af158e88106ae6be6cfa86c",
+      "after": "a6bb7f011caf17966fc16a2fc3a2eff9fc3e4e72decd632be225db9eaf585199",
+      "file": "4.txt"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/duck_models.h",
+      "before": "01c00617da58e73e9d5192aafe492a72ea38407925c42c1dbfe0e260e095c944",
+      "after": "4349c07ccee52177007b3dde2df93489bd2cd1b67ed0f8ea392d03269e776297",
+      "file": "5.txt"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/sdl3_gpu.c",
+      "before": "66664ea5bdb461ad9e7706207e8a17daf0a16ad17959486af1ca42b2e601aa6f",
+      "after": "d5800e486310e92d2dd5000e6857b3437e3daf161d24948dc7485b052314ee6f",
+      "file": "6.txt"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/shaders/psx.frag.glsl",
+      "before": "0e729240d7c2cab2ffbe220c4cba6d30765d4c1ad75de775b50b9d2c0063eead",
+      "after": "3a93093b314eadfb573eddfca08f3222fe6dc7a9b7eb8b1bf300d92a22204360",
+      "file": "7.txt"
+    }
+  ],
+  "shaderHeaderGeneratedByPinnedCompiler": true,
+  "patchSha256": "32e2bd9267fc9c799435b86f7f44232402d83b568568714c1e442d8c0b9e743f",
+  "generatedShader": {
+    "path": "psyz-src/psyz/src/platform/shaders/psx_frag_spv.h",
+    "after": "849fc3d58fab8a8a1b7d175b170cdeb21d240ee8b7870be2e5b8737239602cbc",
+    "trailingComma": true
+  }
+}

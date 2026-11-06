@@ -1,27 +1,22 @@
-# Parasite Eve — PS5
+# Parasitic Event Revisited — PS5
 
-Parasite Eve 1&2 Port community: https://discord.gg/Yg88tHYXK
+## Setup — read before starting
 
-Based heavily on khasinski/parasite-eve-pc. Native PS5 homebrew using public PsyZ / SDL3 GPU and payload runtime work.
+Place your own compatible North American disc images at **PPSA77022/parasite-eve-data/discs/disc1.bin** and **disc2.bin**, inside the installed app folder containing eboot.bin. No discs or private HD pack are included. Recomp installers may skip a separate sibling data folder; use the app-contained folder. The root readme.txt gives the short setup and save-backup steps.
 
-## v1.1.5 (Build15)
+Back up the entire app/user folder before updating. Active saves are app/user/memory-cards/bu00 and bu10; older app identities and USB /saves staging do not migrate automatically. Preserve the older user folder until your saves are verified. Existing explicit configured paths override automatic defaults.
 
-Download the [v1.1.5 release](https://github.com/GUMMIBRI/parasite-eve-ps5/releases/tag/v1.1.5). This normal release uses title ID and app folder **PPSA77022**, content version 01.000.015. See [release notes and save migration](docs/PS5-v1.1.5.md).
+## v1.1.6 (Build20)
 
-- Install PPSA77022 under homebrew, on supported internal or external storage.
-- Its parasite-eve-data folder can remain inside the app or be moved as a whole to a USB root or /data.
-- Put your own compatible North American discs at parasite-eve-data/discs/disc1.bin and disc2.bin. The shipped disc directories are empty; no discs or private texture packs are bundled.
-- Back up the entire old PS5GameTest/user folder and any app-local personal files. This new console identity does not automatically migrate saves/settings; restore cards deliberately without overwriting newer saves.
+[Download the release](https://github.com/GUMMIBRI/parasite-eve-ps5/releases/tag/v1.1.6) · [Setup, changes and known limits](docs/PS5-v1.1.6.md)
 
-Save States and the disc-copy/install flow are removed. Normal memory cards remain supported. Plex menu/title/save typography is improved, with Original/Retro preferences respected. Native rendering, display options, compatible optional HD paths, bounded directional attack lighting, P109 fire and exact M005 endpoint effects retain Original fallback. Coverage is specific, not all attacks or menus. Day2–6 chapter art remains unfinished.
+Adds preferred app-contained data defaults, a missing/incomplete-data setup screen, root readme.txt, Off/Scanlines/CRT filters, atlas lookup optimization, Atkinson and revised Retro/Atkinson spacing, and source-owned4x title labels. Stable **PPSA77022**, content version01.000.020. Firmware10.60 startup crash remains unresolved; full-game/visual/performance qualification is not claimed. No Chicago/color-name hack, all-menu/day-card remaster, ray tracing or DLSS claim.
 
-The owner tested the internal Build15 and reported it working. SDK, conversion, source reconstruction and package checks are separate evidence; no claim covers every scene, firmware or performance. The reported sig12 startup failure has not been independently explained.
+The public source reconstruction recipe is [platform/ps5/release-build20](platform/ps5/release-build20); metadata and setup templates are in [release-build20-application](platform/ps5/release-build20-application). Keep licenses and source/input omission boundaries. Prior releases and their recipes remain unchanged. This branch is not claimed merged to main.
 
-## Source and upstream
+Community: https://discord.gg/Yg88tHYXK
 
-Reconstruction, dependency pins, notices and caller-input boundaries for this release are in [platform/ps5/release-build15](platform/ps5/release-build15). App metadata is in [release-build15-application](platform/ps5/release-build15-application). Locally generated caller input stays outside the source export; no private pack index, seed, title fingerprint table, original asset pack, personal save or proprietary Sony module is published.
-
-The repository base includes upstream 0ce223f5a; newer PS5 recipe changes are reviewed on the contribution branch. This does not claim that the branch is merged to main. Earlier upstream PR42 was merged; current contributions remain separate. Preserve [licenses](LICENSE.md), [component notices](THIRD_PARTY_NOTICES.md), and [contribution rules](CONTRIBUTING.md). Historical beta notes and recipes describe their original versions.
+Based heavily on khasinski/parasite-eve-pc. Thanks to its developers, Matthew Dwinell, community playtesters, the original Parasite Eve team, PsyZ authors and the contributors/component authors named in the retained notices.
 
 ---
 

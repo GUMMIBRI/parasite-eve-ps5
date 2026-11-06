@@ -1,0 +1,46 @@
+{
+  "build": 15,
+  "contentVersion": "01.000.015",
+  "titleId": "PPSA77022",
+  "contentId": "UP9000-PPSA77022_00-CPEGAMETEST00000",
+  "files": [
+    {
+      "path": "game-src/CMakeLists.txt",
+      "file": "0.txt",
+      "before": "b0741a047f934ea55c98da0cb981db2cfc25197942b3a743bf35707276535a53",
+      "after": "9598629963ab8e9fd7f0811a03e3416e0f35e07fc6d93cf9c83fd647248eeff4"
+    },
+    {
+      "path": "game-support/pe-portable-root.c",
+      "file": "1.txt",
+      "before": "bcdca06a0972f61c0823ae656a36f5f6903dcf5b0d720ba1c01717d9c06e8170",
+      "after": "acf44ce9bc2aef7381bc5ff22339f34124e276cae8638a8c1753fe5ee68ab3c9"
+    },
+    {
+      "path": "game-support/pe-build-identity.h",
+      "file": "2.txt",
+      "before": "592b610f90fb68bd7e199d7d344dc456650ed19c15e6c72c72b67018ad6ebd08",
+      "after": "ee0a8e03c72b7637cc72bda5d15ac55c8af3540dda54e7811be0d29a57cbc194"
+    },
+    {
+      "path": "game-support/startup-log.cmake",
+      "file": "3.txt",
+      "before": "7669a0d21af49d8fb7669d26cf160b7060e008b984600cdb4fef526e4d339ec5",
+      "after": "b7e7ee1a8cbb46d987751e45372bda63a6d13098b9c351a16b36d7eb64022db8"
+    }
+  ],
+  "removed": [
+    {
+      "path": "game-src/src/main/boot/installer/pe_bootstrap.c",
+      "before": "df3d18b3446cd2bf9ef6df4060c343e9f924e7b92c58a5621cef3a05a973ce4d"
+    },
+    {
+      "path": "game-src/src/main/boot/installer/pe_bootstrap.h",
+      "before": "a1fdb7c7a026d6988c9d2917e2a7f20c78b75b7fd6378e411bdcfc65e40a3046"
+    },
+    {
+      "path": "game-src/src/main/boot/installer/pe_bootstrap_game_disc.c",
+      "before": "b990daf0b2f36d1ed3de55e262d36d04f8f48e330cde93331e3d7cd430972c9b"
+    }
+  ]
+}
