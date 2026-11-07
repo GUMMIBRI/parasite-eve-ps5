@@ -1,0 +1,129 @@
+{
+  "build": 14,
+  "contentVersion": "01.000.014",
+  "releaseName": "Beta0.2.1(Build14)",
+  "plannedTag": "v0.2.1-beta",
+  "parent": "public Build13 recipe with optional choice adapter applied; no owner inputs generated",
+  "files": [
+    {
+      "path": "game-src/CMakeLists.txt",
+      "file": "0.txt",
+      "before": "ab6ce2a154949290f8e502272bae64d7e523f425fae755f7d4c4ca3006a8dcd3",
+      "after": "b0741a047f934ea55c98da0cb981db2cfc25197942b3a743bf35707276535a53"
+    },
+    {
+      "path": "game-src/include/pe1/cdrom_buffers.h",
+      "file": "1.txt",
+      "before": "65a85ee28b3c0c8a7416f082b3e4fd45db803de999263ca86de7a9ce38be3410",
+      "after": "da65485319ab17b516a4edf3daf763b6a400dd979423bc223c1c53ee34ee5448"
+    },
+    {
+      "path": "game-src/include/pe1/dialogue_alpha.h",
+      "file": "2.txt",
+      "before": "5edf2df4dc12c5feae30dcebad907e376e49e07899c59d9d1342fe31c0ad3c97",
+      "after": "8f2bad3c526bf5650eae9d87924d33f577b5061262e9b90b9b92b5167e013b46"
+    },
+    {
+      "path": "game-src/src/main/boot/installer/pe_install_paint.h",
+      "file": "3.txt",
+      "before": "361ca4640b6066e8a0c9e9f93e0924c57666a120ffcbd2022797c4285cef5ca3",
+      "after": "e5c6bd6fabbbe337460004a0fb6b2fb1df0256cee1707c3f340530d672ac04ad"
+    },
+    {
+      "path": "game-src/src/main/boot/installer/pe_install_view.h",
+      "file": "4.txt",
+      "before": "faa745a060d4a791b0bb406715edf6fc9b323e4991a755f87002ff989b65e2a2",
+      "after": "3796f5a2105a74e31ddde24e4b062f862fb69feee130431556eddaabfaac01e3"
+    },
+    {
+      "path": "game-src/src/main/boot/installer/pe_native_install_ui.h",
+      "file": "5.txt",
+      "before": "37a669c18ee21de0596ec6b90252a0e6817514cac2305a151ebe194176641cab",
+      "after": "a50c82b0f36a01ac6bf8d9bc4677ae278813c9ab3ef949553090fbd56962e48f"
+    },
+    {
+      "path": "game-src/src/main/boot/main.c",
+      "file": "6.txt",
+      "before": "a0e3c55c89822ad10f83b9ca44668934711a7b4e7684db2e350b716500d0f62e",
+      "after": "a17ff752989b97d9536120134c91e231dec1916c6659f318d6127fedad387e54"
+    },
+    {
+      "path": "game-src/src/main/boot/native_tabs.h",
+      "file": "7.txt",
+      "before": "1cf89868575697ce83906bdff4d1dbb97ba3e3622ecdbb58a1dc59bc88226207",
+      "after": "c275507c49b5e9b9b4c18b6572db721508b20fc3f73d48ed7c306777f6776e6f"
+    },
+    {
+      "path": "game-src/src/main/boot/state_ui.h",
+      "file": "8.txt",
+      "before": "16066bfa1f3a505a81b7fb47aaf1d7bb1dea58803feec7f69dfe1c3606e7414f",
+      "after": "d8c823cdece5c86cb846c8dc510647507be9822cf5c7a419d7805659820f198d"
+    },
+    {
+      "path": "game-src/src/main/cdrom/scene_assets.c",
+      "file": "9.txt",
+      "before": "4b6a1577e61bff487646c9b2131fb1714786e5c8ce5cc15ce4001b2ba48dbacd",
+      "after": "13d189fe26a1d8bef8eecb04531a5b6eaab9c33a48306631bc4a50b3191275dc"
+    },
+    {
+      "path": "game-src/src/main/draw/text.c",
+      "file": "10.txt",
+      "before": "1d047f5d6270ba91355887a5f4abea0e72f4bb88bedc3d2f9bc96ae31904ce34",
+      "after": "9c32a202c6fafa1149ab2ebcdbcddc258db3a0a84b36324b758aff0b05c842b5"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/particle_mesh/pe_particle_light_native.h",
+      "file": "11.txt",
+      "before": "24bad122945a1d17b62ed25e76a593836761b7b13542bb7d731e8acfa067059c",
+      "after": "a6cbc9adf82018d100f7927b5c1304e5b81af167a6bd351049a4817f3b39c716"
+    },
+    {
+      "path": "game-src/src/main/menu/status_panels.c",
+      "file": "12.txt",
+      "before": "d0548cfcc8cf6c7db05d1c1be3132a7715d5272523abf4d446aca2c0d99bef08",
+      "after": "4e0f7c15fdd739035f95beff34fa7c90a2eaa771efd9611e245afa4fb2265af7"
+    },
+    {
+      "path": "game-src/src/main/render/dialogue_alpha.c",
+      "file": "13.txt",
+      "before": "5d4b24f94c6b5b491def1e10b7591cc8009afe1c989f4ef7f0602d3634447ba6",
+      "after": "668db7f6dd3a899bb74cfdcc2d8f6f65e834ba28eb1edeb551674c7741f8987d"
+    },
+    {
+      "path": "game-src/src/main/render/object.c",
+      "file": "14.txt",
+      "before": "0cd9423f281a799a2746375a8e1b66304334c97e2e020b6ebbb7090192775fcf",
+      "after": "a848b4630d02600a44372ec10b27a3628ec75712750a71ba9aa13d8eb8409785"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/image_nodes.c",
+      "file": "15.txt",
+      "before": "f9def88e410d42ac1f6036abe511443936a4794caed108d2995611f44a732fd2",
+      "after": "bad09efbc426c2b69c92557d8c3a009bcd0f9ed1ca07477b504e7d2ad227f3d3"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/title_type.h",
+      "file": "16.txt",
+      "before": null,
+      "after": "82956b3c30314ea54ee33a7ff2a84749a83a4b92e4c7402db3665c77d19b2bef"
+    },
+    {
+      "path": "game-support/factory-defaults.toml",
+      "file": "17.txt",
+      "before": null,
+      "after": "e24e43961c2b5d7e6fb3f87212980e1adb0b82ecaf464862904e35d2d6473795"
+    },
+    {
+      "path": "game-support/pe-build-identity.h",
+      "file": "18.txt",
+      "before": "63c9e1a3cee35bb78ce3e164ff7758c4eaf08cd8fb8b4468e856c1393e7770b4",
+      "after": "592b610f90fb68bd7e199d7d344dc456650ed19c15e6c72c72b67018ad6ebd08"
+    },
+    {
+      "path": "game-support/startup-log.cmake",
+      "file": "19.txt",
+      "before": "374a2f6b1745a7bd6e5981ef7204ef38d00038da318ef5589c9afc4bcb57bdb4",
+      "after": "7669a0d21af49d8fb7669d26cf160b7060e008b984600cdb4fef526e4d339ec5"
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+/* SPDX-License-Identifier: MIT. Original native title text adapter.
+ * Rasterizer/font keep the existing stb and IBM Plex OFL notices. */
+#ifndef PE_TITLE_TYPE_H
+#define PE_TITLE_TYPE_H
+#include "pe1/dialogue_alpha.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#define STBTT_STATIC
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
+#include "fonts/ibm_plex_sans.ttf.inc"
+/* Only CdRom_LoadInitialImage publishes this owner after a successful read
+ * and completion poll. All disc writes overlapping its workspace retire it.
+ * Offsets and label meanings describe the native title producer, not pixels. */
+static const struct { int kind,offset,width; const char *text; } labels[]={
+    {1,195900,144,"Press Start Button"}, {3,214084,84,"New Game"},
+    {4,220152,84,"Continue"}, {5,226220,84,"Tutorial"},
+    {6,232288,84,"EX Game"}
+};
+static struct { unsigned char *base; size_t bytes; uint32_t hashes[5]; } title_owner;
+static struct { MemcardImage *image; int kind; } title_nodes[8];
+void MenuCard_TitleOwnerRetire(void) {
+    memset(&title_owner,0,sizeof title_owner);
+    memset(title_nodes,0,sizeof title_nodes);
+}
+void MenuCard_TitleOwnerWrite(void *base,size_t bytes) {
+    uintptr_t a=(uintptr_t)base,b=(uintptr_t)title_owner.base;
+    if(title_owner.base && bytes &&
+       (a<=b ? bytes>b-a : a-b<title_owner.bytes))MenuCard_TitleOwnerRetire();
+}
+static uint32_t TitleType_Hash(const unsigned char *p,size_t bytes) {
+    uint32_t h=2166136261u;
+    while(bytes--)h=(h^*p++)*16777619u;
+    return h;
+}
+void MenuCard_TitleOwnerLoaded(void *base,size_t bytes) {
+    MenuCard_TitleOwnerRetire();
+    /* Includes the complete offset table, images and eight presets. Check
+     * allocation bounds before accessing any bank-relative metadata. */
+    if(!base || base!=g_StrFileDirBuffer || bytes>0x80000u ||
+       bytes<0x4264u+0x3DB08u+8*sizeof(MemcardImagePreset))return;
+    for(unsigned i=0;i<5;i++) {
+        size_t at=0x4264u+labels[i].offset,n=20u+labels[i].width*24u*3u;
+        if(at>bytes || n>bytes-at || g_MemcardImageOffsets[labels[i].kind]!=labels[i].offset)return;
+        MemcardImage *image=(MemcardImage *)((unsigned char *)base+at);
+        if(image->width!=labels[i].width*3/2 || image->height!=24)return;
+    }
+    title_owner.base=base;title_owner.bytes=bytes;
+    for(unsigned i=0;i<5;i++)title_owner.hashes[i]=TitleType_Hash(
+        (unsigned char *)base+0x4264u+labels[i].offset,20u+labels[i].width*24u*3u);
+}
+static int TitleType_NodeSlot(MemcardImageNode *node) {
+    for(int i=0;i<8;i++)if(node==&g_MemcardImageNodePool[i])return i;
+    return -1;
+}
+static void TitleType_BindNode(MemcardImageNode *node) {
+    int slot=TitleType_NodeSlot(node);
+    if(slot<0)return;
+    title_nodes[slot].image=0;
+    if(title_owner.base!=g_StrFileDirBuffer)return;
+    for(unsigned i=0;i<5;i++)if(node->kind==labels[i].kind &&
+        node->image==(MemcardImage *)(g_MemcardImageBundle+labels[i].offset)) {
+        title_nodes[slot].image=node->image;title_nodes[slot].kind=node->kind;
+    }
+}
+static MemcardImage *TitleType_Image(MemcardImageNode *node) {
+    /* One cache per node identity; no original art is modified. A style switch
+     * to Original or Retro immediately resumes the authored bitmap path. */
+    static union { uint32_t alignment; unsigned char bytes[20+144*24*3]; } cache[5];
+    static unsigned char ready[5];
+    static stbtt_fontinfo font;
+    static int initialized;
+    if(PeFont_GetStyle(1)!=1||!node||!node->image)return node?node->image:0;
+    int slot=TitleType_NodeSlot(node);
+    if(slot<0 || title_owner.base!=g_StrFileDirBuffer || !title_owner.base ||
+       title_nodes[slot].image!=node->image || title_nodes[slot].kind!=node->kind)return node->image;
+    for(unsigned i=0;i<sizeof labels/sizeof labels[0];i++){
+        if(node->kind!=labels[i].kind)continue;
+        if(g_MemcardImageOffsets[node->kind]!=labels[i].offset ||
+           node->image!=(MemcardImage *)(g_MemcardImageBundle+labels[i].offset)||
+           node->image->width!=labels[i].width*3/2||node->image->height!=24||
+           node->width!=labels[i].width||node->height!=24)return node->image;
+        if(TitleType_Hash((const unsigned char *)node->image,20u+labels[i].width*24u*3u)!=title_owner.hashes[i])return node->image;
+        if(ready[i]){memcpy(cache[i].bytes,node->image,20);return (MemcardImage *)cache[i].bytes;}
+        if(!initialized){int at=stbtt_GetFontOffsetForIndex(ibm_plex_sans_ttf,0);
+            if(at<0||!stbtt_InitFont(&font,ibm_plex_sans_ttf,at))return node->image;
+            initialized=1;
+        }
+        /* Common physical scale and baseline across every complete label.
+         * Four-sample rasterization avoids per-letter fitting and maintains
+         * the original centered text extent and untouched 24px node bounds. */
+        enum {S=4,W=144*S,H=24*S};
+        unsigned char *mask=calloc(W*H,1);
+        if(!mask)return node->image;
+        float scale=stbtt_ScaleForPixelHeight(&font,17.0f*S),advance=0;
+        const char *text=labels[i].text;
+        for(const char *p=text;*p;p++){int a,l;stbtt_GetCodepointHMetrics(&font,*p,&a,&l);advance+=a*scale;
+            if(p[1])advance+=stbtt_GetCodepointKernAdvance(&font,*p,p[1])*scale;}
+        if(advance>(labels[i].width-4)*S){free(mask);return node->image;}
+        float pen=(labels[i].width*S-advance)*0.5f;
+        for(const char *p=text;*p;p++){
+            int bw,bh,xoff,yoff,a,l;
+            if(*p==' '){stbtt_GetCodepointHMetrics(&font,*p,&a,&l);pen+=a*scale;
+                if(p[1])pen+=stbtt_GetCodepointKernAdvance(&font,*p,p[1])*scale;continue;}
+            unsigned char *glyph=stbtt_GetCodepointBitmap(&font,scale,scale,*p,&bw,&bh,&xoff,&yoff);
+            if(!glyph){free(mask);return node->image;}
+            int left=(int)pen+xoff,top=18*S+yoff;
+            if(left<0||top<0||left+bw>labels[i].width*S||top+bh>H){stbtt_FreeBitmap(glyph,0);free(mask);return node->image;}
+            for(int y=0;y<bh;y++)for(int x=0;x<bw;x++)mask[(top+y)*W+left+x]=glyph[y*bw+x];
+            stbtt_FreeBitmap(glyph,0);stbtt_GetCodepointHMetrics(&font,*p,&a,&l);pen+=a*scale;
+            if(p[1])pen+=stbtt_GetCodepointKernAdvance(&font,*p,p[1])*scale;
+        }
+        memcpy(cache[i].bytes,node->image,20);
+        for(int y=0;y<24;y++)for(int x=0;x<labels[i].width;x++){
+            unsigned sum=0;
+            for(int sy=0;sy<S;sy++)for(int sx=0;sx<S;sx++)sum+=mask[(y*S+sy)*W+x*S+sx];
+            unsigned char ink=(unsigned char)((sum+S*S/2)/(S*S));
+            unsigned char *d=cache[i].bytes+20+(y*labels[i].width+x)*3;
+            d[0]=d[1]=d[2]=ink;
+        }
+        free(mask);ready[i]=1;return (MemcardImage *)cache[i].bytes;
+    }
+    return node->image;
+}
+#endif

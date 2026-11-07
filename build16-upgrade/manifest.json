@@ -1,0 +1,99 @@
+{
+  "build": 16,
+  "contentVersion": "01.000.016",
+  "titleId": "PPSA77022",
+  "contentId": "UP9000-PPSA77022_00-CPEGAMETEST00000",
+  "files": [
+    {
+      "path": "game-src/CMakeLists.txt",
+      "file": "files/game-src/CMakeLists.txt",
+      "before": "9598629963ab8e9fd7f0811a03e3416e0f35e07fc6d93cf9c83fd647248eeff4",
+      "after": "93f9113ffe560dc306fcfcfc01542bb5f57b8d8c270fee384ee5e554825f7d82"
+    },
+    {
+      "path": "game-src/src/main/boot/main.c",
+      "file": "files/game-src/src/main/boot/main.c",
+      "before": "a17ff752989b97d9536120134c91e231dec1916c6659f318d6127fedad387e54",
+      "after": "d22c87ab8bfeb55f6294089d5f3d4c3f9e5bf5525983084a0087643973807019"
+    },
+    {
+      "path": "game-src/src/main/boot/native_experience.h",
+      "file": "files/game-src/src/main/boot/native_experience.h",
+      "before": "ad12781ae609369f0ddcb9fbb521f6238403d2a0460f83e8bce661a4dfbd5a3e",
+      "after": "a74881ca54d5860e27f404916016c744a89e1e1ba43d8576b2a67ffd2168c185"
+    },
+    {
+      "path": "game-src/src/main/boot/native_tabs.h",
+      "file": "files/game-src/src/main/boot/native_tabs.h",
+      "before": "c275507c49b5e9b9b4c18b6572db721508b20fc3f73d48ed7c306777f6776e6f",
+      "after": "9c8485c6ae8afc94dded15aa1fa0b7944980bc835066ecee83a3e70a60ffd7c9"
+    },
+    {
+      "path": "game-src/src/main/boot/settings_overlay.h",
+      "file": "files/game-src/src/main/boot/settings_overlay.h",
+      "before": "5c9a995fe2c714e0bfbf902f7e60d32ddde07a9d4434256691f2bbff718bb31e",
+      "after": "40d4426f964c56c910e871524df5b5767835b2ce24f62ef7bb6e956dbe0e3f0d"
+    },
+    {
+      "path": "psyz-src/psyz/include/psyz/video.h",
+      "file": "files/psyz-src/psyz/include/psyz/video.h",
+      "before": "f467cad25109fb024270df802f707f8ffd0c32299f7f4d5947a1fd8a8005d5e2",
+      "after": "cf496b274af749e2fc905e5bc784ef45249bf9299d95701b7e42fb5db34bab40"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/display_filter/display_filter.frag.glsl",
+      "file": "files/psyz-src/psyz/src/platform/display_filter/display_filter.frag.glsl",
+      "before": null,
+      "after": "e895422af70d4ff3988c4239e4dba9ddb7639309a4d498014d7b6bc78dafc41f"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/display_filter/display_filter.vert.glsl",
+      "file": "files/psyz-src/psyz/src/platform/display_filter/display_filter.vert.glsl",
+      "before": null,
+      "after": "77306c87b679b27966d5f9d566a61764fbeb0885d25f59cc696cc07641d77642"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/display_filter/present_display_filter.h",
+      "file": "files/psyz-src/psyz/src/platform/display_filter/present_display_filter.h",
+      "before": null,
+      "after": "47c173e1659c407613ebefdbf31a5639edb3daf81074253829d3f743f68a9d52"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/sdl3_gpu.c",
+      "file": "files/psyz-src/psyz/src/platform/sdl3_gpu.c",
+      "before": "d5800e486310e92d2dd5000e6857b3437e3daf161d24948dc7485b052314ee6f",
+      "after": "08c07a431e898d34a0702f0dfccf5841874eb4af237f0ec8b5a3da7cec4ccb07"
+    },
+    {
+      "path": "game-support/pe-build-identity.h",
+      "file": "files/game-support/pe-build-identity.h",
+      "before": "ee0a8e03c72b7637cc72bda5d15ac55c8af3540dda54e7811be0d29a57cbc194",
+      "after": "58252d184ed7bfdcc40175f2b31281caa0965a5d9864a0187be4c2f9014c8f5a"
+    }
+  ],
+  "generatedHeader": {
+    "path": "psyz-src/psyz/src/platform/display_filter/display_filter_shaders.h",
+    "after": "d0c184a8819a43df2adc80db0f12c1782989372b5dcc73ac5b8154e642a6a6f6",
+    "template": "filter-header.template",
+    "templateSha256": "4b685ae9cccf63a8fe847f3d1d0424fafd9c43cfaa4ea1589b7089416112e3dd"
+  },
+  "shaderModules": [
+    {
+      "stage": "vert",
+      "symbol": "cpe_display_filter_vert",
+      "source": "psyz-src/psyz/src/platform/display_filter/display_filter.vert.glsl",
+      "sourceSha256": "77306c87b679b27966d5f9d566a61764fbeb0885d25f59cc696cc07641d77642",
+      "spirvSha256": "9302f1b4f15fb2f52d20a0ce5d4bb66fdd98f8c6e4dfc330c1da077ae6ede8e9",
+      "bytes": 1136
+    },
+    {
+      "stage": "frag",
+      "symbol": "cpe_display_filter_frag",
+      "source": "psyz-src/psyz/src/platform/display_filter/display_filter.frag.glsl",
+      "sourceSha256": "e895422af70d4ff3988c4239e4dba9ddb7639309a4d498014d7b6bc78dafc41f",
+      "spirvSha256": "d8a1cd80f7c3a0d0fd9383b1178beb22468028003cecf37e8512134339808453",
+      "bytes": 3616
+    }
+  ],
+  "shaderCompilerSha256": "9643709c02c83e26773f96b6a87f197ab2e84f78be0879ad8fb3619418b5d9ad"
+}

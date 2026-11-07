@@ -1,0 +1,38 @@
+# Original dialogue choice pointer
+
+This adapter targets `Menu_DrawTextboxEntries`, control9, after the original
+`AddPrim` of `g_TextboxChoiceCursor[g_ActiveDrawSlot]`. It does not target the
+native pause/settings UI or redefine any character font.
+
+The original packet is a raw, opaque textured SPRT (`0x65`), 24x12 texels,
+U112, V from textbox font page3. Its two cached packets alternate draw buffers;
+there is one image in this producer, with no texture-frame animation. Position
+remains the original selection cursor plus signed selection*12 in Y. Direction,
+hotspot, input, row spacing, clipping, OT order and all original packets remain
+under the original implementation.
+
+A two-word F9 marker binds the next primitive to its actual page/CLUT/V. The
+renderer consumes this admission once, including rejected primitives. It also
+requires exact raw opcode, UV, dimensions, page and CLUT. Original-mode fonts do
+not disable this independent pointer path; the existing HD-model preference
+controls the private asset adapter. No new saved setting or public default.
+
+Private `PEDUCK01` records named `ui-choice-pointer-*.png` have their own
+category2. Ordinary UI/model polygons cannot consume them. Records must describe
+the exact full 24x12 rectangle; surrounding text sheets are not admitted as
+pointer art. Existing source-word XXH3, full CLUT hash and palette-index coverage
+checks still apply to the live uploaded VRAM generation. Dirtying, room/cache
+retirement and pack reload retain their existing invalidation rules. No source
+fingerprints, PNGs or original pixels are included in the public source.
+
+Replacement PNGs use the existing bounded integer1..8 scale contract. The
+optional private technical upscale is4x. Choice selector10 owns RGBA coverage
+only in the scaled display pass; the original raw sprite continues to own the
+native VRAM draw and mask. This admits smoothed edges without exposing adjacent
+font pixels. There is no palette rewrite, simulation change, extra stretch,
+offset, contour expansion, font rasterization or guessed hand.
+
+Absent/malformed pack, ambiguous source match, changed palette, unknown source,
+unsupported renderer/texture window, HD models Off or1x rendering keeps the
+original. This source does not enable a private pack or supply redistributable
+art. Manager selects source and private pack placement; human checks appearance.

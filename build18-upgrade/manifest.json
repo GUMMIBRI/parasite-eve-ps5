@@ -1,0 +1,92 @@
+{
+  "build": 18,
+  "applicationTitle": "Parasitic Event Revisited",
+  "contentVersion": "01.000.018",
+  "titleId": "PPSA77022",
+  "contentId": "UP9000-PPSA77022_00-CPEGAMETEST00000",
+  "files": [
+    {
+      "path": "game-src/CMakeLists.txt",
+      "file": "files/game-src/CMakeLists.txt",
+      "before": "5268bd8347c6585eb7ad26025415383050015c354fb9e80d0afe3ec7f0053aed",
+      "after": "a19e36d5caac3d4c71feef378dbd2cd1dd2a4b7f4df91faf939068b26c2165bc"
+    },
+    {
+      "path": "game-src/src/main/boot/main.c",
+      "file": "files/game-src/src/main/boot/main.c",
+      "before": "bd621fbb48386f3abed1eb33ac6ceedb37066e664d3e6a28f6e91d0ee1ebf2b6",
+      "after": "ef004221d0ae5bcac11ffd5f2c1cb16508cf2325bd9bfc3ef932a9078afbe56b"
+    },
+    {
+      "path": "game-src/src/main/boot/settings_overlay.h",
+      "file": "files/game-src/src/main/boot/settings_overlay.h",
+      "before": "ddf192a0d7714dd5046b3481f338d085ab1de8c3ad8dabfdd775b47416f05c0a",
+      "after": "e7abd8dc0533b8c77afbe65e5677b5ff42df37dfcb0dc7dfe9d8acd2ad2c4e61"
+    },
+    {
+      "path": "psyz-src/psyz/include/psyz/video.h",
+      "file": "files/psyz-src/psyz/include/psyz/video.h",
+      "before": "e32de7b6ec324479720f3b6df5e3ad36ccb3215dc57a86cff2652bc1f2cc177c",
+      "after": "a0016f3b449d9f4cf1a3d9aed860682ddd0fa38f064d2bb274dd496175c83062"
+    },
+    {
+      "path": "game-support/pe-build-identity.h",
+      "file": "files/game-support/pe-build-identity.h",
+      "before": "49aa098b609d46e9e4e5df6368db9c57801ef94932c330731e24a0066fbddee8",
+      "after": "43bb0563d96e3b9d599b3e25521700a2cb2662da5e043be449dc42eccb7e8959"
+    },
+    {
+      "path": "game-support/pe-portable-root.c",
+      "file": "files/game-support/pe-portable-root.c",
+      "before": "acf44ce9bc2aef7381bc5ff22339f34124e276cae8638a8c1753fe5ee68ab3c9",
+      "after": "aa5317066b45f6f0cf1245795b7ecb4da0392c5a46c81fa9e6ae08726e443dd9"
+    },
+    {
+      "path": "game-support/pe-portable-root.h",
+      "file": "files/game-support/pe-portable-root.h",
+      "before": "f330ea1f6de057d3c49681ac0124bf1d3bf09d7b520913159c27207bc715a083",
+      "after": "300b2a46fae4be8f0e55a04f6b84afc27b2a5ffc2b5181d6a210450ec8215c3e"
+    },
+    {
+      "path": "game-support/startup-log.cmake",
+      "file": "files/game-support/startup-log.cmake",
+      "before": "b7e7ee1a8cbb46d987751e45372bda63a6d13098b9c351a16b36d7eb64022db8",
+      "after": "865ea85f2233925ffa8da66d7327c353ecedbc08e58bc985b0d991555fee3195"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/menu_rgb24_present.h",
+      "file": "files/psyz-src/psyz/src/platform/menu_rgb24_present.h",
+      "before": "34305972b8f91a5e12455ac9691a411519f440eb1421c9aa42600c2f0f422491",
+      "after": "318a89b84a5a7ff7368d2bbd32fd24d5631f8ea78ac3accbb00857e866066a08"
+    }
+  ],
+  "sidecars": [
+    {
+      "path": "tools/title-labels/convert-label.py",
+      "sha256": "432b68b62a7acb95ebdf2f88224e4eefd06fdba4475a66cc4211cc4e8b6cb539",
+      "bytes": 4225
+    },
+    {
+      "path": "tools/title-labels/CONVERTER.md",
+      "sha256": "1efac301d60803fbc752e0bddd81fc4c747f2ec4cdb6a5f9e5424bc585a08974",
+      "bytes": 2194
+    },
+    {
+      "path": "tools/title-labels/FORMAT.md",
+      "sha256": "8bc17f21273b6198359b52a23d4e90e559a9dd1952143c9bd6290e92aec1a34a",
+      "bytes": 4149
+    },
+    {
+      "path": "tools/title-labels/LICENSE.txt",
+      "sha256": "8d7ed209b98aea8e8b6cc505678650570b04d431583ff8b2ff7b431418bdaf08",
+      "bytes": 781
+    },
+    {
+      "path": "tools/title-labels/PROVENANCE.json",
+      "sha256": "e9f0333950d6f3865bc4cb22191a5c3ce11c5214a9820bc4b7bb6dabee1ca27d",
+      "bytes": 1191
+    }
+  ],
+  "rawLabelLoaderIncluded": true,
+  "noArtworkIncluded": true
+}

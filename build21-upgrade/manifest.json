@@ -1,0 +1,42 @@
+{
+  "build": 21,
+  "applicationTitle": "Parasitic Event Revisited",
+  "contentVersion": "01.000.021",
+  "titleId": "PPSA77022",
+  "contentId": "UP9000-PPSA77022_00-CPEGAMETEST00000",
+  "files": [
+    {
+      "path": "game-src/CMakeLists.txt",
+      "file": "files/game-src/CMakeLists.txt",
+      "before": "f0e43f6f58278915e8fc3b74ae7f424738ce785b75c8002bd967e3c7b6988513",
+      "after": "28a4b0362506867cd267436ad4dc15d6ca7fd2c78ab047a819ee474bbb84716f"
+    },
+    {
+      "path": "game-support/application-startup-log.c",
+      "file": "files/game-support/application-startup-log.c",
+      "before": "4775c81c6b19036521be6eda600433493e48b073cd2f1fefdcf29026c301feef",
+      "after": "660e0a483186adfeb07fc565c3dfd9d3acb68d954745cabc1adfa531acb8baf7"
+    },
+    {
+      "path": "game-support/pe-build-identity.h",
+      "file": "files/game-support/pe-build-identity.h",
+      "before": "dd22bc3573db2b8b2de15c79f6f18dd1afaeb870eddda26792ee8b23ca7f1ebf",
+      "after": "6f3c33caa045afc8c4ad6e559b783f1a98f84772423ae87637247218f6a3a747"
+    },
+    {
+      "path": "game-support/pe-portable-root.c",
+      "file": "files/game-support/pe-portable-root.c",
+      "before": "aa5317066b45f6f0cf1245795b7ecb4da0392c5a46c81fa9e6ae08726e443dd9",
+      "after": "06c542cc2229417a3fd9d9c271e5595bec95d44a4b6adb69502f5ecc32bfca17"
+    },
+    {
+      "path": "game-support/pe-portable-root.h",
+      "file": "files/game-support/pe-portable-root.h",
+      "before": "300b2a46fae4be8f0e55a04f6b84afc27b2a5ffc2b5181d6a210450ec8215c3e",
+      "after": "9d4dbb60d97cf00395bc5a4d24e1ca6d0bcd8cf5441176a272c96f12bb65a7a5"
+    }
+  ],
+  "sidecars": [],
+  "rawLabelLoaderIncluded": true,
+  "noArtworkIncluded": true
+}

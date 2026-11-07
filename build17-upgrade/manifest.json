@@ -1,0 +1,106 @@
+{
+  "build": 17,
+  "contentVersion": "01.000.017",
+  "titleId": "PPSA77022",
+  "contentId": "UP9000-PPSA77022_00-CPEGAMETEST00000",
+  "files": [
+    {
+      "path": "game-src/include/pe1/dialogue_alpha.h",
+      "file": "files/game-src/include/pe1/dialogue_alpha.h",
+      "before": "8f2bad3c526bf5650eae9d87924d33f577b5061262e9b90b9b92b5167e013b46",
+      "after": "79379d0bf8c737b94be0f57951603b5a3522fccd537e28096e1a011f155ab74b"
+    },
+    {
+      "path": "game-src/src/main/boot/fonts/atkinson_hyperlegible_regular.ttf.inc",
+      "file": "files/game-src/src/main/boot/fonts/atkinson_hyperlegible_regular.ttf.inc",
+      "before": null,
+      "after": "0b7abcfb9ea32fdceec5ebfdec51eef8743b294d33be3797c519862ecf3b3920"
+    },
+    {
+      "path": "game-src/src/main/boot/fonts/OFL-AtkinsonHyperlegible.txt",
+      "file": "files/game-src/src/main/boot/fonts/OFL-AtkinsonHyperlegible.txt",
+      "before": null,
+      "after": "f32d22b3908fcad2c86a74000614ec22e6a7f66ea7e867e616026a27aebdc143"
+    },
+    {
+      "path": "game-src/src/main/boot/main.c",
+      "file": "files/game-src/src/main/boot/main.c",
+      "before": "d22c87ab8bfeb55f6294089d5f3d4c3f9e5bf5525983084a0087643973807019",
+      "after": "bd621fbb48386f3abed1eb33ac6ceedb37066e664d3e6a28f6e91d0ee1ebf2b6"
+    },
+    {
+      "path": "game-src/src/main/boot/native_experience.h",
+      "file": "files/game-src/src/main/boot/native_experience.h",
+      "before": "a74881ca54d5860e27f404916016c744a89e1e1ba43d8576b2a67ffd2168c185",
+      "after": "f5e10a4d81797e6509d7cbd89e763b45135a75330796afdcce8aa7a1147658eb"
+    },
+    {
+      "path": "game-src/src/main/boot/settings_overlay.h",
+      "file": "files/game-src/src/main/boot/settings_overlay.h",
+      "before": "40d4426f964c56c910e871524df5b5767835b2ce24f62ef7bb6e956dbe0e3f0d",
+      "after": "ddf192a0d7714dd5046b3481f338d085ab1de8c3ad8dabfdd775b47416f05c0a"
+    },
+    {
+      "path": "game-src/src/main/render/dialogue_alpha.c",
+      "file": "files/game-src/src/main/render/dialogue_alpha.c",
+      "before": "668db7f6dd3a899bb74cfdcc2d8f6f65e834ba28eb1edeb551674c7741f8987d",
+      "after": "bfa4a3fc24e4d3be448c7ba2655ff84d65193feb38ee8e9cc07c3082a1d53cbf"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/menu_memcard_screen.h",
+      "file": "files/game-src/src/overlays/menu_memcard/menu_memcard_screen.h",
+      "before": "459c8a21817c9920a607cc2e791c7b27d90d11510f2e908e8893c4a1a25decd4",
+      "after": "4fc8ba25344299f670b209126e0bf3b9dd05445666a1ffd6b53744eda840b3cb"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/title_companion.h",
+      "file": "files/game-src/src/overlays/menu_memcard/title_companion.h",
+      "before": null,
+      "after": "cc67ff02deb2c0527a8386c465e4982350bf3444b2df7eddc35212f86b854996"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/title_companion_raster.h",
+      "file": "files/game-src/src/overlays/menu_memcard/title_companion_raster.h",
+      "before": null,
+      "after": "aaf308227f051c37b8679a8bf87239dd56379aa381813c3b86113db3b357d8fe"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/title_type.h",
+      "file": "files/game-src/src/overlays/menu_memcard/title_type.h",
+      "before": "82956b3c30314ea54ee33a7ff2a84749a83a4b92e4c7402db3665c77d19b2bef",
+      "after": "2df8b244a00e060e7daab69235e98f565c2063fb4bd43c82e9daa65ea147b290"
+    },
+    {
+      "path": "psyz-src/psyz/include/psyz/video.h",
+      "file": "files/psyz-src/psyz/include/psyz/video.h",
+      "before": "cf496b274af749e2fc905e5bc784ef45249bf9299d95701b7e42fb5db34bab40",
+      "after": "e32de7b6ec324479720f3b6df5e3ad36ccb3215dc57a86cff2652bc1f2cc177c"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/menu_rgb24_present.h",
+      "file": "files/psyz-src/psyz/src/platform/menu_rgb24_present.h",
+      "before": null,
+      "after": "34305972b8f91a5e12455ac9691a411519f440eb1421c9aa42600c2f0f422491"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/sdl3_gpu.c",
+      "file": "files/psyz-src/psyz/src/platform/sdl3_gpu.c",
+      "before": "08c07a431e898d34a0702f0dfccf5841874eb4af237f0ec8b5a3da7cec4ccb07",
+      "after": "4a1dae3d3087d9db872ed739789b57c7c91a2acd61d83179b2e2b33703e1788a"
+    },
+    {
+      "path": "game-src/CMakeLists.txt",
+      "file": "files/game-src/CMakeLists.txt",
+      "before": "93f9113ffe560dc306fcfcfc01542bb5f57b8d8c270fee384ee5e554825f7d82",
+      "after": "5268bd8347c6585eb7ad26025415383050015c354fb9e80d0afe3ec7f0053aed"
+    },
+    {
+      "path": "game-support/pe-build-identity.h",
+      "file": "files/game-support/pe-build-identity.h",
+      "before": "58252d184ed7bfdcc40175f2b31281caa0965a5d9864a0187be4c2f9014c8f5a",
+      "after": "49aa098b609d46e9e4e5df6368db9c57801ef94932c330731e24a0066fbddee8"
+    }
+  ],
+  "sourceSelection": "Fixed native4x title/Atkinson; external PNG admission disabled; retains Build16 filters/atlas",
+  "externalPNGAdmission": false
+}
