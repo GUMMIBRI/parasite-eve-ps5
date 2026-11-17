@@ -1,0 +1,36 @@
+{
+  "build": 19,
+  "applicationTitle": "Parasitic Event Revisited",
+  "contentVersion": "01.000.019",
+  "titleId": "PPSA77022",
+  "contentId": "UP9000-PPSA77022_00-CPEGAMETEST00000",
+  "files": [
+    {
+      "path": "game-src/CMakeLists.txt",
+      "file": "files/game-src/CMakeLists.txt",
+      "before": "a19e36d5caac3d4c71feef378dbd2cd1dd2a4b7f4df91faf939068b26c2165bc",
+      "after": "ba414359415e34a674fe3ca58f2cbfbcfba05df39e71f94554525490e54ef095"
+    },
+    {
+      "path": "game-src/src/main/boot/main.c",
+      "file": "files/game-src/src/main/boot/main.c",
+      "before": "ef004221d0ae5bcac11ffd5f2c1cb16508cf2325bd9bfc3ef932a9078afbe56b",
+      "after": "b66208f327fa467c70ce779a9da19e2be561b830736c0b71851c10450be359fe"
+    },
+    {
+      "path": "game-src/src/main/boot/settings_overlay.h",
+      "file": "files/game-src/src/main/boot/settings_overlay.h",
+      "before": "e7abd8dc0533b8c77afbe65e5677b5ff42df37dfcb0dc7dfe9d8acd2ad2c4e61",
+      "after": "b243c6a0b9e74b9129bf54b50b5011d5b5d098cec30d4247ac5f1d4b3c32619c"
+    },
+    {
+      "path": "game-support/pe-build-identity.h",
+      "file": "files/game-support/pe-build-identity.h",
+      "before": "43bb0563d96e3b9d599b3e25521700a2cb2662da5e043be449dc42eccb7e8959",
+      "after": "e18265f823906d572e1caf648925360045fbc1d007b524fe4df09e3ae7d73aac"
+    }
+  ],
+  "sidecars": [],
+  "rawLabelLoaderIncluded": true,
+  "noArtworkIncluded": true
+}

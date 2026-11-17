@@ -1,0 +1,116 @@
+{
+  "ancestorPublicCommit": "367870a986c75726829f44c857afa9711f2141f8",
+  "build": 13,
+  "releaseVersionAssigned": false,
+  "files": [
+    {
+      "path": "game-src/CMakeLists.txt",
+      "before": "e55045d7632cdf64a41fb6c36191b207028f731dd71b79c4f0ba0965dc48d8cf",
+      "after": "ab6ce2a154949290f8e502272bae64d7e523f425fae755f7d4c4ca3006a8dcd3",
+      "file": "0.txt"
+    },
+    {
+      "path": "game-src/include/pe1/particle_augment.h",
+      "before": "ac1a2e5a9f8b447dcfeb15fe21b382da47208cdd65d95e3bef0d85d78416f572",
+      "after": "d0c99c7f5c6fcc73fa1cf4b001b8ff1d301fff58fde680ee3e37c5ad956a0af2",
+      "file": "1.txt"
+    },
+    {
+      "path": "game-src/src/main/boot/main.c",
+      "before": "412759a2141ff5667aeb04b24ba13f477789db4cee4df0327b6843dd3d4d3365",
+      "after": "a0e3c55c89822ad10f83b9ca44668934711a7b4e7684db2e350b716500d0f62e",
+      "file": "2.txt"
+    },
+    {
+      "path": "game-src/src/main/boot/native_registry.h",
+      "before": "55df7755e7eb3f9a81eb473a5cf66076794c443a3af009928e2eb62777c63a34",
+      "after": "064f581b10a80a800258f500e1e0469e9ddf941a6c14133250b236a10eeb14a2",
+      "file": "3.txt"
+    },
+    {
+      "path": "game-src/src/main/boot/native_tabs.h",
+      "before": "57b9487de75846d30d791aee7f282f2017c43cd1667817e8c3e439b2d48c9f18",
+      "after": "1cf89868575697ce83906bdff4d1dbb97ba3e3622ecdbb58a1dc59bc88226207",
+      "file": "4.txt"
+    },
+    {
+      "path": "game-src/src/main/boot/settings_overlay.h",
+      "before": "26cdf9f358272b85129f9e43cff558c6e839173740c0242006d821f94b8ff685",
+      "after": "5c9a995fe2c714e0bfbf902f7e60d32ddde07a9d4434256691f2bbff718bb31e",
+      "file": "5.txt"
+    },
+    {
+      "path": "game-src/src/main/boot/state_ui.h",
+      "before": "1dc11f96bf57cdf84899fa7320879141e5221ec82173d523dfd4ab79acf03e4f",
+      "after": "16066bfa1f3a505a81b7fb47aaf1d7bb1dea58803feec7f69dfe1c3606e7414f",
+      "file": "6.txt"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/burst.c",
+      "before": "87e706af36e1dce4d50635e3e8a9443f77eea11e74fdf20dfa3b1d13929693a5",
+      "after": "6630ce90f2117fffb9306c768fb0f295370f493ac9831730d37fe6246b23d928",
+      "file": "7.txt"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/particle_mesh/pe_particle_light_native.h",
+      "before": "b3994686bde01870cbff5471ec22bfba174d4c9447146aca273138a22f71e8ae",
+      "after": "24bad122945a1d17b62ed25e76a593836761b7b13542bb7d731e8acfa067059c",
+      "file": "8.txt"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/particle_mesh/pe_particle_render.c",
+      "before": "8efb956c1a1cafcfd08f4226c4c1e6ac41c77d503b07bd0cfa98b7e749079f37",
+      "after": "e6a1004862e91be8ac49135fad18e3ac501697e4eaffe5b35659d3d5c7fc0fa9",
+      "file": "9.txt"
+    },
+    {
+      "path": "game-src/src/main/fieldfx/pe_burst_light_native.h",
+      "before": null,
+      "after": "f6acaa2b5ce5fb21b616774ab807fa3a7e0e42d3c0969a843b4bc814a645bf7c",
+      "file": "10.txt"
+    },
+    {
+      "path": "game-src/src/main/render/object.c",
+      "before": "3051cc4e542d9692974081b4ab9a54d06d5f6f56cd8555c0a4889b8dea600b58",
+      "after": "0cd9423f281a799a2746375a8e1b66304334c97e2e020b6ebbb7090192775fcf",
+      "file": "11.txt"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/list_screen.c",
+      "before": "7615819d5497f45c366a26cd231b4e8f5a24a77405f57477b3fa3a8ff01d2f7c",
+      "after": "8a0f45c7361c3ece4d19568b4e4fe2c186f1bde13a6384b8ae20cb3cbaf3c75b",
+      "file": "12.txt"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/menu_memcard_screen.h",
+      "before": "f068f4de7b20ba19368e1043f3b652dd95f3259f08b4fbf11613019e4bcc2b6c",
+      "after": "459c8a21817c9920a607cc2e791c7b27d90d11510f2e908e8893c4a1a25decd4",
+      "file": "13.txt"
+    },
+    {
+      "path": "game-src/src/overlays/menu_memcard/page_flip.c",
+      "before": "52e036efc03bab93e9e1e666f0f6d92d291c8efcd30f25285efb9888521fc717",
+      "after": "57ebdbc0ab1152df917e6a4c373c2985a0b9246c0694758a95e6517ee693eb76",
+      "file": "14.txt"
+    },
+    {
+      "path": "game-src/src/overlays/room_m005_theater/m005.c",
+      "before": "2bc747d7e79c52215143f3177cb8e66940c41c070b9eedcad617b615fd67f613",
+      "after": "f2592e2f201cb9b29a88d52b321f5c7ba3ceec14f71a6e4036ab8f44147e1d1e",
+      "file": "15.txt"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/sdl3_gpu.c",
+      "before": "cdf32d53bbd482a40c8ea6e29448bbcb6834d1fdb57fd35839b8cf5b947ddc22",
+      "after": "66664ea5bdb461ad9e7706207e8a17daf0a16ad17959486af1ca42b2e601aa6f",
+      "file": "16.txt"
+    },
+    {
+      "path": "psyz-src/psyz/src/platform/shaders/psx.frag.glsl",
+      "before": "095aae2bb6fcc70b20433ce3260661f11b0c13e91fbf048f72dc9d029f6e0637",
+      "after": "0e729240d7c2cab2ffbe220c4cba6d30765d4c1ad75de775b50b9d2c0063eead",
+      "file": "17.txt"
+    }
+  ],
+  "patchSha256": "37e81df48254c844db23fbbefc8457dc58874ed59db1d3352a02ff5f89af364c"
+}

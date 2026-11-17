@@ -1,0 +1,174 @@
+--- a/game-src/src/main/battle/attack.c
++++ b/game-src/src/main/battle/attack.c
+@@ -267,8 +267,8 @@
+ extern u8 g_BattleHitPending;
+ s8 g_EvasionReaction;
+ 
+-/* Apply the evasion outcome Battle_CheckEvasion left in g_EvasionOutcome and
+- * g_EvasionReaction to one target: a resolved hit sets the hit state, the
++/* Apply the evasion outcome Battle_CheckEvasion left in
++ * g_EvasionOutcome to one target: a resolved hit sets the hit state, the
+  * weapon category and the reaction in the core flags; an unresolved one
+  * opens the floating panel.
+  * The steal path reaches this through jump cross-jumping into the
+@@ -286,7 +286,7 @@
+         EnemyCoreFlagBits *bits = (EnemyCoreFlagBits *)&core->coreFlags;
+         bits->hitState = 1;
+         bits->category = g_ActiveActor->action->attackWord >> 20;
+-        bits->reaction = ((BattleEvasionReaction *)&g_EvasionReaction)->value;
++        bits->reaction = g_EvasionOutcome.reaction;
+     }
+     else if (g_EvasionOutcome.status == 0)
+     {
+@@ -357,7 +357,7 @@
+         s16 reaction;
+         Battle_CheckEvasion(selectedSlot->actor, &g_EvasionOutcome, 0);
+         ApplyEvasionOutcome(selectedSlot->actor);
+-        reaction = g_EvasionReaction;
++        reaction = g_EvasionOutcome.reaction;
+         if (g_EvasionOutcome.status == 1)
+         {
+             for (target = (BattleEntity *)g_FieldActorListHead; target != 0; target = target->next)
+@@ -887,14 +887,16 @@
+         s32 product;
+         int reachScale;
+         targetEntity = g_BattleActionQueue[g_BattleActionIndex].actor;
+-        reachScale = (((EnemyCombatant *) targetEntity->core)->statusFlags2 >> 0x13) & 0x1F;
+-        targetDistance = ((targetEntity->renderObject.hit_cylinder.radius * reachScale) / 10) + D_8009D254->renderObject.hit_cylinder.radius;
+-        targetAngle = Battle_CalcAngleToTarget(&targetEntity->renderObject, &g_AyaSavedPos);
+-        D_8009D254->facingAngle = targetAngle;
+-        product = targetDistance * rsin(targetAngle);
+-        D_8009D254->posX.fixed = (g_BattleActionQueue[g_BattleActionIndex].actor->renderObject.target_x * 65536) + (product * 16);
+-        product = targetDistance * rcos(D_8009D254->facingAngle);
+-        D_8009D254->posZ.fixed = (g_BattleActionQueue[g_BattleActionIndex].actor->renderObject.target_z * 65536) + (product * 16);
++        if (targetEntity && targetEntity->core) {
++          reachScale = (((EnemyCombatant *) targetEntity->core)->statusFlags2 >> 0x13) & 0x1F;
++          targetDistance = ((targetEntity->renderObject.hit_cylinder.radius * reachScale) / 10) + D_8009D254->renderObject.hit_cylinder.radius;
++          targetAngle = Battle_CalcAngleToTarget(&targetEntity->renderObject, &g_AyaSavedPos);
++          D_8009D254->facingAngle = targetAngle;
++          product = targetDistance * rsin(targetAngle);
++          D_8009D254->posX.fixed = (targetEntity->renderObject.target_x * 65536) + (product * 16);
++          product = targetDistance * rcos(D_8009D254->facingAngle);
++          D_8009D254->posZ.fixed = (targetEntity->renderObject.target_z * 65536) + (product * 16);
++        }
+       }
+       D_8009D254->baseX = D_8009D254->posX.fixed;
+       D_8009D254->baseY = D_8009D254->posY.fixed;
+--- a/game-src/src/main/render/dialogue_alpha.c
++++ b/game-src/src/main/render/dialogue_alpha.c
+@@ -6,6 +6,7 @@
+ #include "pe1/render_buffers.h"
+ #include "pe1/draw_buffers.h"
+ #include "pe1/draw_state.h"
++#include "pe1/textbox.h"
+ #include "pe1/render_prim.h"
+ #include <psyz/gpu.h>
+ #include <psyz/video.h>
+@@ -156,6 +157,34 @@
+         if(retro_scale*max_w>44.0f)retro_scale=44.0f/max_w;
+         retro_scale*=0.98f;retro_baseline=2+(int)STBTT_iceil(max_y*retro_scale);
+     }
++    /* Dialogue uses original variable advances, not menu crop metrics. Fit
++     * ONE family scale/origin/baseline to those advances and the12px packet.
++     * Independent letter-width fitting distorts the same font within a line. */
++    int uniform_dialogue=context==0&&f->enabled>=PE_FONT_STYLE_RETRO;
++    float dialogue_scale=0;int dialogue_origin=0,dialogue_baseline=0;
++    if(uniform_dialogue){
++        int min_x=0,min_y=0,max_y=0;
++        for(unsigned code=0;code<78;code++){
++            int cp=ascii(code),x0,y0,x1,y1;
++            int advance=(int)g_TextboxGlyphSpacing[code].right-(int)g_TextboxGlyphSpacing[code].left;
++            if(cp<0||cp==' '||advance<=0||!stbtt_FindGlyphIndex(&info,cp)||!stbtt_GetCodepointBox(&info,cp,&x0,&y0,&x1,&y1))continue;
++            if(x0<min_x)min_x=x0;if(y0<min_y)min_y=y0;if(y1>max_y)max_y=y1;
++        }
++        if(max_y<=min_y){free(rgba);return;}
++        dialogue_scale=42.0f/(float)(max_y-min_y);
++        for(unsigned code=0;code<78;code++){
++            int cp=ascii(code),x0,y0,x1,y1;
++            int advance=(int)g_TextboxGlyphSpacing[code].right-(int)g_TextboxGlyphSpacing[code].left;
++            if(cp<0||cp==' '||advance<=0||!stbtt_FindGlyphIndex(&info,cp)||!stbtt_GetCodepointBox(&info,cp,&x0,&y0,&x1,&y1))continue;
++            int slot=advance<12?advance:12;
++            if(slot<=1||x1<=min_x){free(rgba);return;}
++            float fit=(float)(slot*4-6)/(float)(x1-min_x);
++            if(fit<dialogue_scale)dialogue_scale=fit;
++        }
++        dialogue_scale*=0.97f;
++        dialogue_origin=2-(int)STBTT_ifloor(min_x*dialogue_scale);
++        dialogue_baseline=2+(int)STBTT_iceil(max_y*dialogue_scale);
++    }
+     unsigned char valid[78]={0};unsigned count=0;
+     for(unsigned code=0;code<78;code++){
+         int cp=ascii(code);if(cp<0||(f->enabled>=PE_FONT_STYLE_RETRO&&!stbtt_FindGlyphIndex(&info,cp)))continue;
+@@ -171,9 +200,10 @@
+         /* Keep the dark contour inside the original glyph coverage box. No
+          * glyph advance, packet geometry, palette, or marker change. */
+         const int contour=2,boxw=(maxx-minx+1)*4,boxh=(maxy-miny+1)*4;
+-        if(boxw<=2*contour||boxh<=2*contour)continue;
++        if(!uniform_dialogue&&(boxw<=2*contour||boxh<=2*contour))continue;
+         if(f->enabled>=PE_FONT_STYLE_RETRO||context==1)scale=retro_scale;
+         else{float fitx=(float)(boxw-2*contour)/bw,fity=(float)(boxh-2*contour)/bh;scale*=(fitx<fity?fitx:fity)*0.98f;}
++        if(uniform_dialogue)scale=dialogue_scale;
+         float scale_x=scale;
+         int metric_style=f->enabled>=PE_FONT_STYLE_RETRO;
+         int ink_left=minx*4,ink_right=(maxx+1)*4;
+@@ -187,7 +217,7 @@
+             if(ink_right>(crop+width)*4)ink_right=(crop+width)*4;
+         }
+         int ink_width=ink_right-ink_left-2*contour;
+-        if(metric_style){
++        if(metric_style&&!uniform_dialogue){
+             int ax,ay,bx,by;stbtt_GetCodepointBitmapBox(&info,cp,scale,scale,&ax,&ay,&bx,&by);
+             if(ink_width<=0||bx<=ax)continue;
+             /* Original fixed/proportional advances remain authoritative. New
+@@ -203,11 +233,21 @@
+             int ax,ay,bx,by;stbtt_GetCodepointBitmapBox(&info,cp,scale,scale,&ax,&ay,&bx,&by);
+             if(bx>ax&&bx-ax>boxw-2*contour)scale_x*=((float)(boxw-2*contour)/(bx-ax))*0.98f;
+         }
+-        unsigned char *bitmap=stbtt_GetCodepointBitmap(&info,scale_x,scale,cp,&bw,&bh,&x0,&y0);if(!bitmap)continue;
++        unsigned char *bitmap=stbtt_GetCodepointBitmap(&info,scale_x,scale,cp,&bw,&bh,&x0,&y0);
++        if(!bitmap){if(uniform_dialogue){free(rgba);return;}continue;}
+         int cell_left=(code%8)*FONT_CELL+2,cell_top=(code/8)*FONT_CELL+2;
+         int left=metric_style?cell_left+ink_left+((ink_right-ink_left)-bw)/2:cell_left+minx*4+((maxx-minx+1)*4-bw)/2;
+         int top=(metric_style||context==1)?cell_top+retro_baseline+y0:cell_top+(maxy+1)*4-bh-contour;
+-        int fits=metric_style?(left-contour>=cell_left+ink_left&&left+bw+contour<=cell_left+ink_right&&top-contour>=cell_top&&top+bh+contour<=cell_top+48):(context==1?(left-contour>=cell_left&&top-contour>=cell_top&&left+bw+contour<=cell_left+48&&top+bh+contour<=cell_top+48):(bw<=(maxx-minx+1)*4&&bh<=(maxy-miny+1)*4));
++        if(uniform_dialogue){
++            int advance=(int)g_TextboxGlyphSpacing[code].right-(int)g_TextboxGlyphSpacing[code].left;
++            if(advance<=0){stbtt_FreeBitmap(bitmap,NULL);continue;}
++            left=cell_left+(int)g_TextboxGlyphSpacing[code].left*4+dialogue_origin+x0;
++            top=cell_top+dialogue_baseline+y0;
++        }
++        int fits=uniform_dialogue?(left-contour>=cell_left&&top-contour>=cell_top&&left+bw+contour<=cell_left+48&&top+bh+contour<=cell_top+48):metric_style?(left-contour>=cell_left+ink_left&&left+bw+contour<=cell_left+ink_right&&top-contour>=cell_top&&top+bh+contour<=cell_top+48):(context==1?(left-contour>=cell_left&&top-contour>=cell_top&&left+bw+contour<=cell_left+48&&top+bh+contour<=cell_top+48):(bw<=(maxx-minx+1)*4&&bh<=(maxy-miny+1)*4));
++        /* A failed uniform raster must not leave a partially replaced base
++         * alphabet mixed with original glyphs due allocation/fit failure. */
++        if(uniform_dialogue&&(!fits||bw<=0||bh<=0)){stbtt_FreeBitmap(bitmap,NULL);free(rgba);return;}
+         if(bw>0&&bh>0&&fits){
+             /* The authored font has dark coverage as well as bright ink.
+              * Recreate its dark contour around the new alpha, then composite
+--- a/game-src/src/overlays/menu_memcard/title_type.h
++++ b/game-src/src/overlays/menu_memcard/title_type.h
+@@ -8,7 +8,7 @@
+ #include <string.h>
+ #define STBTT_STATIC
+ #define STB_TRUETYPE_IMPLEMENTATION
+-#include "stb_truetype.h"
++#include "../../main/boot/stb_truetype.h"
+ /* Shared immutable TTF bytes are owned by dialogue_alpha.c. */
+ /* Only CdRom_LoadInitialImage publishes this owner after a successful read
+  * and completion poll. All disc writes overlapping its workspace retire it.
+@@ -108,13 +108,15 @@
+             if(p[1])advance+=stbtt_GetCodepointKernAdvance(&font,*p,p[1])*scale;}
+         if(advance>(labels[i].width-4)*S){free(mask);return node->image;}
+         float pen=(labels[i].width*S-advance)*0.5f;
++        /* Lift selectable Plex/Atkinson labels within the green highlight. */
++        const int baseline = (labels[i].kind == 1 ? 18 : 17) * S;
+         for(const char *p=text;*p;p++){
+             int bw,bh,xoff,yoff,a,l;
+             if(*p==' '){stbtt_GetCodepointHMetrics(&font,*p,&a,&l);pen+=a*scale;
+                 if(p[1])pen+=stbtt_GetCodepointKernAdvance(&font,*p,p[1])*scale;continue;}
+             unsigned char *glyph=stbtt_GetCodepointBitmap(&font,scale,scale,*p,&bw,&bh,&xoff,&yoff);
+             if(!glyph){free(mask);return node->image;}
+-            int left=(int)pen+xoff,top=18*S+yoff;
++            int left=(int)pen+xoff,top=baseline+yoff;
+             if(left<0||top<0||left+bw>labels[i].width*S||top+bh>H){stbtt_FreeBitmap(glyph,0);free(mask);return node->image;}
+             for(int y=0;y<bh;y++)for(int x=0;x<bw;x++)mask[(top+y)*W+left+x]=glyph[y*bw+x];
+             stbtt_FreeBitmap(glyph,0);stbtt_GetCodepointHMetrics(&font,*p,&a,&l);pen+=a*scale;

@@ -1,0 +1,30 @@
+{
+  "build": 20,
+  "applicationTitle": "Parasitic Event Revisited",
+  "contentVersion": "01.000.020",
+  "titleId": "PPSA77022",
+  "contentId": "UP9000-PPSA77022_00-CPEGAMETEST00000",
+  "files": [
+    {
+      "path": "game-src/CMakeLists.txt",
+      "file": "files/game-src/CMakeLists.txt",
+      "before": "ba414359415e34a674fe3ca58f2cbfbcfba05df39e71f94554525490e54ef095",
+      "after": "f0e43f6f58278915e8fc3b74ae7f424738ce785b75c8002bd967e3c7b6988513"
+    },
+    {
+      "path": "game-src/src/main/render/dialogue_alpha.c",
+      "file": "files/game-src/src/main/render/dialogue_alpha.c",
+      "before": "bfa4a3fc24e4d3be448c7ba2655ff84d65193feb38ee8e9cc07c3082a1d53cbf",
+      "after": "8c8c9e485f24ba8af5637c310565de770d669a726de4398ef24e4de168c03417"
+    },
+    {
+      "path": "game-support/pe-build-identity.h",
+      "file": "files/game-support/pe-build-identity.h",
+      "before": "e18265f823906d572e1caf648925360045fbc1d007b524fe4df09e3ae7d73aac",
+      "after": "dd22bc3573db2b8b2de15c79f6f18dd1afaeb870eddda26792ee8b23ca7f1ebf"
+    }
+  ],
+  "sidecars": [],
+  "rawLabelLoaderIncluded": true,
+  "noArtworkIncluded": true
+}
