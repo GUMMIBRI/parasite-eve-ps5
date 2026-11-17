@@ -1,0 +1,14 @@
+{
+  "game-src/src/main/battle/attack.c": {
+    "base_sha256": "40d15630835a9348ecd4e8d09c71caa1ba8276dc84f66dff0f25708228c99959",
+    "selected_sha256": "f4d8f52f8af4737cd1690c90b8ef7bcefaa72f5083a954d4ec428ec3391fc95b"
+  },
+  "game-src/src/main/render/dialogue_alpha.c": {
+    "base_sha256": "8c8c9e485f24ba8af5637c310565de770d669a726de4398ef24e4de168c03417",
+    "selected_sha256": "ad7df9f5d4db6d90108f18b219aeef1c78c008d403caa32b8a0c1995fb08e270"
+  },
+  "game-src/src/overlays/menu_memcard/title_type.h": {
+    "base_sha256": "2df8b244a00e060e7daab69235e98f565c2063fb4bd43c82e9daa65ea147b290",
+    "selected_sha256": "f3497ce0715018e5c8ff0118fb08a9db19e8bb07cc2606b4a4f0c2cac3733cd9"
+  }
+}

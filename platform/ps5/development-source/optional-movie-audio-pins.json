@@ -1,0 +1,26 @@
+{
+  "game-src/src/main/boot/frame_loop.c": {
+    "baseline": "ecd627f4caaf923283eae46d2781c649dabef1ac2523f136a6eb7adc867312f7",
+    "candidate": "4a8b7e55f2d6dc5e38e946d46b7a4b3dfd3b509840800ec7a27f8139203f58e7"
+  },
+  "game-src/src/main/script/actor_opcodes.c": {
+    "baseline": "569bef893f74b1a7d1b1cbb80298e078f489346a562ebc69221aafa986a95a96",
+    "candidate": "fbcc88b18ccd13d6f505588a28cfb23682e2cb2aec57d3063b8ecfc38b0a9b72"
+  },
+  "game-src/src/overlays/menu_memcard/video.c": {
+    "baseline": "00fd357e96ca813e37374d048618e6f10aaa6b8341f6f05921d9e3e894206c1c",
+    "candidate": "1edd8e06ee14c629123a57e3828585e0eac472640e87b8265e83d3838bde4fe8"
+  },
+  "game-src/src/overlays/menu_memcard/video_frame.inc": {
+    "baseline": "824c817f94f3b036adc11e1181f1d030360a33ca82daa22c674090c7af032a4a",
+    "candidate": "668f0b08a80c9c9089a75e29c08fbdf337408c998d0515e9a5b7139fa4ef74fc"
+  },
+  "psyz-src/psyz/src/psyz/libcd.c": {
+    "baseline": "d223949444d706964d9645ecbb9e6f2a15762bb7ae7b0f817313368d2c5212e1",
+    "candidate": "395fccf906f435e741388e61a2c6e540570a3e73b25d8f4be5c785caa6964465"
+  },
+  "psyz-src/psyz/include/psyz/cd.h": {
+    "baseline": "00e8fad53db5555bf496018642033e1b71bbd17cb12a4e5234608eb9c7ac8884",
+    "candidate": "877d0408ab8ca7a84970b6fab3f6eaf48bd8997a4158441aef23088013e4dbf9"
+  }
+}

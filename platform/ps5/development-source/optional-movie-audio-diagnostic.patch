@@ -1,0 +1,176 @@
+--- baseline/game-src/src/main/boot/frame_loop.c
++++ candidate/game-src/src/main/boot/frame_loop.c
+@@ -1,3 +1,5 @@
++#include <stdio.h>
++#include <psyz/cd.h>
+ #include <psyz/gpu.h>
+ #if PE_NATIVE_STATE_CPU_COMPONENTS
+ #include "pe_state_boundary.h"
+@@ -93,6 +95,9 @@
+  * Enter is bound to Start by default. */
+ #define MOVIE_SKIP_START 0x0008u
+ 
++void Script_GetMovieAudioState(int *, int *, int *, int *);
++int MenuCardFirst_TakeAudioTransition(struct PsyzCdAudioSnapshot *);
++
+ int (*g_BootMovieSkipConfirm)(void);
+ void (*g_BootSceneStarted)(void);
+ 
+@@ -185,6 +190,11 @@
+             if (!(state->flags & 0x100)) {
+                 if ((s8)Draw_CheckDrawStatus() != 0) {
+                     s8 playing = (s8)MenuCardFirst_StepVideo();
++                    int skipped = playing && skip_movie;
++                    struct PsyzCdAudioSnapshot before = {0}, after;
++                    int movie = -1, mask = 0, bank0 = 0, bank1 = 0;
++                    if (!playing || skipped)
++                        Script_GetMovieAudioState(&movie, &mask, &bank0, &bank1);
+ 
+                     /* A chosen skip ends the movie as its last frame would. */
+                     if (playing && skip_movie) {
+@@ -194,6 +204,16 @@
+                     }
+                     if (playing == 0) {
+                         MenuCardFirst_ResetDisplayState();
++                        int before_valid = MenuCardFirst_TakeAudioTransition(&before);
++                        Psyz_CdAudioSnapshot(&after);
++                        /* Akao_Cmd_11 returns void: issued is not acknowledgement. */
++                        printf("PE1_MOVIE_AUDIO movie=%d reason=%s scene=%d token=%d mask=%d banks=%d,%d stop_issued_mask=%d cd_before_valid=%d cd_before=%d,%d,%u,%u,%d,%d,%d cd_after=%d,%d,%u,%u,%d,%d,%d spu_ring=unknown\n",
++                               movie, skipped ? "skip" : "end_or_error", g_SceneDispatchCur,
++                               g_SceneDispatchToken, mask, bank0, bank1, skipped ? mask : 0,
++                               before_valid, before.playing, before.xa_active, before.mode, before.buffered_frames,
++                               before.xa_decoded_count, before.xa_decoded_pos, before.reader_installed,
++                               after.playing, after.xa_active, after.mode, after.buffered_frames,
++                               after.xa_decoded_count, after.xa_decoded_pos, after.reader_installed);
+                         Draw_ClearOnFlag();
+                         continue;
+                     }
+--- baseline/game-src/src/main/script/actor_opcodes.c
++++ candidate/game-src/src/main/script/actor_opcodes.c
+@@ -552,6 +552,15 @@
+ 
+ /* Scene audio slots (bit per slot) a script started while a movie plays. */
+ static u8 g_MovieMusicSlots;
++static int g_MovieAudioNumber = -1;
++void MenuCardFirst_ArmAudioTransition(void);
++/* Caller snapshots before any transition cleanup. */
++void Script_GetMovieAudioState(int *number, int *mask, int *bank0, int *bank1) {
++    *number = g_MovieAudioNumber;
++    *mask = g_MovieMusicSlots;
++    *bank0 = g_GameState.scene_audio.tracks.keys[0][1];
++    *bank1 = g_GameState.scene_audio.tracks.keys[1][1];
++}
+ #if PE_NATIVE_STATE_CPU_COMPONENTS
+ int PeStateScript_TransientIdle(void){return g_MovieMusicSlots==0;}
+ #endif
+@@ -590,6 +599,7 @@
+     g_MenuCardVideoDepthFlip=0;
+     g_MenuCardVideoSize[0]=g_MenuCardVideoSize[1]=0;
+     g_MovieMusicSlots=0;
++    g_MovieAudioNumber=number;
+     if (!MenuCardFirst_InitVideoBuffers(1,buffers) || !MenuCardFirst_OpenVideo(number)) {
+         DecDCToutCallback(NULL);
+         MenuCardFirst_ResetDisplayState();
+@@ -598,6 +608,7 @@
+         g_AkaoCdVolume=mix;CdMix(&mix);
+         return -3;
+     }
++    MenuCardFirst_ArmAudioTransition();
+     MenuCardFirst_RequestVideoDepthFlip(1);
+     return 1;
+ }
+--- baseline/game-src/src/overlays/menu_memcard/video.c
++++ candidate/game-src/src/overlays/menu_memcard/video.c
+@@ -21,7 +21,9 @@
+ #define MENUCARD_VIDEO_FILE g_MenuCardVideoFile
+ #define MENUCARD_VIDEO_SECTOR g_MenuCardVideoSector
+ #define MENUCARD_VIDEO_STREAM_BUFFER g_MenuCardVideoStreamRing
++#define MENUCARD_STORY_AUDIO_TRANSITION 1
+ #include "video_frame.inc"
++#undef MENUCARD_STORY_AUDIO_TRANSITION
+ 
+ #undef MENUCARD_UPDATE_VIDEO_FRAME_NAME
+ #undef MENUCARD_VIDEO_ENTRY
+--- baseline/game-src/src/overlays/menu_memcard/video_frame.inc
++++ candidate/game-src/src/overlays/menu_memcard/video_frame.inc
+@@ -1,5 +1,21 @@
+ #include <psyz/audio.h>
+ #include <psyz/cd.h>
++
++/* The story player explicitly enables its transition capture. */
++#ifdef MENUCARD_STORY_AUDIO_TRANSITION
++static struct PsyzCdAudioSnapshot storyAudioBefore;
++static int storyAudioArmed, storyAudioCaptured;
++void MenuCardFirst_ArmAudioTransition(void) {
++    storyAudioCaptured = 0;
++    storyAudioArmed = 1;
++}
++int MenuCardFirst_TakeAudioTransition(struct PsyzCdAudioSnapshot *out) {
++    int captured = storyAudioCaptured;
++    if (captured && out) *out = storyAudioBefore;
++    storyAudioArmed = storyAudioCaptured = 0;
++    return captured;
++}
++#endif
+ 
+ /* Both original movie players read image sectors directly. Feed their XA
+  * track to the existing SDK decoder independently of video-frame assembly. */
+@@ -17,6 +33,12 @@
+  * the IRQ thread holds the kernel while the AKAO timer writes SPU registers. */
+ static void MenuCard_StopMovieAudio(void) {
+     Psyz_AudioLock();
++#ifdef MENUCARD_STORY_AUDIO_TRANSITION
++    if (storyAudioArmed && !storyAudioCaptured) {
++        Psyz_CdAudioSnapshotLocked(&storyAudioBefore);
++        storyAudioCaptured = 1;
++    }
++#endif
+     int active=movieAudioImage!=NULL;
+     if(active){
+         Psyz_CdSetReadCB(NULL);
+--- baseline/psyz-src/psyz/src/psyz/libcd.c
++++ candidate/psyz-src/psyz/src/psyz/libcd.c
+@@ -492,6 +492,24 @@
+     int stream_ended;   // filtered file/channel ran out, emit silence
+     int silent_sectors_pending;
+ } xa;
++
++void Psyz_CdAudioSnapshotLocked(struct PsyzCdAudioSnapshot *out) {
++    if (!out) return;
++    out->playing = is_playing;
++    out->xa_active = xa.active;
++    out->xa_decoded_count = xa.decoded_count;
++    out->xa_decoded_pos = xa.decoded_pos;
++    out->mode = CD_mode;
++    out->buffered_frames = cd_buf_count;
++    out->reader_installed = disk_read_cb != NULL;
++}
++
++void Psyz_CdAudioSnapshot(struct PsyzCdAudioSnapshot *out) {
++    if (!out) return;
++    Psyz_AudioLock();
++    Psyz_CdAudioSnapshotLocked(out);
++    Psyz_AudioUnlock();
++}
+ 
+ static void xa_reset_stream(void) {
+     xa.decoded_count = 0;
+--- baseline/psyz-src/psyz/include/psyz/cd.h
++++ candidate/psyz-src/psyz/include/psyz/cd.h
+@@ -11,6 +11,16 @@
+ #ifdef __cplusplus
+ extern "C" {
+ #endif
++
++/* Snapshot is internally synchronized; callers must not hold the audio lock. */
++struct PsyzCdAudioSnapshot {
++    int playing, xa_active, xa_decoded_count, xa_decoded_pos;
++    unsigned int mode, buffered_frames;
++    int reader_installed;
++};
++void Psyz_CdAudioSnapshot(struct PsyzCdAudioSnapshot *out);
++/* Caller holds the audio lock. */
++void Psyz_CdAudioSnapshotLocked(struct PsyzCdAudioSnapshot *out);
+ 
+ struct PsyzCdRead {
+     unsigned int sector;  /**< disk sector, can be used as a unique file id */

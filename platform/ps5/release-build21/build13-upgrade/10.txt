@@ -1,0 +1,74 @@
+/* MPL-2.0. Render-only sidecar; no original PM layout or slot-size change.
+ * setup.c passes Aya as PM owner; encounter.c supplies the resolved targets
+ * through var1. Never read the advancing action index in a draw callback. */
+#include "pe1/particle_augment.h"
+#include "pe1/render_animation_frame.h"
+#include "pe1/render_buffers.h"
+#include "pe1/field_textured_strip.h"
+extern int Psyz_GpuAuthoredFlareTint(unsigned,unsigned,unsigned,unsigned,unsigned,unsigned,unsigned[3]);
+extern unsigned long long Psyz_GpuAuthoredFlareGeneration(void);
+enum { BURST_SHOT_BINDINGS=64 };
+typedef struct {
+    const void *object,*slot,*payload;
+    unsigned command;
+    int incoming[3];
+} BurstShotBinding;
+static BurstShotBinding burst_shot_bindings[BURST_SHOT_BINDINGS];
+static void BurstShotForget(const void *object){
+    for(unsigned i=0;i<BURST_SHOT_BINDINGS;i++)
+        if(burst_shot_bindings[i].object==object)burst_shot_bindings[i]=(BurstShotBinding){0};
+}
+static void BurstShotPrune(void *object){
+    /* Called after the original slot update pass, while this PM still owns
+     * its storage. Retired bindings never consume capacity indefinitely. */
+    for(unsigned i=0;i<BURST_SHOT_BINDINGS;i++){
+        BurstShotBinding *binding=&burst_shot_bindings[i];
+        if(binding->object==object&&((const FieldFxSlot*)binding->slot)->flag!=1)
+            *binding=(BurstShotBinding){0};
+    }
+}
+static void BurstShotBind(void *object,void *slot,void *payload,int x,int y,int z){
+    FieldFxObjectPrefix *prefix=object;
+    unsigned freeIndex=BURST_SHOT_BINDINGS;
+    for(unsigned i=0;i<BURST_SHOT_BINDINGS;i++){
+        if(burst_shot_bindings[i].object==object&&burst_shot_bindings[i].slot==slot)
+            burst_shot_bindings[i]=(BurstShotBinding){0};
+        if(!burst_shot_bindings[i].object&&freeIndex==BURST_SHOT_BINDINGS)freeIndex=i;
+    }
+    PmSlotHeader *pm=object;
+    FieldActor *shooter=prefix->actor;
+    if(freeIndex==BURST_SHOT_BINDINGS||(pm->command!=4&&pm->command!=5)||
+       shooter!=(FieldActor*)D_8009D254||!shooter||!shooter->render_object.header||
+       !shooter->render_object.matrices||shooter->render_object.header->part_count<=19)return;
+    /* Same world muzzle basis as GlowEffect[B/C]_InitOwner. Snapshot at the
+     * original impact initialization, before a subsequent target/aim change. */
+    RenderMatrix *m=&shooter->render_object.matrices[19];
+    BurstShotBinding binding={object,slot,payload,pm->command,
+        {m->translation[0]-x,m->translation[1]-y,m->translation[2]-z}};
+    if(!(binding.incoming[0]||binding.incoming[1]||binding.incoming[2]))return;
+    burst_shot_bindings[freeIndex]=binding;
+}
+static void BurstShotDraw(void *object,void *slot,void *payload,int x,int y,int z,
+                          int packetOffset){
+    if((unsigned)g_ActiveDrawSlot>=2||packetOffset<0||
+       packetOffset>RENDER_ANIM_BUFFER_BYTES-sizeof(FieldStripPacket)||
+       g_DrawPacketOffset!=packetOffset+(int)sizeof(FieldStripPacket)||
+       !g_RenderAnimBufferBase[g_ActiveDrawSlot])return;
+    const FieldStripPacket *p=(const FieldStripPacket*)(g_RenderAnimBufferBase[g_ActiveDrawSlot]+packetOffset);
+    if(p->tag.length!=9||p->code!=0x2e||((p->tpage>>5)&3)!=1||
+       p->u0!=p->u2||p->u1!=p->u3||p->v0!=p->v1||p->v2!=p->v3||
+       p->u1<p->u0||p->v2<p->v0)return;
+    unsigned tint[3];
+    if(!Psyz_GpuAuthoredFlareGeneration()||!Psyz_GpuAuthoredFlareTint(p->tpage,p->clut,p->u0,p->v0,
+        (unsigned)p->u1-p->u0+1,(unsigned)p->v2-p->v0+1,tint))return;
+    for(unsigned i=0;i<BURST_SHOT_BINDINGS;i++){
+        BurstShotBinding *binding=&burst_shot_bindings[i];
+        if(binding->object!=object||binding->slot!=slot||binding->payload!=payload||
+           binding->command!=((PmSlotHeader*)object)->command)continue;
+        /* Exact original linked draw RGB already contains brightness/fade.
+         * Its actual indexed palette supplies hue; no sprite whitelist. */
+        FieldFx_QueueShotImpactLight(x,y,z,binding->incoming,
+                                    (unsigned)p->r0*tint[0]/255,(unsigned)p->g0*tint[1]/255,(unsigned)p->b0*tint[2]/255);
+        return;
+    }
+}

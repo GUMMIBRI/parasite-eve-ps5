@@ -1,0 +1,30 @@
+[
+  {
+    "root": "game-src",
+    "path": "src/main/boot/main.c",
+    "file": "game-main.c",
+    "before": "4c4e6c983bc414ee4166cc0b65f2f760aab96bb6edf8510b5df4d6cd709976e2",
+    "after": "412759a2141ff5667aeb04b24ba13f477789db4cee4df0327b6843dd3d4d3365"
+  },
+  {
+    "root": "game-src",
+    "path": "src/main/boot/settings_overlay.h",
+    "file": "game-settings_overlay.h",
+    "before": "2010277615b62757b64cbebea4b18fc6bf32f710b3cf71dca9ffd14f8ea6afc8",
+    "after": "26cdf9f358272b85129f9e43cff558c6e839173740c0242006d821f94b8ff685"
+  },
+  {
+    "root": "game-src",
+    "path": "src/main/render/dialogue_alpha.c",
+    "file": "game-dialogue_alpha.c",
+    "before": "ab2f7641233c07734e53fea37b8d4d61697e2c38990c47cdf85c06d13fef5ef0",
+    "after": "11dc9df8c2ce593bbe817d97d0163863a35a1cd8f550927e252f7807b442251c"
+  },
+  {
+    "root": "psyz-src",
+    "path": "psyz/src/platform/sdl3_gpu.c",
+    "file": "psyz-sdl3_gpu.c",
+    "before": "03b2de3e685619eb1b4affcf4dc10a84a6fabf53fa394f66e3946f9982cf822d",
+    "after": "cdf32d53bbd482a40c8ea6e29448bbcb6834d1fdb57fd35839b8cf5b947ddc22"
+  }
+]

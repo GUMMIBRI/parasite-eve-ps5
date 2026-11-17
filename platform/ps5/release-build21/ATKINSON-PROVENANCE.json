@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/google/fonts",
+  "files": [
+    {
+      "bytes": 54348,
+      "name": "AtkinsonHyperlegible-Regular.ttf",
+      "sha256": "7fb917c89019896d0b52ee84b7cbb3304c18cb90b19a62f5e32712bd23e97669"
+    },
+    {
+      "bytes": 2242,
+      "name": "METADATA.pb",
+      "sha256": "13d7f7361ca762420bc0b8a483fbcae6c94598b5a372aee4b8b6f4e382d3282f"
+    },
+    {
+      "bytes": 4352,
+      "name": "OFL.txt",
+      "sha256": "f32d22b3908fcad2c86a74000614ec22e6a7f66ea7e867e616026a27aebdc143"
+    }
+  ],
+  "path": "ofl/atkinsonhyperlegible",
+  "commit": "eb20e9cf19d97cf579fa3867d729d4222d6c59e1"
+}

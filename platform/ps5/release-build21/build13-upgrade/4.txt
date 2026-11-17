@@ -1,0 +1,25 @@
+/* SPDX-License-Identifier: MIT. Native settings; normal memory cards are independent. */
+#ifndef PE_NATIVE_TABS_H
+#define PE_NATIVE_TABS_H
+#include "native_registry.h"
+static int Host_ModernRowCount(int page){if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS)return Host_RegistryCount(page);return page==HOST_PAGE_IMAGES?9:0;}
+static const char *Host_ModernRowLabel(int page,int row){
+ if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS)return Host_RegistryLabel(page,row);
+ static const char *const system[]={"Menu appearance","Menu text","Focus pointer","Disc 1","Disc 2","File setup","Save data","Error reports","Build"};
+ return page==HOST_PAGE_IMAGES&&row>=0&&row<9?system[row]:"";
+}
+static int Host_ModernRowKind(int page,int row){if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS)return Host_RegistryKind(page,row);return page==HOST_PAGE_IMAGES?(row<3?2:row<5&&!g_CdImageVolumes[row-3]?1:0):0;}
+static void Host_ModernRowValue(int page,int row,char*out,unsigned size){
+ if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS){Host_RegistryValue(page,row,out,size);return;}
+ const char*value="";if(page==HOST_PAGE_IMAGES){if(row==3||row==4)value=g_CdImageVolumes[row-3]?"Validated and mounted":"Choose from USB";else if(row==5)value="Configured asset folders";else if(row==6)value="Normal memory cards";else if(row==7)value="Separate launch logs";else if(row==8)value="Build13";}snprintf(out,size,"%s",value);
+}
+static const char *Host_ModernRowHelp(int page,int row){
+ if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS)return Host_RegistryHelp(page,row);
+    if(page==HOST_PAGE_IMAGES){if(row==3||row==4)return g_CdImageVolumes[row-3]?"This USA image is validated and mounted. Existing mounted images are not replaced while playing.":"Choose your own USA BIN image with the controller USB browser. Only a missing disc is added; existing files and saves are preserved.";if(row==5)return "Game Test uses configured discs and texture folders without launching Installer Test. Existing folders and saves are preserved.";if(row==6)return "Normal saves use memory-cards/bu00 and bu10 below the preferences folder.";if(row==7)return "Each launch has its own build-stamped log and toggle/error records. Restart does not overwrite an earlier report.";if(row==8)return "Native test build. Compilation and source reviews do not certify every scene; human playtesting remains authoritative.";}
+    return "";
+}
+static int Host_ModernAction(int page,int row,int direction,int activate){
+ if(page==HOST_PAGE_MODS||page==HOST_PAGE_CHEATS)return Host_RegistryAction(page,row,direction,activate);
+ if(page==HOST_PAGE_IMAGES&&(row==3||row==4)&&activate&&!g_CdImageVolumes[row-3])Host_NativePickMissingDisc((unsigned)(row-2));return 0;
+}
+#endif

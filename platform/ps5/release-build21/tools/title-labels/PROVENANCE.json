@@ -1,0 +1,15 @@
+{
+  "sourceSelection": "menu-label-assets-candidate-20261106",
+  "rawDeltaManifestSha256": "0dce380caa4643cebcf71844aeff3e06404cb6a43f3f174b62e9118295f46a0d",
+  "candidateConverterSha256": "432b68b62a7acb95ebdf2f88224e4eefd06fdba4475a66cc4211cc4e8b6cb539",
+  "candidateFormatSha256": "8bc17f21273b6198359b52a23d4e90e559a9dd1952143c9bd6290e92aec1a34a",
+  "candidateConverterDocSha256": "886a1d85958e255ccaf67dd12b0c1ca9b5023ed526750bfcd2c8d57871b69acc",
+  "exportedConverterDocSha256": "1efac301d60803fbc752e0bddd81fc4c747f2ec4cdb6a5f9e5424bc585a08974",
+  "documentationChange": "Only portable Python command examples / removal of machine-specific runtime paths; no converter implementation edits",
+  "runtimeSourceLicense": "MIT as declared in source header; retained notice applies",
+  "converterAndFormatLicense": "No separate grant declared in candidate; retained project LICENSE.txt applies; no third-party conversion implementation copied",
+  "externalDependency": "Pillow is imported from caller existing runtime, not bundled or installed by this source tool",
+  "artworkIncluded": false,
+  "actualArtworkConversionsForIntegration": 0,
+  "privateInputIncluded": false
+}

@@ -1,0 +1,3 @@
+/* SPDX-License-Identifier: MIT. Generated from adjacent GLSL by pinned glslang; see compiler receipts. */
+_Alignas(4) static const unsigned char cpe_display_filter_vert[]={{{VERT_BYTES}}};
+_Alignas(4) static const unsigned char cpe_display_filter_frag[]={{{FRAG_BYTES}}};
