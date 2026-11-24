@@ -52,5 +52,9 @@
       5611
     ]
   ],
-  "status": "integration-in-progress"
+  "status": "target-linked-and-static-package-pass-not-installed",
+  "unmatchedPatchResolution": "Final state_ui.h is supplied by the separately hash-validated current compatibility source, superseding historical patch UI wording",
+  "compatibilityInputs": 565,
+  "elf": "50c4e2cc001ce4a014b216f72c5a9ed962f9886a5d068fdd993c797fca1b726e",
+  "eboot": "da0c4679fa58f0b45fd5ec11a0ea6f2d317afe73f67117dd408ff8ac1afd9c2f"
 }

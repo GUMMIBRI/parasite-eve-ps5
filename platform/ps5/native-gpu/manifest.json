@@ -2438,13 +2438,18 @@
     },
     {
       "path": "state/state-components.cmake",
-      "sha256": "2ba717c4ee124cff16f156d310a8ca9b270a6be3e0e9c144c56448d905ebec54",
-      "bytes": 3161
+      "sha256": "7e31994e89f52679cbfe440385dd022b18083fa042a24c11d28ca88a724fa745",
+      "bytes": 3287
     },
     {
       "path": "state/state-transition.cmake",
       "sha256": "fc9ae0677ea5dff15311edf58e1f6f04b0b374bcc78aab368a870356240b00b7",
       "bytes": 534
+    },
+    {
+      "path": "state/pe_disc_image.c",
+      "sha256": "de9d4712f231efea40161494dbe4647ab64a0b00e47a2515d13509f8c4fd0f0e",
+      "bytes": 839
     }
   ],
   "shaderHeaderTemplates": {
@@ -2722,7 +2727,7 @@
     },
     {
       "path": "include/pe1/dialogue_alpha.h",
-      "sha256": "a651140ca0366a7fd618bd136017bf2f1d94b6d20aedcf2be773900be36a5467"
+      "sha256": "ceed22afd9ff851a34f06cfc4e56c494491f2b557e40bc288e38b6284ac9a314"
     },
     {
       "path": "include/pe1/display_env.h",
@@ -3230,7 +3235,7 @@
     },
     {
       "path": "include/pe1/particle_augment.h",
-      "sha256": "df29acedfaca125d6affc4a312eff066fb2f02d87d8b7e48d816b431a84463fd"
+      "sha256": "bdb114ccc8f5b5fb0312f4a09044c06769aecc9b195cda8b9f963190403f8e8d"
     },
     {
       "path": "include/pe1/pe_charset.h",
@@ -4074,7 +4079,7 @@
     },
     {
       "path": "mods/host/pe_file_io.h",
-      "sha256": "85e3275374b4d7cdac6d35dd7bdb83a0ee53b32ffa9f7000fa2e4878bce88a58"
+      "sha256": "37ae5a7c52612daeb988c21938e7c47f624d5d9e1f298734837d1ddb003b24b1"
     },
     {
       "path": "mods/host/pe_game.c",
@@ -4150,7 +4155,7 @@
     },
     {
       "path": "mods/host/pe_mod_panel.c",
-      "sha256": "c23e99a986f14d952928abbfe450753e0a2b07fc3a997e31a1be818cd2654cec"
+      "sha256": "fd7b7b0bcbd3a924fe564d690eb903d3b81e18be3aa66b1003e9bd46668935ce"
     },
     {
       "path": "mods/host/pe_mod_state.c",
@@ -4695,6 +4700,46 @@
     {
       "path": "src/main/memcard/save_flow.c",
       "sha256": "c4224aea251e78a986d2535f1945fbc13eade65a78247eb74ebf1a0d8879413e"
+    },
+    {
+      "path": "src/overlays/room_lib/grab_attack.c",
+      "sha256": "8b1924c3357277001362e23c800b58838e7e4943b1eeb313b663dbb20045eaf1"
+    },
+    {
+      "path": "mods/host/pe_localize.h",
+      "sha256": "29cf6dd8e64a375d1cc1792e841f0a62ad317748521b4a524e420eafc16e0213"
+    },
+    {
+      "path": "mods/host/pe_translate.h",
+      "sha256": "b93415870f5244d2e812406c1a98ed6fdddd44b006fd4fdf0c5acfc39a881554"
+    },
+    {
+      "path": "include/pe1/mod_text.h",
+      "sha256": "7a2cdc78ecf78e601d595960bd9da1d31ce0e672836b31545e682414a7581d31"
+    },
+    {
+      "path": "src/main/boot/init.c",
+      "sha256": "ba3b190d4f195829e5e2e409f1df75cf6facbbb4ffc95266ad2115bb8ebe8d6d"
+    },
+    {
+      "path": "src/main/script/node_pool.c",
+      "sha256": "70fedb15b047d678fdbd150a0d581343ea71524e74c98d611c47fc18fa499dc5"
+    },
+    {
+      "path": "src/main/text/tables.c",
+      "sha256": "e317b3216f43f4f1100768e9c820d726a55be699d841acca2be86f0e23edc9f0"
+    },
+    {
+      "path": "include/pe1/mouse_input.h",
+      "sha256": "e51308e04ce81256ae183125e1581a1a40e781722fcf0eab105fef177d91dd14"
+    },
+    {
+      "path": "src/main/boot/mouse_input.c",
+      "sha256": "bac36c40485800fa40a4fea0ce2ce9c2521eb0a18232d87d0f3f842be662c276"
+    },
+    {
+      "path": "src/main/menu/widget.c",
+      "sha256": "728dd35b13adbe5373507b70b0931adaa7d99268dc9d5fd9fafab5f199744f4e"
     }
   ]
 }

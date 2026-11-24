@@ -34,8 +34,8 @@ target_sources(parasite-eve-pc PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/pe_state_world.c"
     "${CMAKE_CURRENT_LIST_DIR}/pe_state_assets.c"
     "${CMAKE_CURRENT_LIST_DIR}/pe_state_battle.c"
-    "${CMAKE_CURRENT_LIST_DIR}/pe_state_session.c")
-target_include_directories(parasite-eve-pc PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
+    "${CMAKE_CURRENT_LIST_DIR}/pe_state_session.c" "${CMAKE_CURRENT_LIST_DIR}/pe_disc_image.c" "${CMAKE_SOURCE_DIR}/src/main/boot/mouse_input.c")
+target_include_directories(parasite-eve-pc PRIVATE "${CMAKE_CURRENT_LIST_DIR}" "${CMAKE_SOURCE_DIR}/mods/host")
 target_compile_definitions(parasite-eve-pc PRIVATE PE_NATIVE_STATE_CPU_COMPONENTS=1)
 target_link_libraries(parasite-eve-pc PRIVATE SDL3::SDL3)
 

@@ -1075,7 +1075,9 @@ int pe_mod_panel_open_page(const char *page) {
     return 1;
 }
 
+#if !PE_NATIVE_STATE_CPU_COMPONENTS
 void pe_mod_panel_close(void) { s_panel.open = 0; }
+#endif
 
 int pe_mod_panel_open(void) {
     if (!pe_ui_gpu_ready() || s_panel.open) return 0;

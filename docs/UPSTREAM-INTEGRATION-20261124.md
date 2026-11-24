@@ -1,16 +1,20 @@
 # Upstream main integration (2026-11-24)
 
-Merged upstream `khasinski/parasite-eve-pc` main at `628e1c1bcfddceb0487a6bc8bacd198996a8ef50` (0.15-alpha). The PS5 overlay and its owner-supplied-data boundary remain in place. Desktop CMake/main changes are upstream's; console preparation retains the selected PS5 patch plus upstream's reviewed compatibility-source layer.
+Merged upstream `khasinski/parasite-eve-pc` main at `628e1c1bcfddceb0487a6bc8bacd198996a8ef50` (PC 0.15-alpha), preserving the PS5 source overlay, data-input boundary and CI checkout pin. Desktop source is merged; the PS5 compatibility export now validates 565 source inputs before copying them. This is not a claim that every new desktop feature is enabled on PS5: CHD remains desktop-only in this console candidate.
 
-The compatibility layer verifies 555 source hashes before copying and removes superseded mod providers only from the fresh prepared export. Prepared-source hashes were regenerated from actual patched pinned input, not bypassed. New portable checkpoint components allow saved-room recovery even when exact runtime ownership or build/mod identity differs. Exact rollback failure remains terminal; it must not fall through into another mutation.
+The upstream quick-save provider is linked. It restarts the saved room rather than promising exact battle-position restoration. Portable checkpoint data also permits room restart when exact runtime state is incompatible; failed rollback remains terminal. Normal memory-card saves stay separate.
 
-Retained safeguards: normal saves and user data are not supplied or modified; original PointSprite data remains a caller input; existing checkout action pin and disabled persisted credentials remain in CI. No console upload or public binary is part of this PR.
+Target integration corrections preserve native particle/font declarations, use matching typed room-attack sources, export missing localization headers and runtime helpers, and avoid duplicate panel-close definitions. The target audit exposed an unsupported POSIX hard-link syscall in checkpoint publication. PS5 now reserves a new file with exclusive creation, copies and flushes it, and never replaces an existing checkpoint. Interrupted files fail reader size/checksum validation; this fallback does not promise atomic visibility during copying. Desktop publication behavior is unchanged.
 
-Local validation:
-- Fresh pinned source preparation: PASS (213 patch outputs, 40 SDL mirrors, 555 compatibility inputs).
-- Compatibility export test: PASS (hashes, obsolete provider removal, refuse-before-write).
-- Production PS5 checkpoint session test: PASS (exact restore, build/mod room-restart fallback, required-data refusal, corruption/disc mismatch, rollback failure, legacy partial refusal).
-- Portable checkpoint host test: PASS (round trip, corruption rejection, section migration, missing-provider preservation and old slots). Tested with the selected production PsyZ path-adjustment functions extracted into a host fixture; full game execution is not implied.
-- Fresh PS5 target build: in progress; no console-ready claim.
+Validation:
+- Fresh pinned source preparation: PASS, 213 patch outputs, 40 mirrors, 565 compatibility inputs. Final compiled compatibility/state source hashes match the manifest.
+- Compatibility export test: PASS, including refuse-before-write.
+- Production PS5 checkpoint session tests: PASS exact restore, changed-build/mod room restart, required-data/disc/corruption refusal, rollback failure and legacy partial refusal.
+- Portable checkpoint host tests: PASS roundtrip, corruption rejection, migration, missing-provider preservation and old quick-save slots. Uses extracted production PsyZ path adjustment; not full game execution.
+- PS5 disc-image boundary host tests: PASS offset reads, bounds, missing/short data and CHD refusal.
+- PS5 exclusive publication host test: PASS successful copy and collision preservation. Windows host CRT adapters exercise the PS5 branch; console filesystem semantics remain untested.
+- Full PS5 target link: PASS. Native ELF SHA-256 `50c4e2cc001ce4a014b216f72c5a9ed962f9886a5d068fdd993c797fca1b726e`.
+- 358 SDK imports, runtime audit with zero decoded inline syscalls, SELF integrity and package preflight: PASS.
+- Local development EBOOT SHA-256 `da0c4679fa58f0b45fd5ec11a0ea6f2d317afe73f67117dd408ff8ac1afd9c2f`.
 
-This source merge is separate from the November 21 quick-save test EBOOT. That prior build must not be described as the executable for this merge. Hardware gameplay, menu integration, movies/audio, saves and texture compatibility still need an identified candidate test.
+No console upload, launch or public binary release occurred. The November 21 quick-save candidate is a different binary. Next hardware route: normal card load, Mods > Quick save into an unused slot, move rooms, load the slot, then verify progress/inventory/input/audio and normal card loading. Test experimental Checkpoints separately and report exact refusal text. Keep all personal saves/settings/assets intact.
