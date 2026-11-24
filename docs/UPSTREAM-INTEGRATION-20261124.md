@@ -13,8 +13,8 @@ Validation:
 - Portable checkpoint host tests: PASS roundtrip, corruption rejection, migration, missing-provider preservation and old quick-save slots. Uses extracted production PsyZ path adjustment; not full game execution.
 - PS5 disc-image boundary host tests: PASS offset reads, bounds, missing/short data and CHD refusal.
 - PS5 exclusive publication host test: PASS successful copy and collision preservation. Windows host CRT adapters exercise the PS5 branch; console filesystem semantics remain untested.
-- Full PS5 target link: PASS. Native ELF SHA-256 `50c4e2cc001ce4a014b216f72c5a9ed962f9886a5d068fdd993c797fca1b726e`.
+- Full PS5 target link: PASS. Native ELF SHA-256 `5dde9605397880190b20f117d5f02db620712339334add9ad7eef9d151e8f79c`.
 - 358 SDK imports, runtime audit with zero decoded inline syscalls, SELF integrity and package preflight: PASS.
-- Local development EBOOT SHA-256 `da0c4679fa58f0b45fd5ec11a0ea6f2d317afe73f67117dd408ff8ac1afd9c2f`.
+- Local development EBOOT SHA-256 `c4dd6fa0361b2ac2a7c023e14867be30d01c206098e5dc77b6281fb268d05bef`.
 
 No console upload, launch or public binary release occurred. The November 21 quick-save candidate is a different binary. Next hardware route: normal card load, Mods > Quick save into an unused slot, move rooms, load the slot, then verify progress/inventory/input/audio and normal card loading. Test experimental Checkpoints separately and report exact refusal text. Keep all personal saves/settings/assets intact.

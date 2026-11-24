@@ -2448,8 +2448,8 @@
     },
     {
       "path": "state/pe_disc_image.c",
-      "sha256": "de9d4712f231efea40161494dbe4647ab64a0b00e47a2515d13509f8c4fd0f0e",
-      "bytes": 839
+      "sha256": "1cbee145d2636874d5a01ab2a657bd3cfb06a0d481362cc4392df67475d7f2c9",
+      "bytes": 838
     }
   ],
   "shaderHeaderTemplates": {
