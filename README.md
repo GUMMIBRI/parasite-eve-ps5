@@ -15,6 +15,8 @@ Get the PS5 app from [PS5 beta releases](https://github.com/GUMMIBRI/parasite-ev
 
 The app may live at `/data/homebrew/PS5GameTest` while assets stay on USB. `/data/parasite-eve` is also supported. Existing explicit saved paths take precedence. The public asset folder is a layout for your own files, not a bundled game or HD pack.
 
+See [PS5 controller and menu controls](docs/PS5_CONTROLS.md) for current development controls and the separately labeled unified-menu candidate.
+
 ## Included PS5 work
 
 Native hardware rendering; widescreen and display preferences; optional HD background and character-texture paths; Original / Modern / Retro font choices; bounded particle materials and lighting; normal memory-card routing; and experimental typed checkpoints. Graphics / Mods / Save states / Cheats / Controls / System remain the main tabs. Fresh-install cheats are off.
