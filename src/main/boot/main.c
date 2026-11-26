@@ -11,7 +11,6 @@ static int host_open_assists;
 #include "common.h"
 #include <ctype.h>
 #include <errno.h>
-#include <inttypes.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -38,7 +37,6 @@ static bool Host_StateChord(const SDL_Event *event);
 #include "pe1/field_bg_load.h"
 #include "pe1/game_state.h"
 #include "pe1/game_timers.h"
-#include "pe1/geom_state.h"
 #include "pe1/pad_state.h"
 #include "pe1/psyq_gpu.h"
 #include "pe1/save.h"
@@ -64,12 +62,12 @@ static struct {
     int aspect;
     int dither;
     int geometry_correction;
-    int frame_interpolation;
     int antialiasing;
     int model_filtering;
-    int widescreen;
     int dynamic_lighting;
     int effect_geometry_correction;
+    int frame_interpolation;
+    int widescreen;
 #ifdef PE_PS5_GPU_NATIVE
     int fsr1,fsr1_sharpness,model_fill_lighting,movie_blur,movie_presentation,battle_debris_3d,gameplay_fill,movie_cleanup,sprite_filtering;
     int show_fps;
@@ -83,16 +81,12 @@ static struct {
     char hd_field_directory[4096];
 #endif
     int fullscreen;
-    /* 2..PSYZ_SPEED_MAX, used while the speed binding is held (or toggled on) */
+    /* 2..PSYZ_SPEED_MAX, used while the speed binding is held */
     unsigned speed_factor;
-    /* 1: the speed binding switches the speed-up on and off instead of holding it */
-    int speed_toggle;
     unsigned analog_run_threshold;
-    /* 16 pad buttons, then speed hold and screenshot capture (unbound by default) */
-    int keys[18];
-    int buttons[18];
-    int screenshot_auto_upload;
-    char screenshot_upload_url[4096];
+    /* 16 pad buttons, then the speed hold (unbound by default) */
+    int keys[17];
+    int buttons[17];
     char discs[2][4096];
     char user_file[4096];
     int enabled;
@@ -102,14 +96,41 @@ static struct {
 #endif
 
 #ifdef PE_PS5
+#ifdef PE_NATIVE_PORTABLE
+#include "pe-portable-root.h"
+#include "pe-portable-testkit.h"
+extern int pe_session_fd(void);
+static char host_portable_import[4096];
+static int host_portable_import_loading;
+static unsigned host_asset_paths_anchored;
+static int host_last_asset_anchored;
+#endif
 #ifndef PE_PS5_DATA_ROOT
 #define PE_PS5_DATA_ROOT "/data/parasite-eve"
 #endif
 static char host_data_root[4096];
 
+#ifdef PE_NATIVE_PORTABLE
+/* Preserve the prior USB-root-relative names only for old saved preferences.
+ * New factory paths use the selected parasite-eve asset root. */
+static int Host_LegacyAssetRelative(const char *path){
+ static const char *const prefixes[]={"parasite-eve-data","PS1 Discs","DuckStation Textures","PC Port Textures"};
+ for(unsigned i=0;i<sizeof(prefixes)/sizeof(prefixes[0]);i++){size_t n=strlen(prefixes[i]);if(!strncmp(path,prefixes[i],n)&&(path[n]==0||path[n]=='/'))return 1;}return 0;
+}
+#endif
 /* PS5 application launches cannot depend on changing the process cwd. */
 static int Host_DataPath(char *out, size_t capacity, const char *path) {
-    int n = snprintf(out, capacity, "%s%s%s", path[0] == '/' ? "" : host_data_root,
+#ifdef PE_NATIVE_PORTABLE
+    if(PePortable_Mode()>0){
+        for(size_t i=0;path[i];i++){unsigned char ch=(unsigned char)path[i];if(ch<32||ch==127||ch=='\\'||ch==':'){if(capacity)out[0]=0;return 0;}}
+        const char *part=path;while(*part){const char *end=strchr(part,'/');size_t n=end?(size_t)(end-part):strlen(part);if((n==1&&part[0]=='.')||(n==2&&part[0]=='.'&&part[1]=='.')){if(capacity)out[0]=0;return 0;}if(!end)break;part=end+1;}
+    }
+#endif
+    const char *base=host_data_root;
+#ifdef PE_NATIVE_PORTABLE
+    if(PePortable_Mode()>0&&!host_portable_import_loading&&path[0]!='/'&&Host_LegacyAssetRelative(path))base=PePortable_StorageRoot();
+#endif
+    int n = snprintf(out, capacity, "%s%s%s", path[0] == '/' ? "" : base,
                      path[0] == '/' ? "" : "/", path);
     if (n < 0 || (size_t)n >= capacity) {
         if (capacity) out[0] = '\0';
@@ -119,8 +140,33 @@ static int Host_DataPath(char *out, size_t capacity, const char *path) {
     return 1;
 }
 
+#ifdef PE_NATIVE_PORTABLE
+static int Host_PortableEnvironment(SDL_Environment *env,const char *name,const char *value){
+    /* Mesa reads libc getenv, while SDL maintains a separate environment hash. */
+    if(SDL_setenv_unsafe(name,value,1)<0)return 0;
+    const char *process_value=getenv(name);if(!process_value||strcmp(process_value,value))return 0;
+    if(!SDL_SetEnvironmentVariable(env,name,value,true))return 0;
+    const char *sdl_value=SDL_GetEnvironmentVariable(env,name);return sdl_value&&!strcmp(sdl_value,value);
+}
+#endif
 static int Host_InitPaths(void) {
     SDL_Environment *env = SDL_GetEnvironment();
+#ifdef PE_NATIVE_PORTABLE
+    int portable=PePortable_Mode();
+    if(portable<0){SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,"Application storage role is invalid (reason%d); no fallback",PePortable_Error());return 0;}
+    if(portable>0){
+        if(pe_session_fd()<0)SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,"Application log sinks unavailable; continuing without file diagnostics");
+        SDL_strlcpy(host_data_root,PePortable_Root(),sizeof host_data_root);
+        snprintf(host_options.user_file,sizeof host_options.user_file,"%s/parasite-eve.toml",PePortable_UserRoot());
+        if(!Host_PortableEnvironment(env,"PE_CONFIG_HOME",PePortable_UserRoot())||!Host_PortableEnvironment(env,"PE_DATA_HOME",PePortable_Root())||!Host_PortableEnvironment(env,"XDG_DATA_HOME",PePortable_UserRoot())){SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,"Application environment routing failed; startup stopped");return 0;}
+        char cache[256];int cache_n=snprintf(cache,sizeof cache,"%s/cache",PePortable_UserRoot());
+        if(cache_n<0||(size_t)cache_n>=sizeof cache||!SDL_CreateDirectory(cache)||!Host_PortableEnvironment(env,"MESA_SHADER_CACHE_DIR",cache)||!Host_PortableEnvironment(env,"XDG_CACHE_HOME",cache)){SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,"Application cache routing is unavailable; startup stopped without fallback");return 0;}
+        int imported=PePortable_ImportConfig(host_portable_import,sizeof host_portable_import);
+        if(imported<0){SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,"Application use-existing-config.txt needs one absolute config path; no data copied");return 0;}
+        SDL_Log("[Application paths] assets=%s default_asset_state=%d prefs=%s cards/checkpoints/mods/logs=application-user import=%d readonly=1",host_data_root,PePortable_AssetsState(),host_options.user_file,imported);
+        return 1;
+    }
+#endif
     const char *root = SDL_GetEnvironmentVariable(env, "PE_DATA_HOME");
     if (!root || !*root) root = PE_PS5_DATA_ROOT;
     if (root[0] != '/' || strlen(root) >= sizeof(host_data_root)) {
@@ -144,6 +190,14 @@ static int Host_InitPaths(void) {
     return 1;
 }
 
+/* Persist USB-owned paths relative to the discovered volume so moving ports
+ * does not bind saved settings to usb0. Explicit external absolute roots stay. */
+static const char *Host_StoredAssetPath(const char *path){
+#ifdef PE_NATIVE_PORTABLE
+    if(PePortable_Mode()>0){if(PePortable_AssetsState()==2)return path;size_t n=strlen(host_data_root);if(!strcmp(path,host_data_root))return ".";if(!strncmp(path,host_data_root,n)&&path[n]=='/')return path+n+1;const char *storage=PePortable_StorageRoot();n=strlen(storage);if(!strncmp(path,storage,n)&&path[n]=='/'&&Host_LegacyAssetRelative(path+n+1))return path+n+1;}
+#endif
+    return path;
+}
 static int Host_OpenDisc(PeDisc *disc, const char *path) {
     char absolute[8192];
     if (!Host_DataPath(absolute, sizeof(absolute), path)) return 0;
@@ -161,11 +215,9 @@ static int Host_SaveOptions(void);
 static void Host_NativeApplicationShutdown(void);
 #endif
 
-#define HOST_BINDING_COUNT 18
+#define HOST_BINDING_COUNT 17
 #define HOST_SPEED_BINDING 16
-#define HOST_SCREENSHOT_BINDING 17
 #define HOST_ANALOG_RUN_ROW (HOST_BINDING_COUNT + 1)
-#define HOST_SPEED_MODE_ROW (HOST_BINDING_COUNT + 2)
 #define HOST_UNBOUND_KEY SDL_SCANCODE_UNKNOWN
 #define HOST_UNBOUND_BUTTON -1
 
@@ -174,12 +226,8 @@ static const char *const host_button_names[HOST_BINDING_COUNT] = {
     "Triangle", "Circle", "Cross", "Square",
     "Select", "L3", "R3", "Start",
     "Up", "Right", "Down", "Left",
-    "Speed", "Screenshot"
+    "Speed"
 };
-
-static int Host_IsOptionalBinding(unsigned index) {
-    return index == HOST_SPEED_BINDING || index == HOST_SCREENSHOT_BINDING;
-}
 
 /* speed_factor while the speed binding is held; every start is 1x. */
 static unsigned host_speed = 1;
@@ -193,20 +241,18 @@ static void Host_SetSpeed(unsigned speed) {
 
 static int host_speed_key_held;
 static struct { SDL_JoystickID id; int held; } host_speed_pads[16];
-/* Toggle mode: the binding was down at the last event, and whether the speed-up is on. */
-static int host_speed_was_held, host_speed_toggled;
 
 static void Host_ResetSpeedHold(void) {
     host_speed_key_held = 0;
-    host_speed_was_held = host_speed_toggled = 0;
     memset(host_speed_pads, 0, sizeof(host_speed_pads));
     Host_SetSpeed(1);
 }
 
 typedef enum HostSettingsPage {
 #ifdef PE_PS5_GPU_NATIVE
-    HOST_PAGE_GRAPHICS=0, HOST_PAGE_MODS=1, HOST_PAGE_CHEATS=2, HOST_PAGE_STATES=3,
-    HOST_PAGE_AUDIO=4, HOST_PAGE_CONTROLS=5, HOST_PAGE_IMAGES=6
+    HOST_PAGE_GRAPHICS=0, HOST_PAGE_CONTROLS=1, HOST_PAGE_ENHANCEMENTS=2,
+    HOST_PAGE_IMAGES=3, HOST_PAGE_MODS=4, HOST_PAGE_COUNT=5,
+    HOST_PAGE_STATES=5, HOST_PAGE_CHEATS=6, HOST_PAGE_AUDIO=7
 #else
     HOST_PAGE_GRAPHICS = 0,
     HOST_PAGE_CONTROLS = 1,
@@ -447,51 +493,73 @@ static int Host_LocalTitlePath(const char *path) {
 /* Downloads are a desktop capability. Native PS5 consumes the same unpacked
  * atlas files from a configured local directory; it never needs active.json. */
 static const char *Host_GpuHdDirectory(void) {
+    static char initial_environment_root[4096];
+    static int captured;
+    if(!captured) {
+        const char *value=SDL_getenv("PE_HD_BACKGROUNDS");
+        if(value && strlen(value)<sizeof(initial_environment_root))
+            SDL_strlcpy(initial_environment_root,value,sizeof(initial_environment_root));
+        captured=1;
+    }
     if (*host_options.hd_field_directory) return host_options.hd_field_directory;
     if (*host_options.hd_title_directory) return host_options.hd_title_directory;
-    return SDL_getenv("PE_HD_BACKGROUNDS");
+    return initial_environment_root; /* Runtime publication must not erase configuration. */
 }
+/* Cached observations only: painting settings must never open an optional pack. */
+static int host_gpu_hd_present=-1;
 static int Host_GpuHdPackPresent(const char *directory) {
     char filename[4096]; unsigned char marker=0;
-    if (!Host_LocalTitlePath(directory)) return 0;
+    if (!Host_LocalTitlePath(directory)) { SDL_Log("[PS5 GPU HD probe] stage=path-invalid"); return 0; }
     int n=snprintf(filename,sizeof(filename),"%s/manifest.json",directory);
-    if(n<0 || (size_t)n>=sizeof(filename)) return 0;
+    if(n<0 || (size_t)n>=sizeof(filename)) { SDL_Log("[PS5 GPU HD probe] stage=path-bounds"); return 0; }
+    SDL_Log("[PS5 GPU HD probe] stage=stream-open-begin path=%s",filename);
     SDL_IOStream *file=SDL_IOFromFile(filename,"rb");
+    SDL_Log("[PS5 GPU HD probe] stage=stream-open-end success=%d error=%s",file!=NULL,file?"":SDL_GetError());
     if(!file) return 0;
-    int present=SDL_ReadIO(file,&marker,1)==1 && marker=='{';
-    SDL_CloseIO(file);
-    return present; /* Presence only; individual atlases remain renderer-validated. */
+    SDL_Log("[PS5 GPU HD probe] stage=read-begin requested_bytes=1");
+    size_t bytes=SDL_ReadIO(file,&marker,1);
+    SDL_IOStatus status=SDL_GetIOStatus(file);
+    SDL_Log("[PS5 GPU HD probe] stage=read-end bytes=%u io_status=%d first_byte=%u",(unsigned)bytes,(int)status,(unsigned)marker);
+    SDL_Log("[PS5 GPU HD probe] stage=close-begin");
+    int closed=SDL_CloseIO(file);
+    SDL_Log("[PS5 GPU HD probe] stage=close-end success=%d",closed);
+    return bytes==1 && marker=='{' && closed; /* Presence only, never JSON parsing. */
 }
 static const char *Host_HdStatus(void) {
-    if (!Host_GpuHdPackPresent(Host_GpuHdDirectory()))
-        return "Local HD pack not found. Set hd_field_directory to the unpacked pack; downloads are desktop only.";
-    return host_hd.enabled ? "Local GPU HD requested. Use 2x or higher; actual atlas loads are logged."
-                           : "Local pack found; HD is off. Toggle GPU HD backgrounds. No download is needed.";
+    if(!host_options.hd_backgrounds) return "Background textures are Off. Your folder is retained; enabling them checks the optional pack.";
+    if(host_gpu_hd_present!=1) return "Background pack not found or unreadable. Choose the unpacked PC Port Textures folder; original backgrounds remain.";
+    return "Background pack requested. Use 2x or higher; individual atlas loads are logged.";
 }
 static int Host_HdBusy(void) { return 0; }
 static int Host_HdPercent(void) { return 0; }
 static const char *Host_HdValue(int row) {
     if(row==0) return host_hd.enabled ? "Requested" : "Off";
-    if(row==1) return Host_GpuHdPackPresent(Host_GpuHdDirectory()) ? "Found / reload" : "Not found / reload";
-    return "Desktop only / local copy";
+    if(row==1) return host_gpu_hd_present<0 ? "Not checked / reload" : host_gpu_hd_present ? "Found / reload" : "Not found / reload";
+    return "Local folder / optional";
 }
 static void Host_HdApply(void) {
+    int requested=host_options.hd_backgrounds!=0;
     const char *directory=Host_GpuHdDirectory();
-    int present=Host_GpuHdPackPresent(directory);
-    host_hd.enabled=host_options.hd_backgrounds && present;
-    if(present) SDL_strlcpy(host_hd.active,directory,sizeof(host_hd.active));
+    host_gpu_hd_present=requested?Host_GpuHdPackPresent(directory):-1;
+    host_hd.enabled=requested && host_gpu_hd_present==1;
+    if(host_hd.enabled) SDL_strlcpy(host_hd.active,directory,sizeof(host_hd.active));
     else host_hd.active[0]=0;
-    /* Publish before refresh: mesh_entry and menu-card both read this SDL env. */
+    /* Empty runtime root also prevents downstream atlas probes while Off.
+     * Stored user folder preferences remain untouched. */
+    SDL_Log("[PS5 GPU HD apply] stage=publish requested=%d probe=%d",requested,host_gpu_hd_present);
     SDL_SetEnvironmentVariable(SDL_GetEnvironment(),"PE_HD_BACKGROUNDS",host_hd.active,true);
     SDL_SetEnvironmentVariable(SDL_GetEnvironment(),"PE_PS5_HD_TITLE",host_hd.enabled?"1":"0",true);
     Psyz_GpuSetSpriteAtlasesEnabled(host_hd.enabled);
-    if (Psyz_PS5PlatformReady()) DrawSync(0);
+    /* Backend readiness precedes ResetGraph/GPU_cw at startup. Use the
+     * native queue operation directly; legacy DrawSync still targets MMIO then. */
+    if (Psyz_PS5PlatformReady()) (void)Psyz_GpuExeque();
+    SDL_Log("[PS5 GPU HD apply] stage=refresh-begin enabled=%d",host_hd.enabled);
     Render_RefreshHdBackgrounds();
     Psyz_VideoSetRgb24Backdrop(NULL,NULL,0,0,0,0);
     if(host_hd.enabled) MenuCard_RefreshHdBackground();
-    SDL_Log("[PS5 GPU HD] directory=%s manifest_present=%d requested=%d atlas_enabled=%d download_capability=0 rendered=unobserved",
-        present?host_hd.active:"",present,host_options.hd_backgrounds,host_hd.enabled);
+    SDL_Log("[PS5 GPU HD apply] stage=refresh-end enabled=%d rendered=unobserved",host_hd.enabled);
 }
+
 #else
 static const char *Host_HdStatus(void) {
  #ifdef PE_PS5_GPU_NATIVE
@@ -595,10 +663,12 @@ static int Host_ModernAction(int page,int row,int direction,int activate);
 static void Host_OpenSettingsTab(int page);
 static int Host_NativePickMissingDisc(unsigned identity);
 static void Host_CharacterPackAction(int choose);
+static int host_title_request;
+int CPE_HostTakeTitleRequest(void){int request=host_title_request;host_title_request=0;return request;}
 static int host_requested_settings_page=-1,host_last_settings_page;
 static int host_registry_open_pending,host_registry_open_scope;
 static char host_registry_open_path[96];
-static int host_saved_rows[7],host_saved_scrolls[7];
+static int host_saved_rows[HOST_PAGE_COUNT],host_saved_scrolls[HOST_PAGE_COUNT];
 static const char *host_pending_mod_page;
 #endif
 #include "settings_overlay.h"
@@ -662,21 +732,50 @@ static int Host_String(char *text, char *out, size_t size) {
     return 1;
 }
 
+#ifdef PE_PS5
+static int Host_LocalAssetValue(char *value,char *out,size_t capacity){
+    if(!Host_String(value,out,capacity))return 0;
+#ifdef PE_NATIVE_PORTABLE
+    host_last_asset_anchored=*out&&(out[0]=='/'||host_portable_import_loading||Host_LegacyAssetRelative(out));
+    if(*out && PePortable_Mode()>0){char input[4096];if(strlen(out)>=sizeof input)return 0;SDL_strlcpy(input,out,sizeof input);if(!strcmp(input,"."))SDL_strlcpy(out,host_data_root,capacity);else if(!Host_DataPath(out,capacity,input))return 0;}
+#endif
+    return !*out || Host_LocalTitlePath(out);
+}
+#endif
+#ifdef PE_NATIVE_PORTABLE
+static int Host_AmbiguousAssetsNeedExplicit(const char*disc1,const char*disc2){
+ if(PePortable_AssetsState()!=2)return 0;
+ if((disc1&&disc1[0]!='/')||(disc2&&disc2[0]!='/'))return 1;
+ if(host_options.hd_backgrounds&&((*host_options.hd_field_directory&&!(host_asset_paths_anchored&1u))||(*host_options.hd_title_directory&&!(host_asset_paths_anchored&2u))))return 1;
+ if(host_options.hd_models&&*host_options.hd_model_directory&&!(host_asset_paths_anchored&4u))return 1;
+ return 0;
+}
+#endif
 static int Host_ParseOptionValue(const char *section, const char *key, char *value) {
 #ifdef PE_PS5_GPU_NATIVE
-    if(!strcmp(section,"mods")&&!strcmp(key,"hd_model_directory")){char decoded[4096];if(!Host_String(value,decoded,sizeof decoded)||(*decoded&&!Host_LocalTitlePath(decoded)))return 0;SDL_strlcpy(host_options.hd_model_directory,decoded,sizeof host_options.hd_model_directory);return 1;}
+    if(!strcmp(section,"mods")&&!strcmp(key,"hd_model_directory")){char decoded[4096];if(!Host_LocalAssetValue(value,decoded,sizeof decoded))return 0;SDL_strlcpy(host_options.hd_model_directory,decoded,sizeof host_options.hd_model_directory);
+#ifdef PE_NATIVE_PORTABLE
+        host_asset_paths_anchored=(host_asset_paths_anchored&~4u)|(host_last_asset_anchored?4u:0u);
+#endif
+        return 1;}
 #endif
 #ifdef PE_PS5
     if (!strcmp(section,"mods") && !strcmp(key,"hd_field_directory")) {
         char decoded[4096];
-        if (!Host_String(value,decoded,sizeof(decoded)) || (*decoded && !Host_LocalTitlePath(decoded))) return 0;
-        SDL_strlcpy(host_options.hd_field_directory,decoded,sizeof(host_options.hd_field_directory));return 1;
+        if (!Host_LocalAssetValue(value,decoded,sizeof decoded)) return 0;
+        SDL_strlcpy(host_options.hd_field_directory,decoded,sizeof(host_options.hd_field_directory));
+#ifdef PE_NATIVE_PORTABLE
+        host_asset_paths_anchored=(host_asset_paths_anchored&~1u)|(host_last_asset_anchored?1u:0u);
+#endif
+        return 1;
     }
     if (!strcmp(section,"mods") && !strcmp(key,"hd_title_directory")) {
         char decoded[4096];
-        if (!Host_String(value,decoded,sizeof(decoded)) ||
-            (*decoded && !Host_LocalTitlePath(decoded))) return 0;
+        if (!Host_LocalAssetValue(value,decoded,sizeof decoded)) return 0;
         SDL_strlcpy(host_options.hd_title_directory,decoded,sizeof(host_options.hd_title_directory));
+#ifdef PE_NATIVE_PORTABLE
+        host_asset_paths_anchored=(host_asset_paths_anchored&~2u)|(host_last_asset_anchored?2u:0u);
+#endif
         return 1;
     }
 #endif
@@ -687,16 +786,11 @@ static int Host_ParseOptionValue(const char *section, const char *key, char *val
             if (!Host_String(value, decoded, sizeof(decoded))) {
                 return 0;
             }
+#ifdef PE_NATIVE_PORTABLE
+            if(PePortable_Mode()>0 && host_portable_import_loading && *decoded && decoded[0]!='/'){char rel[4096];SDL_strlcpy(rel,decoded,sizeof rel);if(!Host_DataPath(decoded,sizeof decoded,rel))return 0;}
+#endif
             memcpy(host_options.discs[slot], decoded, strlen(decoded) + 1);
         }
-        return 1;
-    }
-    if (!strcmp(section, "screenshots") && !strcmp(key, "upload_url")) {
-        char decoded[4096];
-        if (!Host_String(value, decoded, sizeof(decoded))) {
-            return 0;
-        }
-        memcpy(host_options.screenshot_upload_url, decoded, strlen(decoded) + 1);
         return 1;
     }
 
@@ -717,10 +811,8 @@ static int Host_ParseOptionValue(const char *section, const char *key, char *val
         }
         v = (int)parsed;
     }
-    /* -1 only marks an unbound controller optional binding (Speed or Screenshot). */
-    if (v < 0 && (strcmp(section, "controller") ||
-                  (strcmp(key, host_button_names[HOST_SPEED_BINDING]) &&
-                   strcmp(key, host_button_names[HOST_SCREENSHOT_BINDING])))) {
+    /* -1 only marks an unbound controller speed binding. */
+    if (v < 0 && (strcmp(section, "controller") || strcmp(key, host_button_names[HOST_SPEED_BINDING]))) {
         return 0;
     }
 
@@ -741,9 +833,6 @@ static int Host_ParseOptionValue(const char *section, const char *key, char *val
             ) {
                 return 0;
             }
-            if (v > 1 && (v & 1)) {
-                ++v;
-            }
             host_options.scale = (unsigned)v;
         } else if (!strcmp(key, "fullscreen")) {
             if (v > 1) {
@@ -763,6 +852,12 @@ static int Host_ParseOptionValue(const char *section, const char *key, char *val
         } else if (!strcmp(key, "antialiasing")) {
             if (v > 1) return 0;
             host_options.antialiasing = v;
+        } else if (!strcmp(key, "dynamic_lighting")) {
+            if(v>1)return 0;host_options.dynamic_lighting=v;
+        } else if (!strcmp(key, "frame_interpolation")) {
+            if(v>1)return 0;host_options.frame_interpolation=v;
+        } else if (!strcmp(key, "effect_geometry_correction")) {
+            if(v>1)return 0;host_options.effect_geometry_correction=v;
         } else if (!strcmp(key, "model_filtering")) {
             if (v > 1) return 0;
             host_options.model_filtering = v;
@@ -788,9 +883,9 @@ static int Host_ParseOptionValue(const char *section, const char *key, char *val
         } else if (!strcmp(key, "fsr1_sharpness")) {
             if(v>2)return 0;host_options.fsr1_sharpness=v;
         } else if (!strcmp(key, "triangle_menu_font")) {
-            if(v>1)return 0;host_options.triangle_menu_font=v;
+            if(v>2)return 0;host_options.triangle_menu_font=v;
         } else if (!strcmp(key, "dialogue_text")) {
-            if(v>1)return 0;host_options.dialogue_text=v;
+            if(v>2)return 0;host_options.dialogue_text=v;
         } else if (!strcmp(key, "particle_lighting")) {
             if(v>1)return 0;host_options.particle_lighting=v;
         } else if (!strcmp(key, "player_shadow")) {
@@ -798,23 +893,11 @@ static int Host_ParseOptionValue(const char *section, const char *key, char *val
         } else if (!strcmp(key, "model_fill_lighting")) {
             if(v>2)return 0;host_options.model_fill_lighting=v;
 #endif
-        } else if (!strcmp(key, "frame_interpolation")) {
-            if(v>1)return 0;host_options.frame_interpolation=v;
         } else if (!strcmp(key, "geometry_correction")) {
             if (v > 1) {
                 return 0;
             }
             host_options.geometry_correction = v;
-        } else if (!strcmp(key, "dynamic_lighting")) {
-            if (v > 1) {
-                return 0;
-            }
-            host_options.dynamic_lighting = v;
-        } else if (!strcmp(key, "effect_geometry_correction")) {
-            if (v > 1) {
-                return 0;
-            }
-            host_options.effect_geometry_correction = v;
         }
 #ifdef PE_PS5
     } else if (!strcmp(section,"mods") && !strcmp(key,"hd_field_materials")) {
@@ -830,9 +913,6 @@ static int Host_ParseOptionValue(const char *section, const char *key, char *val
         else if(!strcmp(key,"menu_text_size")){if(v<0||v>1)return 0;host_options.menu_text_size=v;}
         else if(!strcmp(key,"menu_pointer")){if(v<0||v>2)return 0;host_options.menu_pointer=v;}
 #endif
-    } else if (!strcmp(section, "screenshots") && !strcmp(key, "auto_upload")) {
-        if (v < 0 || v > 1) return 0;
-        host_options.screenshot_auto_upload = v;
     } else if (!strcmp(section, "audio") && !strcmp(key, "volume")) {
         if (v > 100) {
             return 0;
@@ -843,23 +923,18 @@ static int Host_ParseOptionValue(const char *section, const char *key, char *val
             return 0;
         }
         host_options.speed_factor = (unsigned)v;
-    } else if (!strcmp(section, "game") && !strcmp(key, "speed_toggle")) {
-        if (v > 1) {
-            return 0;
-        }
-        host_options.speed_toggle = v;
     } else if (!strcmp(section, "keyboard") || !strcmp(section, "controller")) {
         for (unsigned i = 0; i < HOST_BINDING_COUNT; ++i) {
             if (!strcmp(key, host_button_names[i])) {
-                int optional = Host_IsOptionalBinding(i);
+                int speed = i == HOST_SPEED_BINDING;
                 if (!strcmp(section, "keyboard")) {
-                    if (!(optional && v == HOST_UNBOUND_KEY) &&
+                    if (!(speed && v == HOST_UNBOUND_KEY) &&
                         (v <= SDL_SCANCODE_UNKNOWN || v >= SDL_SCANCODE_COUNT || v == SDL_SCANCODE_ESCAPE)) {
                         return 0;
                     }
                     host_options.keys[i] = v;
                 } else {
-                    if (!(optional && v == HOST_UNBOUND_BUTTON) && (v < 0 || v > SDL_GAMEPAD_BUTTON_COUNT + 1)) {
+                    if (!(speed && v == HOST_UNBOUND_BUTTON) && (v < 0 || v > SDL_GAMEPAD_BUTTON_COUNT + 1)) {
                         return 0;
                     }
                     host_options.buttons[i] = v;
@@ -872,6 +947,9 @@ static int Host_ParseOptionValue(const char *section, const char *key, char *val
 
 /* SDL paths are UTF-8; the Windows CRT's narrow fopen uses the local ANSI
  * code page. Keep the existing TOML parser/writer on a Unicode FILE stream. */
+#ifndef PE_PS5
+static const char *Host_StoredAssetPath(const char *path){return path;}
+#endif
 static FILE *Host_OptionsFile(const char *path,const char *mode) {
 #ifdef _WIN32
     wchar_t *wide_path=(wchar_t *)SDL_iconv_string("UTF-16LE","UTF-8",path,strlen(path)+1);
@@ -975,21 +1053,20 @@ static int Host_SaveOptions(void) {
         "square_pixels = %s\n"
         "disable_dithering = %s\n"
         "geometry_correction = %s\n"
-        "frame_interpolation = %s\n"
         "antialiasing = %s\n"
         "model_filtering = %s\n"
-        "widescreen = %s\n"
         "dynamic_lighting = %s\n"
+        "frame_interpolation = %s\n"
         "effect_geometry_correction = %s\n"
+        "widescreen = %s\n"
 #ifdef PE_PS5_GPU_NATIVE
-        "sprite_filtering = %s\nmovie_cleanup = %u\ngameplay_fill = %s\nfsr1 = %s\nfsr1_sharpness = %u\nmodel_fill_lighting = %u\nparticle_lighting = %s\ndialogue_text = %s\ntriangle_menu_font = %s\nmovie_blur = %s\nmovie_presentation = %u\nbattle_debris_3d = %u\nplayer_shadow = %u\n"
+        "sprite_filtering = %s\nmovie_cleanup = %u\ngameplay_fill = %s\nfsr1 = %s\nfsr1_sharpness = %u\nmodel_fill_lighting = %u\nparticle_lighting = %s\ndialogue_text = %u\ntriangle_menu_font = %u\nmovie_blur = %s\nmovie_presentation = %u\nbattle_debris_3d = %u\nplayer_shadow = %u\n"
 #endif
         "\n"
         "[audio]\n"
         "volume = %u\n\n"
         "[game]\n"
-        "speed = %u\n"
-        "speed_toggle = %s\n\n"
+        "speed = %u\n\n"
         "[controls]\n"
         "field_run_threshold = %u\n\n"
         "[discs]\n"
@@ -999,40 +1076,36 @@ static int Host_SaveOptions(void) {
         host_options.aspect ? "true" : "false",
         host_options.dither ? "true" : "false",
         host_options.geometry_correction ? "true" : "false",
-        host_options.frame_interpolation ? "true" : "false",
         host_options.antialiasing ? "true" : "false",
         host_options.model_filtering ? "true" : "false",
-        host_options.widescreen ? "true" : "false",
         host_options.dynamic_lighting ? "true" : "false",
+        host_options.frame_interpolation ? "true" : "false",
         host_options.effect_geometry_correction ? "true" : "false",
+        host_options.widescreen ? "true" : "false",
 #ifdef PE_PS5_GPU_NATIVE
-        host_options.sprite_filtering?"true":"false",(unsigned)host_options.movie_cleanup,host_options.gameplay_fill ? "true" : "false",host_options.fsr1 ? "true" : "false",(unsigned)host_options.fsr1_sharpness,(unsigned)host_options.model_fill_lighting,host_options.particle_lighting?"true":"false",host_options.dialogue_text?"true":"false",host_options.triangle_menu_font?"true":"false",host_options.movie_presentation==1?"true":"false",(unsigned)host_options.movie_presentation,(unsigned)host_options.battle_debris_3d,(unsigned)host_options.player_shadow,
+        host_options.sprite_filtering?"true":"false",(unsigned)host_options.movie_cleanup,host_options.gameplay_fill ? "true" : "false",host_options.fsr1 ? "true" : "false",(unsigned)host_options.fsr1_sharpness,(unsigned)host_options.model_fill_lighting,host_options.particle_lighting?"true":"false",(unsigned)host_options.dialogue_text,(unsigned)host_options.triangle_menu_font,host_options.movie_presentation==1?"true":"false",(unsigned)host_options.movie_presentation,(unsigned)host_options.battle_debris_3d,(unsigned)host_options.player_shadow,
 #endif
         host_options.volume,
         host_options.speed_factor,
-        host_options.speed_toggle ? "true" : "false",
         host_options.analog_run_threshold
     );
-    Host_WriteString(file, host_options.discs[0]);
+    Host_WriteString(file, Host_StoredAssetPath(host_options.discs[0]));
     fputs("\ndisc2 = ", file);
-    Host_WriteString(file, host_options.discs[1]);
+    Host_WriteString(file, Host_StoredAssetPath(host_options.discs[1]));
 
     fprintf(file,"\n\n[mods]\nhd_backgrounds = %s\n",host_options.hd_backgrounds?"true":"false");
 #ifdef PE_PS5
     fprintf(file,"hd_field_materials = %s\n",host_options.hd_field_materials?"true":"false");
-    fputs("hd_field_directory = ",file);Host_WriteString(file,host_options.hd_field_directory);fputc('\n',file);
+    fputs("hd_field_directory = ",file);Host_WriteString(file,Host_StoredAssetPath(host_options.hd_field_directory));fputc('\n',file);
     fputs("hd_title_directory = ",file);
-    Host_WriteString(file,host_options.hd_title_directory);
+    Host_WriteString(file,Host_StoredAssetPath(host_options.hd_title_directory));
     fputc('\n',file);
 #endif
 #ifdef PE_PS5_GPU_NATIVE
-    fprintf(file,"hd_models = %s\nhd_model_directory = ",host_options.hd_models?"true":"false");Host_WriteString(file,host_options.hd_model_directory);
+    fprintf(file,"hd_models = %s\nhd_model_directory = ",host_options.hd_models?"true":"false");Host_WriteString(file,Host_StoredAssetPath(host_options.hd_model_directory));
     fprintf(file,"\n\n[interface]\nshow_fps = %d\nmenu_style = %d\nmenu_text_size = %d\nmenu_pointer = %d\n",host_options.show_fps,host_options.menu_style,host_options.menu_text_size,host_options.menu_pointer);
 #endif
-    fprintf(file, "\n[screenshots]\nauto_upload = %s\nupload_url = ",
-            host_options.screenshot_auto_upload ? "true" : "false");
-    Host_WriteString(file, host_options.screenshot_upload_url);
-    fputs("\n\n[keyboard]\n", file);
+    fputs("\n[keyboard]\n", file);
     for (unsigned i = 0; i < HOST_BINDING_COUNT; ++i) {
         fprintf(file, "%s = %d\n", host_button_names[i], host_options.keys[i]);
     }
@@ -1041,7 +1114,7 @@ static int Host_SaveOptions(void) {
         fprintf(file, "%s = %d\n", host_button_names[i], host_options.buttons[i]);
     }
 
-    int failed = ferror(file);
+    int failed = (ferror)(file); /* Native FILE stays opaque here too. */
     if (fclose(file)) {
         failed = 1;
     }
@@ -1141,81 +1214,29 @@ static int Host_CardPath(char *dst, const char *src, int capacity) {
     return 0;
 }
 
-/* Import each legacy save once, retaining every legacy file and never replacing a
- * card already in the user folder. The marker lists the legacy files earlier passes
- * considered ("bu00/<name>" lines), so saves copied beside the game after the first
- * launch are still imported while a slot deleted after its import stays deleted.
- * A 0.7 marker is empty: files that arrived before it was written count as listed. */
-#define HOST_CARD_MARKER_HEADER "# Legacy saves already considered for import\n"
-
+/* Import once, retaining every legacy file and never replacing a newer card.
+ * A completed-import marker prevents deleted slots reappearing at next launch. */
 typedef struct HostCardImport {
     int ok;
-    unsigned count, kept, rejected;
+    unsigned count;
     char *created[128];
-    const char *listed;     /* the marker's list, "\n"-delimited; NULL when none */
-    SDL_Time before;        /* an empty 0.7 marker's write time, else 0 */
-    char *added;            /* entries considered by this pass, "\n"-delimited */
-    size_t added_length;
 } HostCardImport;
-
-static int Host_CardImportListed(const HostCardImport *import, const char *entry) {
-    return (import->listed && strstr(import->listed, entry)) || (import->added && strstr(import->added, entry));
-}
-
-/* Record `entry` ("\nbu00/<name>\n") as considered by this pass. */
-static int Host_CardImportRecord(HostCardImport *import, const char *entry) {
-    size_t length = strlen(entry + 1);
-    char *grown = SDL_realloc(import->added, import->added_length + length + 2);
-    if (!grown) return 0;
-    if (!import->added_length) grown[import->added_length++] = '\n';
-    memcpy(grown + import->added_length, entry + 1, length + 1);
-    import->added = grown;
-    import->added_length += length;
-    return 1;
-}
-
-static int Host_IsCardImage(const char *name) {
-    const char *dot = strrchr(name, '.');
-    static const char *const images[] = {".srm", ".mcr", ".mcd", ".gme", ".mcs", ".mc", ".psv", ".vmp"};
-    for (unsigned i = 0; dot && i < sizeof(images) / sizeof(images[0]); ++i)
-        if (!SDL_strcasecmp(dot, images[i])) return 1;
-    return 0;
-}
 
 static SDL_EnumerationResult SDLCALL Host_ImportCard(void *userdata, const char *dirname, const char *name) {
     HostCardImport *import = userdata;
-    char source[8192], target[4096], device[64], temporary[4160], entry[64];
+    if (strlen(name) != 20 || strncmp(name, "BASLUS-00662", 11)) return SDL_ENUM_CONTINUE;
+    char source[8192], target[4096], device[64], temporary[4160];
     snprintf(source, sizeof(source), "%s%s", dirname, name);
-    if (strlen(name) != 20 || strncmp(name, "BASLUS-00662", 11)) {
-        if (Host_IsCardImage(name)) {
-            ++import->rejected;
-            fprintf(stderr, "Memory cards: %s is a memory card image, not a PsyZ save; "
-                            "open it in the save editor to import its saves.\n", source);
-        }
-        return SDL_ENUM_CONTINUE;
-    }
     SDL_PathInfo info;
-    if (!SDL_GetPathInfo(source, &info) || info.type != SDL_PATHTYPE_FILE || info.size != 8192) {
-        ++import->rejected;
-        fprintf(stderr, "Memory cards: %s is not an 8192-byte PsyZ save; not imported.\n", source);
+    if (!SDL_GetPathInfo(source, &info) || info.type != SDL_PATHTYPE_FILE || info.size != 8192)
         return SDL_ENUM_CONTINUE;
-    }
     /* Port is encoded by the legacy directory supplied to EnumerateDirectory. */
     size_t length = strlen(dirname);
     unsigned port = length >= 4 && dirname[length - 3] == '1';
-    snprintf(entry, sizeof(entry), "\nbu%u0/%s\n", port, name);
-    if (Host_CardImportListed(import, entry)) return SDL_ENUM_CONTINUE;
-    if (!Host_CardImportRecord(import, entry)) { import->ok = 0; return SDL_ENUM_CONTINUE; }
-    SDL_Time arrived = info.create_time > info.modify_time ? info.create_time : info.modify_time;
-    if (import->before && arrived <= import->before) return SDL_ENUM_CONTINUE;
     snprintf(device, sizeof(device), "bu%u0:%s", port, name);
     Host_CardPath(target, device, sizeof(target));
     if (!*target) { Host_CardDiagnostic("import-card-callback", device); import->ok = 0; return SDL_ENUM_CONTINUE; }
-    if (SDL_GetPathInfo(target, &info)) {
-        ++import->kept;
-        fprintf(stderr, "Memory cards: kept %s; the save of the same name in %s was not imported.\n", target, dirname);
-        return SDL_ENUM_CONTINUE;
-    }
+    if (SDL_GetPathInfo(target, &info)) return SDL_ENUM_CONTINUE;
     if (import->count >= 128) { Host_CardDiagnostic("import-count-limit", source); import->ok = 0; return SDL_ENUM_CONTINUE; }
     size_t bytes = 0;
     void *data = SDL_LoadFile(source, &bytes);
@@ -1244,80 +1265,49 @@ static SDL_EnumerationResult SDLCALL Host_ImportCard(void *userdata, const char 
 }
 
 static int Host_InstallCardPaths(const char *base) {
+#ifdef PE_NATIVE_PORTABLE
+    if(PePortable_Mode()>0){
+        char portable_card[4096],seed[512];if(Host_CardPath(portable_card,"bu00:BASLUS-006620000000O",sizeof portable_card)||!*portable_card)return 0;
+        int n=snprintf(seed,sizeof seed,"%s/test-kit/BASLUS-006620000000O",PePortable_AppRoot());if(n<0||(size_t)n>=sizeof seed)return 0;
+        int seeded=PePortable_SeedTestCard(seed,portable_card);SDL_Log("[Application testkit] slot=O result=%d 0absent-1created-2existing-preserved-minus1failed source=authentic-unmodified gameplay=unobserved",seeded);
+        Psyz_AdjustPathCB(Host_CardPath);return 1;
+    } /* Never auto-import legacy or console cards. */
+#endif
     char marker[4096], card[4096];
     if (Host_CardPath(card, "bu00:*", sizeof(card)) || !*card) { Host_CardDiagnostic("install-card-callback", "bu00:*"); return 0; }
     snprintf(marker, sizeof(marker), "%.*s.legacy-imported", (int)strlen(card) - 5, card);
-    HostCardImport import = {.ok = 1};
     SDL_PathInfo info;
-    size_t bytes = 0;
-    char *list = NULL;
-    if (SDL_GetPathInfo(marker, &info)) {
-        if (!(list = SDL_LoadFile(marker, &bytes))) return 0;
-        if (!bytes) import.before = info.modify_time;
-    }
-    /* "\n" + list + "\n" lets every entry be found as "\n<entry>\n". */
-    char *listed = SDL_malloc(bytes + 3);
-    if (!listed) { SDL_free(list); return 0; }
-    listed[0] = '\n';
-    memcpy(listed + 1, list ? list : "", bytes);
-    listed[bytes + 1] = '\n';
-    listed[bytes + 2] = '\0';
-    import.listed = listed;
-
+    if (!SDL_GetPathInfo(marker, &info)) {
+        HostCardImport import = {.ok = 1};
 #ifdef PE_PS5
-    char *cwd = SDL_malloc(strlen(host_data_root) + 2);
-    if (!cwd) { Host_CardDiagnostic("import-root-allocation", host_data_root); SDL_free(listed); SDL_free(list); return 0; }
-    snprintf(cwd, strlen(host_data_root) + 2, "%s/", host_data_root);
-    if (base && base[0] != '/') base = NULL;
+        char *cwd = SDL_malloc(strlen(host_data_root) + 2);
+        if (!cwd) { Host_CardDiagnostic("import-root-allocation", host_data_root); return 0; }
+        snprintf(cwd, strlen(host_data_root) + 2, "%s/", host_data_root);
+        if (base && base[0] != '/') base = NULL;
 #else
-    char *cwd = SDL_GetCurrentDirectory();
+        char *cwd = SDL_GetCurrentDirectory();
 #endif
-    const char *roots[] = {cwd, base};
-    for (unsigned root = 0; root < 2; ++root) if (roots[root]) {
-        for (unsigned port = 0; port < 2; ++port) {
-            char source[8192];
-            snprintf(source, sizeof(source), "%sbu%u0", roots[root], port);
-            if (SDL_GetPathInfo(source, &info) && info.type == SDL_PATHTYPE_DIRECTORY &&
-                !SDL_EnumerateDirectory(source, Host_ImportCard, &import)) { Host_CardDiagnostic("import-enumerate", source); import.ok = 0; }
-        }
-    }
-    SDL_free(cwd);
-    /* Rewrite the marker when this pass considered anything, and always replace an
-     * empty 0.7 marker or a missing one, so the list format takes over. */
-    if (import.ok && (!list || !bytes || import.added_length)) {
-        size_t header = strlen(HOST_CARD_MARKER_HEADER);
-        int has_header = bytes >= header && !memcmp(list, HOST_CARD_MARKER_HEADER, header);
-        size_t extra = import.added_length ? import.added_length - 1 : 0;
-        size_t total = (has_header ? 0 : header) + bytes + extra;
-        char *text = SDL_malloc(total + 1);
-        if (!text) import.ok = 0;
-        else {
-            size_t at = 0;
-            if (!has_header) { memcpy(text, HOST_CARD_MARKER_HEADER, header); at = header; }
-            if (bytes) { memcpy(text + at, list, bytes); at += bytes; }
-            if (extra) { memcpy(text + at, import.added + 1, extra); at += extra; }
-            /* Replace the list whole: a torn write would bring deleted slots back. */
-            char temporary[4160];
-            snprintf(temporary, sizeof(temporary), "%s.tmp", marker);
-            if (!SDL_SaveFile(temporary, text, at) || !SDL_RenamePath(temporary, marker)) {
-                SDL_RemovePath(temporary);
-                import.ok = 0;
+        const char *roots[] = {cwd, base};
+        for (unsigned root = 0; root < 2; ++root) if (roots[root]) {
+            for (unsigned port = 0; port < 2; ++port) {
+                char source[8192];
+                snprintf(source, sizeof(source), "%sbu%u0", roots[root], port);
+                if (SDL_GetPathInfo(source, &info) && info.type == SDL_PATHTYPE_DIRECTORY &&
+                    !SDL_EnumerateDirectory(source, Host_ImportCard, &import)) { Host_CardDiagnostic("import-enumerate", source); import.ok = 0; }
             }
-            SDL_free(text);
         }
+        SDL_free(cwd);
+        if (import.ok && !SDL_SaveFile(marker, "", 0)) {
+            Host_CardDiagnostic("import-marker-save", marker);
+            SDL_RemovePath(marker);
+            import.ok = 0;
+        }
+        for (unsigned i = 0; i < import.count; ++i) {
+            if (!import.ok) SDL_RemovePath(import.created[i]);
+            SDL_free(import.created[i]);
+        }
+        if (!import.ok) return 0;
     }
-    for (unsigned i = 0; i < import.count; ++i) {
-        if (!import.ok) SDL_RemovePath(import.created[i]);
-        SDL_free(import.created[i]);
-    }
-    SDL_free(import.added);
-    SDL_free(listed);
-    SDL_free(list);
-    if (!import.ok) return 0;
-    if (import.count || import.kept)
-        fprintf(stderr, "Memory cards: imported %u old save(s); kept %u current save(s) over older copies.\n",
-                import.count, import.kept);
-    fprintf(stderr, "Memory cards: %.*s (bu00 is card 1, bu10 card 2)\n", (int)strlen(card) - 6, card);
     Psyz_AdjustPathCB(Host_CardPath);
     return 1;
 }
@@ -1330,17 +1320,16 @@ static void Host_InitOptions(int enabled) {
     host_options.model_filtering = 0;
     host_options.dynamic_lighting = 0;
     host_options.effect_geometry_correction = 0;
-#ifdef PE_PS5_GPU_NATIVE
     host_options.frame_interpolation = 1; /* Owner requested display-only 60 Hz; saved explicit choice loads afterward. */
+#ifdef PE_PS5_GPU_NATIVE
     host_options.widescreen = 1; /* Genuine wide default only when no saved choice. */
 #else
-    host_options.frame_interpolation = 0;
     host_options.widescreen = 0;
 #endif
 #ifdef PE_PS5_GPU_NATIVE
     host_options.show_fps=1; /* Temporary owner-requested display counter. */
     host_options.player_shadow=0; /* Optional experimental shadow remains Original, even in fresh Modern. */
-    host_options.triangle_menu_font=0;host_options.dialogue_text=0;host_options.particle_lighting=0;host_options.menu_style=1;host_options.menu_text_size=1;host_options.menu_pointer=2;host_options.hd_models=0;SDL_strlcpy(host_options.hd_model_directory,"/mnt/usb0/parasite-eve-data/mods/characters/duck-models",sizeof host_options.hd_model_directory);
+    host_options.triangle_menu_font=0;host_options.dialogue_text=0;host_options.particle_lighting=0;host_options.menu_style=1;host_options.menu_text_size=1;host_options.menu_pointer=2;host_options.hd_models=0;SDL_strlcpy(host_options.hd_model_directory,"/data/parasite-eve/mods/characters/duck-models",sizeof host_options.hd_model_directory);
     host_options.sprite_filtering=0;host_options.movie_cleanup=0;host_options.gameplay_fill=1;host_options.fsr1=0;host_options.fsr1_sharpness=1;host_options.model_fill_lighting=0;host_options.battle_debris_3d=0;host_options.movie_blur=1;host_options.movie_presentation=0; /* New setting absent: Stretch16:9; legacy blur flag cannot override it. */
 #endif
 #ifdef PE_PS5
@@ -1353,10 +1342,7 @@ static void Host_InitOptions(int enabled) {
 #endif
     host_options.volume = 100;
     host_options.speed_factor = 2;
-    host_options.speed_toggle = 0;
     host_options.analog_run_threshold = 85;
-    host_options.screenshot_auto_upload = 1;
-    host_options.screenshot_upload_url[0] = '\0';
     Boot_InitHostBindings();
 #ifdef PE_PS5
     /* Public ScePad mapping exposes touchpad; there is no physical Back. */
@@ -1368,14 +1354,29 @@ static void Host_InitOptions(int enabled) {
     }
     host_options.keys[HOST_SPEED_BINDING] = HOST_UNBOUND_KEY;
     host_options.buttons[HOST_SPEED_BINDING] = HOST_UNBOUND_BUTTON;
-    host_options.keys[HOST_SCREENSHOT_BINDING] = HOST_UNBOUND_KEY;
-    host_options.buttons[HOST_SCREENSHOT_BINDING] = HOST_UNBOUND_BUTTON;
     #ifdef PE_PS5_GPU_NATIVE
     /* Fresh Modern baseline. Saved individual choices load afterward. */
     host_options.scale=8;host_options.antialiasing=1;host_options.dynamic_lighting=1;host_options.effect_geometry_correction=1;host_options.movie_cleanup=2;host_options.fsr1=1;host_options.fsr1_sharpness=0;host_options.model_fill_lighting=2;host_options.model_filtering=1;host_options.hd_backgrounds=1;host_options.hd_models=1;
+
     host_options.dialogue_text=1;host_options.triangle_menu_font=1;host_options.battle_debris_3d=0;host_options.particle_lighting=1;
     host_options.dither=1;host_options.movie_presentation=1;
     #endif
+#ifdef PE_NATIVE_GAME_TEST
+    /* Controller build defaults; explicit saved choices below always win. */
+    host_options.scale=2;host_options.antialiasing=0;host_options.frame_interpolation=0;host_options.show_fps=0;
+    host_options.dynamic_lighting=0;host_options.effect_geometry_correction=0;host_options.model_filtering=0;
+    host_options.hd_backgrounds=1;host_options.hd_models=1;host_options.movie_cleanup=2;
+    host_options.fsr1=1;host_options.model_fill_lighting=0;host_options.particle_lighting=0;
+    host_options.dialogue_text=1;host_options.triangle_menu_font=1;host_options.player_shadow=0;
+    host_options.widescreen=0;host_options.gameplay_fill=0;host_options.geometry_correction=1;
+#endif
+#ifdef PE_NATIVE_PORTABLE
+    if(PePortable_Mode()>0){
+        SDL_strlcpy(host_options.discs[0],"discs/disc1.bin",sizeof host_options.discs[0]);SDL_strlcpy(host_options.discs[1],"discs/disc2.bin",sizeof host_options.discs[1]);
+        Host_DataPath(host_options.hd_model_directory,sizeof host_options.hd_model_directory,"mods/characters/duck-models");
+        Host_DataPath(host_options.hd_field_directory,sizeof host_options.hd_field_directory,"mods/upscale/0.1-ded1557f6c1e");SDL_strlcpy(host_options.hd_title_directory,host_options.hd_field_directory,sizeof host_options.hd_title_directory);
+    }
+#endif
     if (!enabled) {
 #ifdef PE_PS5_GPU_NATIVE
         Host_VisualLoaded();
@@ -1385,8 +1386,18 @@ static void Host_InitOptions(int enabled) {
 
 #ifdef PE_PS5
     char path[4096];
-    if (Host_DataPath(path, sizeof(path), "parasite-eve.toml") &&
-        strcmp(path, host_options.user_file)) Host_LoadOptions(path);
+#ifdef PE_NATIVE_PORTABLE
+    if(PePortable_Mode()>0){
+        snprintf(path,sizeof path,"%s/parasite-eve.toml",PePortable_AppRoot());Host_LoadOptions(path);
+        if(*host_portable_import){
+            /* Resolve imported relative assets against their source directory;
+             * the imported config and cards are never output destinations. */
+            char portable_root[4096];SDL_strlcpy(portable_root,host_data_root,sizeof portable_root);SDL_strlcpy(host_data_root,host_portable_import,sizeof host_data_root);char *parent=strrchr(host_data_root,'/');if(parent){if(parent==host_data_root)parent[1]=0;else *parent=0;}
+            host_portable_import_loading=1;Host_LoadOptions(host_portable_import);host_portable_import_loading=0;SDL_strlcpy(host_data_root,portable_root,sizeof host_data_root);
+        }
+    }else
+#endif
+    if (Host_DataPath(path, sizeof(path), "parasite-eve.toml") && strcmp(path, host_options.user_file))Host_LoadOptions(path);
     Host_LoadOptions(host_options.user_file);
 #else
     const char *base = SDL_GetBasePath();
@@ -1494,24 +1505,19 @@ static void Host_ApplyOptions(SDL_Window *window) {
 #endif
     Psyz_VideoSetAspectMode(host_options.widescreen ? PSYZ_ASPECT_DISPLAY : (PsyzAspectMode)host_options.aspect);
     Psyz_VideoSetDitheringMode((PsyzDitherMode)host_options.dither);
-    Psyz_GpuSetFrameInterpolation(host_options.frame_interpolation);
     Psyz_VideoSetGeometryCorrection(host_options.geometry_correction != 0);
     Psyz_VideoSetAntialiasing(host_options.antialiasing != 0);
     Psyz_VideoSetModelFiltering(host_options.model_filtering != 0);
+#ifdef PE_PS5_GPU_NATIVE
+    Psyz_GpuSetFrameInterpolation(host_options.frame_interpolation != 0);
+    /* Effective admission is reported separately; never overwrite the request. */
     Psyz_VideoSetDynamicLighting(host_options.dynamic_lighting != 0);
     Psyz_VideoSetEffectGeometryCorrection(host_options.effect_geometry_correction != 0);
-    /* An allocation failure keeps the last working renderer configuration.
-     * Before window creation the getters do not yet reflect pending options. */
-    if (window) {
-#ifndef PE_PS5_GPU_NATIVE
-        host_options.scale = Psyz_VideoGetInternalResolution();
-        host_options.antialiasing = Psyz_VideoGetAntialiasing();
-        host_options.geometry_correction = Psyz_VideoGetGeometryCorrection();
-        host_options.model_filtering = Psyz_VideoGetModelFiltering();
-#endif
-        host_options.dynamic_lighting = Psyz_VideoGetDynamicLighting();
-        host_options.effect_geometry_correction = Psyz_VideoGetEffectGeometryCorrection();
+    if(window) {
+        host_options.dynamic_lighting=Psyz_VideoGetDynamicLighting();
+        host_options.effect_geometry_correction=Psyz_VideoGetEffectGeometryCorrection();
     }
+#endif
     Psyz_VideoSetWidescreen(host_options.widescreen != 0);
 #ifdef PE_PS5_GPU_NATIVE
     static int appliedBackgrounds=-1;
@@ -1526,10 +1532,10 @@ static void Host_ApplyOptions(SDL_Window *window) {
     Psyz_VideoSetMovieBlur(host_options.movie_presentation==1);
     FieldFx_SetParticleAugment(host_options.battle_debris_3d);
     FieldFx_SetParticleLighting(host_options.particle_lighting);
-    PeDialogue_SetEnabled(host_options.dialogue_text);
-    PeMenuFont_SetEnabled(host_options.triangle_menu_font);
-    static int lastTriangleFont=-1;if(lastTriangleFont!=host_options.triangle_menu_font){SDL_Log("[Triangle menu font] requested=%d configured=%d prepared=%d policy=canonical-font-alpha/original-vertex-tint; original-FT4-CLUT-preserved; pixels=unobserved",host_options.triangle_menu_font,PeMenuFont_GetEnabled(),PeMenuFont_GetEffective());lastTriangleFont=host_options.triangle_menu_font;}
-    static int lastDialogue=-1;if(lastDialogue!=host_options.dialogue_text){SDL_Log("[Dialogue font] requested=%d configured=%d prepared=%d scope=supported Latin dialogue; pixels=unobserved",host_options.dialogue_text,PeDialogue_GetEnabled(),PeDialogue_GetEffective());lastDialogue=host_options.dialogue_text;}
+    PeFont_SetStyle(0,host_options.dialogue_text);
+    PeFont_SetStyle(1,host_options.triangle_menu_font);
+    static int lastTriangleFont=-1;if(lastTriangleFont!=host_options.triangle_menu_font){SDL_Log("[Triangle menu font] requested=%d configured=%d prepared=%d policy=canonical-font-alpha/original-vertex-tint; original-FT4-CLUT-preserved; pixels=unobserved",host_options.triangle_menu_font,PeFont_GetStyle(1),PeMenuFont_GetEffective());lastTriangleFont=host_options.triangle_menu_font;}
+    static int lastDialogue=-1;if(lastDialogue!=host_options.dialogue_text){SDL_Log("[Dialogue font] requested=%d configured=%d prepared=%d scope=supported Latin dialogue; pixels=unobserved",host_options.dialogue_text,PeFont_GetStyle(0),PeDialogue_GetEffective());lastDialogue=host_options.dialogue_text;}
     static int lastParticleLights=-1;if(lastParticleLights!=host_options.particle_lighting){SDL_Log("[Particle lights] requested=%d configured=%d extra_geometry=%d eligible=%d scope=source-known sparks/flame on actors; pixels=unobserved",host_options.particle_lighting,FieldFx_GetParticleLighting(),FieldFx_GetParticleAugment(),FieldFx_GetParticleLighting()&&FieldFx_GetParticleAugment()!=0);lastParticleLights=host_options.particle_lighting;}
     PeShadow_SetStyle(host_options.player_shadow);host_options.player_shadow=PeShadow_GetStyle();
     static int lastShadowStyle=-1;if(lastShadowStyle!=host_options.player_shadow){SDL_Log("[Player shadow] configured=%d 0Original-1ProjectedMesh scope=player/known-horizontal-floor fixed-light fallback=original pixels=unobserved",host_options.player_shadow);lastShadowStyle=host_options.player_shadow;}
@@ -1824,8 +1830,6 @@ static void Host_OverlayRenderFallback(
     if (OverlayFontReady() && OverlaySurfaceResize(&s_overlaySurface, layout.w, layout.h)) {
         if (state->prompt) {
             OverlayPaintPrompt(&s_overlaySurface, state, &layout);
-        } else if (state->screenshot) {
-            OverlayPaintScreenshot(&s_overlaySurface, state, &layout);
         } else {
             OverlayPaint(&s_overlaySurface, state, &layout);
         }
@@ -1868,6 +1872,7 @@ static void Host_SwitchSettingsPage(HostOverlayState *state, int nextPage) {
     int normalized = (nextPage % OVERLAY_PAGE_COUNT + OVERLAY_PAGE_COUNT) % OVERLAY_PAGE_COUNT;
     if (state->page != normalized) {
 #ifdef PE_PS5_GPU_NATIVE
+        state->return_title_confirm=0;
         state->page_rows[state->page]=state->row;state->page_scrolls[state->page]=state->scroll;
         state->page=normalized;state->row=state->page_rows[normalized];state->scroll=state->page_scrolls[normalized];
         if(state->row>=Host_SettingsTotalRowCount(normalized))state->row=0;
@@ -1882,7 +1887,7 @@ static void Host_SwitchSettingsPage(HostOverlayState *state, int nextPage) {
 }
 
 #ifdef PE_PS5_GPU_NATIVE
-static int Host_SettingsBack(HostOverlayState *state){if(Host_RegistryBack(state))return 1;if(state->page==OVERLAY_PAGE_AUDIO){Host_SwitchSettingsPage(state,OVERLAY_PAGE_GRAPHICS);return 1;}return 0;}
+static int Host_SettingsBack(HostOverlayState *state){return Host_RegistryBack(state);}
 #endif
 
 static void Host_ApplySettingsAction(
@@ -1904,6 +1909,18 @@ static void Host_ApplySettingsAction(
 #endif
                 state->open = 0;
             } else {
+#ifdef PE_PS5_GPU_NATIVE
+                if(state->row==pureCount+2){
+                    if(g_SceneDispatchCur!=g_SceneDispatchToken ||
+                       (unsigned)g_SceneDispatchCur==0xA9400048u ||
+                       (g_GameStateFlagsWord&0x4200) || g_BootDisplayPlaybackActive){
+                        state->status="Return to title is available during normal gameplay, after movies and transitions.";
+                        state->dirty=1;return;
+                    }
+                    if(!state->return_title_confirm){state->return_title_confirm=1;state->status="Unsaved progress will be lost. Press X again to return to title; Circle cancels.";state->dirty=1;return;}
+                    host_title_request=1;state->open=0;return;
+                }
+#endif
                 state->quit = 1;
                 state->open = 0;
             }
@@ -1912,7 +1929,6 @@ static void Host_ApplySettingsAction(
     }
 
 #ifdef PE_PS5_GPU_NATIVE
-    if(state->page==HOST_PAGE_GRAPHICS&&state->row==1){if(activate_only)Host_SwitchSettingsPage(state,OVERLAY_PAGE_AUDIO);return;}
     if(state->page==HOST_PAGE_MODS||state->page==HOST_PAGE_CHEATS||state->page==HOST_PAGE_STATES||(state->page==HOST_PAGE_IMAGES&&state->row>=3)){
         state->status=NULL;
         if(Host_ModernAction(state->page,state->row,action,activate_only))state->open=0;
@@ -1940,7 +1956,7 @@ static void Host_ApplySettingsAction(
         }
         #ifdef PE_PS5_GPU_NATIVE
         /* Restore other Modern choices, then apply only this explicitly edited field. */
-        if(state->page==OVERLAY_PAGE_AUDIO&&setting->set!=SetShowFps&&!host_presentation)SetPresentation(1);
+        if(state->page==OVERLAY_PAGE_GRAPHICS&&setting->set!=SetPresentation&&setting->set!=SetShowFps&&!host_presentation)SetPresentation(1);
         #endif
         setting->set(index);
 #ifdef PE_PS5
@@ -1991,9 +2007,6 @@ static void Host_ApplySettingsAction(
         if (threshold < 0) threshold = 0;
         if (threshold > 100) threshold = 100;
         host_options.analog_run_threshold = (unsigned)threshold;
-    } else if (state->page == HOST_PAGE_CONTROLS && state->row == HOST_SPEED_MODE_ROW) {
-        host_options.speed_toggle = !host_options.speed_toggle;
-        Host_ResetSpeedHold();
     } else if (state->row == 0) {
         state->bind_device = (state->bind_device == HOST_BIND_CONTROLLER)
                                  ? HOST_BIND_KEYBOARD
@@ -2014,19 +2027,15 @@ static void Host_ApplySettingsAction(
     Host_ApplyOptions(game);
 }
 
-/* Optional bindings (Speed and Screenshot) can be left unbound. */
+/* Only the speed binding can be left unbound. */
 static void Host_ClearSpeedBinding(HostOverlayState *state) {
-    if (state->page != HOST_PAGE_CONTROLS || state->row < 1) {
-        return;
-    }
-    unsigned idx = (unsigned)(state->row - 1);
-    if (!Host_IsOptionalBinding(idx)) {
+    if (state->page != HOST_PAGE_CONTROLS || state->row != HOST_SPEED_BINDING + 1) {
         return;
     }
     if (state->bind_device == HOST_BIND_KEYBOARD) {
-        host_options.keys[idx] = HOST_UNBOUND_KEY;
+        host_options.keys[HOST_SPEED_BINDING] = HOST_UNBOUND_KEY;
     } else {
-        host_options.buttons[idx] = HOST_UNBOUND_BUTTON;
+        host_options.buttons[HOST_SPEED_BINDING] = HOST_UNBOUND_BUTTON;
     }
     state->status = NULL;
     state->dirty = 1;
@@ -2113,8 +2122,7 @@ static void Host_ProcessSettingsPointer(
     if (hitRow >= 0) {
         int pureCount = Host_SettingsPureRowCount(state->page);
         int isStepper = hitRow < pureCount &&
-                        !(state->page == HOST_PAGE_CONTROLS && hitRow >= 1 && hitRow != HOST_ANALOG_RUN_ROW &&
-                          hitRow != HOST_SPEED_MODE_ROW) &&
+                        !(state->page == HOST_PAGE_CONTROLS && hitRow >= 1 && hitRow != HOST_ANALOG_RUN_ROW) &&
                         state->page != HOST_PAGE_IMAGES &&
                         !(state->page==HOST_PAGE_MODS && hitRow>0
 #ifdef PE_PS5_GPU_NATIVE
@@ -2128,7 +2136,7 @@ static void Host_ProcessSettingsPointer(
 #endif
         int action = isStepper ? (x < OverlayValueCentre() ? -1 : 1) : 1;
         #ifdef PE_PS5_GPU_NATIVE
-        if(state->page==HOST_PAGE_GRAPHICS&&hitRow==1)isStepper=0;
+        /* All graphics steppers use their actual setting declaration. */
         #endif
         Host_ApplySettingsAction(state, action, !isStepper, game);
     }
@@ -2227,304 +2235,6 @@ static void Host_ProcessPromptEvent(
     }
 }
 
-static void Host_ScreenshotAppendText(HostOverlayState *state, const char *text) {
-    if (!text) return;
-    size_t len = strlen(state->note);
-    for (const unsigned char *p = (const unsigned char *)text; *p; ++p) {
-        if (*p >= 32 && *p < 127 && len + 1 < sizeof(state->note)) {
-            state->note[len++] = (char)*p;
-            state->note[len] = '\0';
-        }
-    }
-    state->status = NULL;
-    state->dirty = 1;
-}
-
-static void Host_ScreenshotBackspace(HostOverlayState *state) {
-    size_t len = strlen(state->note);
-    if (len > 0) {
-        state->note[len - 1] = '\0';
-        state->status = NULL;
-        state->dirty = 1;
-    }
-}
-
-static void Host_ScreenshotOskActivate(HostOverlayState *state) {
-    const char *key = kScreenshotOskKeys[state->osk_row][state->osk_col];
-    if (!strcmp(key, "Done")) {
-        state->osk_open = 0;
-        state->dirty = 1;
-    } else if (!strcmp(key, "Clear")) {
-        state->note[0] = '\0';
-        state->dirty = 1;
-    } else if (!strcmp(key, "Bksp")) {
-        Host_ScreenshotBackspace(state);
-    } else if (!strcmp(key, "Space")) {
-        Host_ScreenshotAppendText(state, " ");
-    } else {
-        Host_ScreenshotAppendText(state, key);
-    }
-}
-
-static void Host_ApplyScreenshotRowAction(
-    HostOverlayState *state,
-    int action,
-    int activate_only
-) {
-    int tagCount = COUNT_OF(kScreenshotTagNames);
-    if (state->row == SCREENSHOT_ROW_TAG) {
-        state->tag_index = (state->tag_index + action + tagCount) % tagCount;
-        state->status = NULL;
-        state->dirty = 1;
-    } else if (state->row == SCREENSHOT_ROW_NOTE) {
-        if (activate_only) {
-            state->osk_open = !state->osk_open;
-            state->status = NULL;
-            state->dirty = 1;
-        }
-    } else if (state->row == SCREENSHOT_ROW_UPLOAD) {
-        if (Host_ScreenshotUploadUrl() != NULL) {
-            host_options.screenshot_auto_upload = !host_options.screenshot_auto_upload;
-            state->status = NULL;
-        } else {
-            state->status = "Set [screenshots] upload_url in parasite-eve.toml or PE_SCREENSHOT_UPLOAD_URL.";
-        }
-        state->dirty = 1;
-    } else if (state->row == SCREENSHOT_ROW_SAVE) {
-        if (activate_only) {
-            state->save_shot = 1;
-            state->open = 0;
-        }
-    } else if (state->row == SCREENSHOT_ROW_CANCEL) {
-        if (activate_only) {
-            state->save_shot = 0;
-            state->open = 0;
-        }
-    }
-}
-
-static void Host_ProcessScreenshotPointer(
-    HostOverlayState *state,
-    float windowX,
-    float windowY,
-    int click,
-    SDL_Window *game,
-    SDL_Window *fallbackWindow
-) {
-    SDL_Window *targetWin = fallbackWindow ? fallbackWindow : game;
-    float density = targetWin ? SDL_GetWindowPixelDensity(targetWin) : 1.0f;
-    if (density <= 0.0f) {
-        density = 1.0f;
-    }
-    float scale = s_overlayLayout.scale > 0.0f ? s_overlayLayout.scale : 1.0f;
-    float x = (windowX * density - (float)s_overlayLayout.x) / scale;
-    float y = (windowY * density - (float)s_overlayLayout.y) / scale;
-    int designH = OverlayScreenshotDesignHeight(state);
-
-    if (state->osk_open) {
-        for (int r = 0; r < SCREENSHOT_OSK_ROWS; r++) {
-            for (int c = 0; c < SCREENSHOT_OSK_COLS; c++) {
-                OverlayRect cell = OverlayScreenshotOskKeyRect(r, c);
-                if (x >= cell.x && x < cell.x + cell.w && y >= cell.y && y < cell.y + cell.h) {
-                    if (state->osk_row != r || state->osk_col != c) {
-                        state->osk_row = r;
-                        state->osk_col = c;
-                        state->dirty = 1;
-                    }
-                    if (click) {
-                        Host_ScreenshotOskActivate(state);
-                    }
-                    return;
-                }
-            }
-        }
-    }
-
-    int hitRow = -1;
-    for (int r = 0; r < SCREENSHOT_ROWS; r++) {
-        OverlayRect rect = OverlayScreenshotRowRect(state, r);
-        if (x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h) {
-            hitRow = r;
-            break;
-        }
-    }
-    if (hitRow >= 0 && state->row != hitRow) {
-        state->row = hitRow;
-        if (hitRow != SCREENSHOT_ROW_NOTE && state->osk_open) {
-            state->osk_open = 0;
-        }
-        state->dirty = 1;
-    }
-    if (!click) {
-        return;
-    }
-    if (x < 0.0f || x >= (float)SCREENSHOT_PANEL_W || y < 0.0f || y >= (float)designH) {
-        state->save_shot = 0;
-        state->open = 0;
-        return;
-    }
-    if (hitRow >= 0) {
-        int isStepper = hitRow == SCREENSHOT_ROW_TAG || hitRow == SCREENSHOT_ROW_UPLOAD;
-        int action = isStepper ? (x < OverlayValueCentre() ? -1 : 1) : 1;
-        Host_ApplyScreenshotRowAction(state, action, !isStepper);
-    }
-}
-
-static void Host_ProcessScreenshotEvent(
-    HostOverlayState *state,
-    const SDL_Event *event,
-    SDL_Window *game,
-    SDL_Window *fallbackWindow
-) {
-    if (event->type == SDL_EVENT_TEXT_INPUT) {
-        Host_ScreenshotAppendText(state, event->text.text);
-        return;
-    }
-    if (event->type == SDL_EVENT_KEY_DOWN) {
-        int repeat = event->key.repeat != 0;
-        switch (event->key.scancode) {
-        case SDL_SCANCODE_ESCAPE:
-            if (!repeat) {
-                if (state->osk_open) {
-                    state->osk_open = 0;
-                    state->dirty = 1;
-                } else {
-                    state->save_shot = 0;
-                    state->open = 0;
-                }
-            }
-            break;
-        case SDL_SCANCODE_BACKSPACE:
-        case SDL_SCANCODE_DELETE:
-            Host_ScreenshotBackspace(state);
-            break;
-        case SDL_SCANCODE_UP:
-            if (state->osk_open) {
-                state->osk_row = (state->osk_row + SCREENSHOT_OSK_ROWS - 1) % SCREENSHOT_OSK_ROWS;
-            } else {
-                state->row = (state->row + SCREENSHOT_ROWS - 1) % SCREENSHOT_ROWS;
-            }
-            state->dirty = 1;
-            break;
-        case SDL_SCANCODE_DOWN:
-            if (state->osk_open) {
-                state->osk_row = (state->osk_row + 1) % SCREENSHOT_OSK_ROWS;
-            } else {
-                state->row = (state->row + 1) % SCREENSHOT_ROWS;
-            }
-            state->dirty = 1;
-            break;
-        case SDL_SCANCODE_LEFT:
-            if (state->osk_open) {
-                state->osk_col = (state->osk_col + SCREENSHOT_OSK_COLS - 1) % SCREENSHOT_OSK_COLS;
-                state->dirty = 1;
-            } else if (!repeat && state->row != SCREENSHOT_ROW_NOTE) {
-                Host_ApplyScreenshotRowAction(state, -1, 0);
-            }
-            break;
-        case SDL_SCANCODE_RIGHT:
-            if (state->osk_open) {
-                state->osk_col = (state->osk_col + 1) % SCREENSHOT_OSK_COLS;
-                state->dirty = 1;
-            } else if (!repeat && state->row != SCREENSHOT_ROW_NOTE) {
-                Host_ApplyScreenshotRowAction(state, 1, 0);
-            }
-            break;
-        case SDL_SCANCODE_RETURN:
-        case SDL_SCANCODE_KP_ENTER:
-            if (!repeat) {
-                if (state->osk_open) {
-                    Host_ScreenshotOskActivate(state);
-                } else {
-                    Host_ApplyScreenshotRowAction(state, 1, 1);
-                }
-            }
-            break;
-        default:
-            break;
-        }
-    } else if (event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
-        if (state->osk_open) {
-            switch (event->gbutton.button) {
-            case SDL_GAMEPAD_BUTTON_DPAD_UP:
-                state->osk_row = (state->osk_row + SCREENSHOT_OSK_ROWS - 1) % SCREENSHOT_OSK_ROWS;
-                state->dirty = 1;
-                break;
-            case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
-                state->osk_row = (state->osk_row + 1) % SCREENSHOT_OSK_ROWS;
-                state->dirty = 1;
-                break;
-            case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
-                state->osk_col = (state->osk_col + SCREENSHOT_OSK_COLS - 1) % SCREENSHOT_OSK_COLS;
-                state->dirty = 1;
-                break;
-            case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
-                state->osk_col = (state->osk_col + 1) % SCREENSHOT_OSK_COLS;
-                state->dirty = 1;
-                break;
-            case SDL_GAMEPAD_BUTTON_SOUTH:
-                Host_ScreenshotOskActivate(state);
-                break;
-            case SDL_GAMEPAD_BUTTON_WEST:
-                Host_ScreenshotBackspace(state);
-                break;
-            case SDL_GAMEPAD_BUTTON_NORTH:
-                Host_ScreenshotAppendText(state, " ");
-                break;
-            case SDL_GAMEPAD_BUTTON_START:
-                state->osk_open = 0;
-                state->row = SCREENSHOT_ROW_SAVE;
-                state->dirty = 1;
-                break;
-            case SDL_GAMEPAD_BUTTON_EAST:
-                state->osk_open = 0;
-                state->dirty = 1;
-                break;
-            default:
-                break;
-            }
-        } else {
-            switch (event->gbutton.button) {
-            case SDL_GAMEPAD_BUTTON_DPAD_UP:
-                state->row = (state->row + SCREENSHOT_ROWS - 1) % SCREENSHOT_ROWS;
-                state->dirty = 1;
-                break;
-            case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
-                state->row = (state->row + 1) % SCREENSHOT_ROWS;
-                state->dirty = 1;
-                break;
-            case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
-                Host_ApplyScreenshotRowAction(state, -1, 0);
-                break;
-            case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
-                Host_ApplyScreenshotRowAction(state, 1, 0);
-                break;
-            case SDL_GAMEPAD_BUTTON_SOUTH:
-                Host_ApplyScreenshotRowAction(state, 1, 1);
-                break;
-            case SDL_GAMEPAD_BUTTON_WEST:
-                Host_ScreenshotBackspace(state);
-                break;
-            case SDL_GAMEPAD_BUTTON_START:
-                state->save_shot = 1;
-                state->open = 0;
-                break;
-            case SDL_GAMEPAD_BUTTON_EAST:
-                state->save_shot = 0;
-                state->open = 0;
-                break;
-            default:
-                break;
-            }
-        }
-    } else if (event->type == SDL_EVENT_MOUSE_MOTION) {
-        Host_ProcessScreenshotPointer(state, event->motion.x, event->motion.y, 0, game, fallbackWindow);
-    } else if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
-               event->button.button == SDL_BUTTON_LEFT) {
-        Host_ProcessScreenshotPointer(state, event->button.x, event->button.y, 1, game, fallbackWindow);
-    }
-}
-
 static void Host_ProcessSettingsEvent(
     HostOverlayState *state,
     const SDL_Event *event,
@@ -2547,10 +2257,6 @@ static void Host_ProcessSettingsEvent(
     }
     if (state->prompt) {
         Host_ProcessPromptEvent(state, event, game);
-        return;
-    }
-    if (state->screenshot) {
-        Host_ProcessScreenshotEvent(state, event, game, fallbackWindow);
         return;
     }
 
@@ -2815,8 +2521,8 @@ static void Host_Settings(SDL_Window *game) {
 #endif
     #ifdef PE_PS5_GPU_NATIVE
     pe_mod_panel_set_native_close(Host_RegistryClose);
-    if(host_registry_open_pending){host_registry_open_pending=0;Host_RegistryGoTo(&s_overlayState,host_registry_open_scope,host_registry_open_path);}
     #endif
+    if(host_registry_open_pending){host_registry_open_pending=0;Host_RegistryGoTo(&s_overlayState,host_registry_open_scope,host_registry_open_path);}
     while (s_overlayState.open) {
         int hd_was_busy=Host_HdBusy();Host_HdPoll();
         if(hd_was_busy || Host_HdBusy())s_overlayState.dirty=1;
@@ -2907,7 +2613,7 @@ static void Host_OpenSettingsTab(int page){
     if(s_overlayState.open){Host_SwitchSettingsPage(&s_overlayState,page);return;}
     host_requested_settings_page=page;Host_Settings(Psyz_GetWindow_SDL3());
 }
-int CPE_HostOpenCheatsTab(void){Host_OpenSettingsTab(HOST_PAGE_CHEATS);return 1;}
+int CPE_HostOpenCheatsTab(void){Host_OpenSettingsTab(HOST_PAGE_MODS);return 1;}
 int CPE_HostOpenRegistryPage(const char *page){
     int tab=HOST_PAGE_MODS;
     if(page&&strlen(page)>=sizeof host_registry_open_path)return 0;
@@ -3065,501 +2771,8 @@ static bool Host_SpeedHoldEvent(const SDL_Event *event) {
     }
     int any = host_speed_key_held;
     for (unsigned i = 0; i < 16; ++i) any |= host_speed_pads[i].held;
-    if (host_options.speed_toggle) {
-        if (any && !host_speed_was_held) host_speed_toggled = !host_speed_toggled;
-        host_speed_was_held = any;
-        any = host_speed_toggled;
-    }
     Host_SetSpeed(any ? host_options.speed_factor : 1);
     return consumed; /* axis and removal events still reach the pad backend */
-}
-
-/* The room number, decoded as mods/host/pe_game.c does (-1: the token is not
- * a room). Only reads values. */
-static int Host_CrashRoom(void) {
-    const unsigned token = (unsigned)g_SceneDispatchToken;
-    int room = 0;
-    for (int i = 2; i < 5 && room >= 0; ++i) {
-        const char c = (char)g_Base32CharTable[(token >> ((5 - i) * 5 + 2)) & 0x1Fu];
-        room = c >= '0' && c <= '9' ? room * 10 + (c - '0') : -1;
-    }
-    return room;
-}
-
-static size_t Host_DiscardCurlWrite(char *ptr, size_t size, size_t nmemb, void *userdata) {
-    (void)ptr;
-    (void)userdata;
-    return size * nmemb;
-}
-
-static int Host_UploadScreenshotFiles(
-    const char *url,
-    const char *png_path,
-    const char *json_path,
-    const char *summary_message
-) {
-    if (!url || !*url) return 0;
-    CURL *curl = curl_easy_init();
-    if (!curl) return 0;
-
-    cJSON *payload = cJSON_CreateObject();
-    if (!payload) {
-        curl_easy_cleanup(curl);
-        return 0;
-    }
-    cJSON_AddStringToObject(payload, "content", summary_message ? summary_message : "Parasite Eve screenshot");
-    char *payload_text = cJSON_PrintUnformatted(payload);
-    cJSON_Delete(payload);
-    if (!payload_text) {
-        curl_easy_cleanup(curl);
-        return 0;
-    }
-
-    curl_mime *mime = curl_mime_init(curl);
-    curl_mimepart *part = NULL;
-    if (!mime) {
-        cJSON_free(payload_text);
-        curl_easy_cleanup(curl);
-        return 0;
-    }
-
-    part = curl_mime_addpart(mime);
-    curl_mime_name(part, "payload_json");
-    curl_mime_data(part, payload_text, CURL_ZERO_TERMINATED);
-    curl_mime_type(part, "application/json");
-
-    part = curl_mime_addpart(mime);
-    curl_mime_name(part, "files[0]");
-    curl_mime_filedata(part, png_path);
-    curl_mime_type(part, "image/png");
-
-    part = curl_mime_addpart(mime);
-    curl_mime_name(part, "files[1]");
-    curl_mime_filedata(part, json_path);
-    curl_mime_type(part, "application/json");
-
-    char ua[160];
-    snprintf(ua, sizeof(ua), "ParasiteEve/%s (%s; build %s)", PE_VERSION, SDL_GetPlatform(), PE_BUILD_ID);
-    curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, ua);
-    curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
-    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https,http");
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
-    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, Host_DiscardCurlWrite);
-
-    CURLcode res = curl_easy_perform(curl);
-    long status = 0;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-    curl_mime_free(mime);
-    cJSON_free(payload_text);
-    curl_easy_cleanup(curl);
-    return res == CURLE_OK && status >= 200 && status < 300;
-}
-
-static char host_last_screenshot_png[4096];
-static char host_last_screenshot_json[4096];
-
-typedef struct HostScreenshotUpload {
-    char url[4096];
-    char png_path[4096];
-    char json_path[4096];
-    char summary[512];
-    SDL_Thread *thread;
-} HostScreenshotUpload;
-static HostScreenshotUpload host_screenshot_upload;
-
-static int SDLCALL Host_ScreenshotUploadWorker(void *userdata) {
-    HostScreenshotUpload *job = (HostScreenshotUpload *)userdata;
-    if (Host_UploadScreenshotFiles(job->url, job->png_path, job->json_path, job->summary)) {
-        fprintf(stderr, "Screenshot uploaded to %s\n", job->url);
-    } else {
-        fprintf(stderr, "Screenshot upload failed (%s); local files kept.\n", job->url);
-    }
-    return 0;
-}
-
-static void Host_ScreenshotUploadWait(void) {
-    if (host_screenshot_upload.thread) {
-        SDL_WaitThread(host_screenshot_upload.thread, NULL);
-        host_screenshot_upload.thread = NULL;
-    }
-}
-
-static int Host_SaveAndUploadScreenshot(
-    const HostOverlayState *state,
-    const unsigned char *rgb,
-    int w,
-    int h,
-    const PeBackgroundInfo *bg,
-    int room
-) {
-    if (!rgb || w <= 0 || h <= 0 || !bg) {
-        return 0;
-    }
-
-    char dir[4096];
-    const char *slash = strrchr(host_options.user_file, '/');
-    const char *back = strrchr(host_options.user_file, '\\');
-    if (back && (!slash || back > slash)) slash = back;
-    if (slash) {
-        snprintf(dir, sizeof(dir), "%.*s/screenshots", (int)(slash - host_options.user_file), host_options.user_file);
-    } else {
-        snprintf(dir, sizeof(dir), "screenshots");
-    }
-    SDL_CreateDirectory(dir);
-
-    SDL_Time now = 0;
-    SDL_DateTime dt = {0};
-    char ts[32], iso[32];
-    if (SDL_GetCurrentTime(&now) && SDL_TimeToDateTime(now, &dt, false)) {
-        snprintf(ts, sizeof(ts), "%04d%02d%02d-%02d%02d%02d",
-                 dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
-        snprintf(iso, sizeof(iso), "%04d-%02d-%02dT%02d:%02d:%02dZ",
-                 dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
-    } else {
-        unsigned long long ticks = (unsigned long long)SDL_GetTicks();
-        snprintf(ts, sizeof(ts), "ticks-%llu", ticks);
-        snprintf(iso, sizeof(iso), "ticks-%llu", ticks);
-    }
-
-    char base_name[160], png_name[180], png_path[4096], json_path[4096];
-    if (room >= 0) {
-        snprintf(base_name, sizeof(base_name), "screenshot-%s-room%03d-%016" PRIx64,
-                 ts, room, bg->geometry_key);
-    } else {
-        snprintf(base_name, sizeof(base_name), "screenshot-%s-scene-%016" PRIx64,
-                 ts, bg->geometry_key);
-    }
-    snprintf(png_name, sizeof(png_name), "%s.png", base_name);
-    if (snprintf(png_path, sizeof(png_path), "%s/%s.png", dir, base_name) >= (int)sizeof(png_path) ||
-        snprintf(json_path, sizeof(json_path), "%s/%s.json", dir, base_name) >= (int)sizeof(json_path)) {
-        return 0;
-    }
-
-    size_t png_size = 0;
-    void *png_bytes = tdefl_write_image_to_png_file_in_memory(rgb, w, h, 3, &png_size);
-    if (!png_bytes || !png_size) {
-        if (png_bytes) mz_free(png_bytes);
-        return 0;
-    }
-    int saved_png = SDL_SaveFile(png_path, png_bytes, png_size);
-    mz_free(png_bytes);
-    if (!saved_png) {
-        return 0;
-    }
-
-    int tagIdx = ClampIndex(state->tag_index, COUNT_OF(kScreenshotTagNames));
-    const char *tagName = kScreenshotTagNames[tagIdx];
-    const char *packVer = *host_hd.version ? host_hd.version : (host_hd.development ? "local-preview" : "none");
-    char geom_hex[17], wide_hex[17], token_hex[16];
-    snprintf(geom_hex, sizeof(geom_hex), "%016" PRIx64, bg->geometry_key);
-    snprintf(wide_hex, sizeof(wide_hex), "%016" PRIx64, bg->widescreen_key);
-    snprintf(token_hex, sizeof(token_hex), "0x%08X", (unsigned)g_SceneDispatchToken);
-
-    cJSON *root = cJSON_CreateObject();
-    if (!root) {
-        return 0;
-    }
-    cJSON_AddStringToObject(root, "version", PE_VERSION);
-    cJSON_AddStringToObject(root, "build_id", PE_BUILD_ID);
-    cJSON_AddStringToObject(root, "timestamp_utc", iso);
-    cJSON_AddStringToObject(root, "screenshot_file", png_name);
-    cJSON_AddStringToObject(root, "issue_tag", tagName);
-    cJSON_AddStringToObject(root, "note", state->note);
-
-    cJSON *bg_obj = cJSON_CreateObject();
-    if (bg_obj) {
-        cJSON_AddStringToObject(bg_obj, "hd_geometry_key", geom_hex);
-        cJSON_AddNumberToObject(bg_obj, "active_group", bg->active_group);
-        cJSON_AddStringToObject(bg_obj, "widescreen_key", wide_hex);
-        cJSON *entries = cJSON_CreateArray();
-        if (entries) {
-            for (unsigned i = 0; i < bg->active_entry_count; ++i) {
-                char entry_hex[17];
-                snprintf(entry_hex, sizeof(entry_hex), "%016" PRIx64, bg->active_entry_keys[i]);
-                cJSON_AddItemToArray(entries, cJSON_CreateString(entry_hex));
-            }
-            cJSON_AddItemToObject(bg_obj, "active_entry_keys", entries);
-        }
-        cJSON_AddNumberToObject(bg_obj, "total_entries", bg->total_entry_count);
-        cJSON_AddNumberToObject(bg_obj, "disp_x", bg->disp_x);
-        cJSON_AddNumberToObject(bg_obj, "disp_y", bg->disp_y);
-        cJSON_AddBoolToObject(bg_obj, "hd_enabled", bg->hd_enabled != 0);
-        cJSON_AddStringToObject(bg_obj, "hd_pack_version", packVer);
-        cJSON_AddItemToObject(root, "background", bg_obj);
-    }
-
-    cJSON *game_obj = cJSON_CreateObject();
-    if (game_obj) {
-        cJSON_AddNumberToObject(game_obj, "room", room);
-        cJSON_AddStringToObject(game_obj, "scene_token", token_hex);
-        cJSON_AddNumberToObject(game_obj, "story_day", g_GameState.current_story_day);
-        cJSON_AddBoolToObject(game_obj, "in_battle", (g_GameStateFlags & 2) != 0);
-        cJSON_AddNumberToObject(game_obj, "disc", (unsigned)g_PeImageMountFlags);
-        cJSON_AddNumberToObject(game_obj, "vblank", (unsigned)g_BootHostVBlankCount);
-        cJSON_AddItemToObject(root, "game", game_obj);
-    }
-
-    cJSON *gfx_obj = cJSON_CreateObject();
-    if (gfx_obj) {
-        cJSON_AddNumberToObject(gfx_obj, "internal_resolution", host_options.scale);
-        cJSON_AddBoolToObject(gfx_obj, "widescreen", host_options.widescreen != 0);
-        cJSON_AddBoolToObject(gfx_obj, "hd_backgrounds", host_options.hd_backgrounds != 0);
-        cJSON_AddBoolToObject(gfx_obj, "geometry_correction", host_options.geometry_correction != 0);
-        cJSON_AddBoolToObject(gfx_obj, "antialiasing", host_options.antialiasing != 0);
-        cJSON_AddBoolToObject(gfx_obj, "model_filtering", host_options.model_filtering != 0);
-        cJSON_AddBoolToObject(gfx_obj, "frame_interpolation", host_options.frame_interpolation != 0);
-        cJSON_AddBoolToObject(gfx_obj, "dynamic_lighting", host_options.dynamic_lighting != 0);
-        cJSON_AddBoolToObject(gfx_obj, "effect_geometry_correction", host_options.effect_geometry_correction != 0);
-        cJSON_AddItemToObject(root, "graphics", gfx_obj);
-    }
-
-    char *json_text = cJSON_Print(root);
-    cJSON_Delete(root);
-    if (!json_text) {
-        return 0;
-    }
-    int saved_json = SDL_SaveFile(json_path, json_text, strlen(json_text));
-    cJSON_free(json_text);
-    if (!saved_json) {
-        return 0;
-    }
-
-    SDL_strlcpy(host_last_screenshot_png, png_path, sizeof(host_last_screenshot_png));
-    SDL_strlcpy(host_last_screenshot_json, json_path, sizeof(host_last_screenshot_json));
-    fprintf(stderr, "Screenshot saved: %s (metadata: %s)\n", png_path, json_path);
-
-    const char *uploadUrl = Host_ScreenshotUploadUrl();
-    if (uploadUrl && host_options.screenshot_auto_upload) {
-        HostScreenshotUpload *job = &host_screenshot_upload;
-        Host_ScreenshotUploadWait();
-        snprintf(job->summary, sizeof(job->summary),
-                 "**[%s]** %s\nRoom: `%d` | BG: `%s` (group `%u`, wide `%s`) | Pack: `%s`",
-                 tagName, state->note[0] ? state->note : "(no note)",
-                 room, geom_hex, bg->active_group, wide_hex, packVer);
-        /* Copy the paths before handing them to the worker: the caller's
-         * buffers are locals of this function. */
-        snprintf(job->url, sizeof(job->url), "%s", uploadUrl);
-        snprintf(job->png_path, sizeof(job->png_path), "%s", png_path);
-        snprintf(job->json_path, sizeof(job->json_path), "%s", json_path);
-        /* Upload off the main thread: a slow webhook must not freeze the
-         * game for up to 30 s. Only one job runs at a time. */
-        job->thread = SDL_CreateThread(Host_ScreenshotUploadWorker, "screenshot-upload", job);
-        if (!job->thread) {
-            fprintf(stderr, "Screenshot upload failed (%s): no thread; local files kept.\n", uploadUrl);
-        }
-    }
-    return 1;
-}
-
-static void Host_FormatBackgroundSummary(char *out, size_t size, const PeBackgroundInfo *bg, int room) {
-    if (room >= 0 && bg->geometry_key != 0) {
-        snprintf(out, size, "Room %d   BG: %016" PRIx64 "   Group: %u",
-                 room, bg->geometry_key, bg->active_group);
-    } else if (bg->geometry_key != 0) {
-        snprintf(out, size, "BG: %016" PRIx64 "   Group: %u",
-                 bg->geometry_key, bg->active_group);
-    } else if (room >= 0) {
-        snprintf(out, size, "Room %d   Scene: 0x%08X", room, (unsigned)g_SceneDispatchToken);
-    } else {
-        snprintf(out, size, "Scene: 0x%08X", (unsigned)g_SceneDispatchToken);
-    }
-}
-
-static void Host_TakeScreenshot(SDL_Window *game) {
-    /* Capture the clean game frame before drawing the screenshot modal. */
-    int frameW = 0, frameH = 0;
-    unsigned char *rgb = (unsigned char *)Psyz_VideoAllocRenderedFrame(&frameW, &frameH);
-    if (!rgb || frameW <= 0 || frameH <= 0) {
-        if (rgb) free(rgb);
-        rgb = (unsigned char *)Psyz_VideoAllocCapturedFrame(&frameW, &frameH);
-    }
-    if (!rgb || frameW <= 0 || frameH <= 0) {
-        if (rgb) free(rgb);
-        frameW = 16;
-        frameH = 16;
-        rgb = (unsigned char *)calloc((size_t)frameW * (size_t)frameH * 3u, 1);
-    }
-
-    PeBackgroundInfo bg;
-    Render_GetBackgroundInfo(&bg);
-    int room = Host_CrashRoom();
-
-    /* Another overlay (the settings panel) is open: keep its state instead of
-     * wiping it, and leave this trigger unhandled so its own keybinds stay in
-     * charge. The screenshot key can be pressed again after closing it. */
-    if (s_overlayState.open) {
-        free(rgb);
-        return;
-    }
-
-    int useGpuOverlay = (game != NULL && s_overlayGpuDevice != NULL);
-    SDL_Window *fallbackWindow = NULL;
-    SDL_Renderer *fallbackRenderer = NULL;
-    SDL_Texture *fallbackTexture = NULL;
-    int fallbackTexW = 0, fallbackTexH = 0;
-
-    if (!useGpuOverlay) {
-        fallbackWindow = SDL_CreateWindow(
-            "Parasite Eve - Save Screenshot", 680, 620, SDL_WINDOW_HIGH_PIXEL_DENSITY
-        );
-        if (!fallbackWindow) {
-            free(rgb);
-            return;
-        }
-        fallbackRenderer = SDL_CreateRenderer(fallbackWindow, NULL);
-        if (!fallbackRenderer) {
-            SDL_DestroyWindow(fallbackWindow);
-            free(rgb);
-            return;
-        }
-        SDL_PumpEvents();
-        SDL_FlushEvents(SDL_EVENT_WINDOW_FIRST, SDL_EVENT_WINDOW_LAST);
-    }
-
-    Psyz_PauseHostClock_SDL3(true);
-    int paused = Psyz_AudioIsPaused();
-    Psyz_AudioPause();
-    Host_ResetSpeedHold();
-
-    SDL_Window *inputWin = fallbackWindow ? fallbackWindow : game;
-    if (inputWin) {
-        SDL_StartTextInput(inputWin);
-    }
-
-    s_overlayState = (HostOverlayState){
-        .open = 1,
-        .row = SCREENSHOT_ROW_NOTE,
-        .dirty = 1,
-        .screenshot = 1,
-        .save_shot = 0,
-        .tag_index = 0,
-        .osk_open = 0,
-        .osk_row = 0,
-        .osk_col = 0
-    };
-    Host_FormatBackgroundSummary(
-        s_overlayState.bg_summary, sizeof(s_overlayState.bg_summary), &bg, room
-    );
-
-    while (s_overlayState.open) {
-        if (useGpuOverlay) {
-            Host_OverlayRefreshGPU(s_overlayGpuDevice, game, &s_overlayState);
-            Psyz_VideoVSync(0);
-        } else {
-            Host_OverlayRenderFallback(
-                fallbackRenderer,
-                fallbackWindow,
-                &s_overlayState,
-                &fallbackTexture,
-                &fallbackTexW,
-                &fallbackTexH
-            );
-            SDL_Event event;
-            if (SDL_WaitEventTimeout(&event, 20)) {
-                Host_ProcessSettingsEvent(&s_overlayState, &event, game, fallbackWindow);
-            }
-        }
-    }
-
-    if (inputWin) {
-        SDL_StopTextInput(inputWin);
-    }
-
-    int should_save = s_overlayState.save_shot;
-    int quit = s_overlayState.quit;
-    HostOverlayState finishedState = s_overlayState;
-    s_overlayState = (HostOverlayState){0};
-
-    if (should_save) {
-        Host_SaveAndUploadScreenshot(&finishedState, rgb, frameW, frameH, &bg, room);
-        Host_SaveOptions();
-    }
-    free(rgb);
-
-    if (fallbackTexture != NULL) {
-        SDL_DestroyTexture(fallbackTexture);
-    }
-    if (fallbackRenderer != NULL) {
-        SDL_DestroyRenderer(fallbackRenderer);
-    }
-    if (fallbackWindow != NULL) {
-        SDL_DestroyWindow(fallbackWindow);
-    }
-
-    SDL_ResetKeyboard();
-    Psyz_PauseHostClock_SDL3(false);
-    if (!paused) {
-        Psyz_AudioUnpause();
-    }
-    if (quit) {
-        SDL_Event event;
-        SDL_zero(event);
-        event.type = SDL_EVENT_QUIT;
-        SDL_PushEvent(&event);
-    }
-}
-
-static struct { SDL_JoystickID id; int held; } host_screenshot_pads[16];
-
-static bool Host_ScreenshotTriggerEvent(const SDL_Event *event, SDL_Window *game) {
-    int key = host_options.keys[HOST_SCREENSHOT_BINDING];
-    int button = host_options.buttons[HOST_SCREENSHOT_BINDING];
-    if (event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP) {
-        if (key == HOST_UNBOUND_KEY || (int)event->key.scancode != key) return false;
-        if (event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat) {
-            Host_TakeScreenshot(game);
-        }
-        return true;
-    }
-    if (event->type == SDL_EVENT_GAMEPAD_REMOVED) {
-        for (unsigned i = 0; i < 16; ++i)
-            if (host_screenshot_pads[i].id == event->gdevice.which)
-                host_screenshot_pads[i].id = host_screenshot_pads[i].held = 0;
-        return false;
-    }
-    if (event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN ||
-        event->type == SDL_EVENT_GAMEPAD_BUTTON_UP) {
-        if (button < 0 || event->gbutton.button != button) return false;
-        if (event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
-            Host_TakeScreenshot(game);
-        }
-        return true;
-    }
-    if (event->type == SDL_EVENT_GAMEPAD_AXIS_MOTION) {
-        int axis = button == SDL_GAMEPAD_BUTTON_COUNT ? SDL_GAMEPAD_AXIS_LEFT_TRIGGER
-                 : button == SDL_GAMEPAD_BUTTON_COUNT + 1 ? SDL_GAMEPAD_AXIS_RIGHT_TRIGGER : -1;
-        if (axis < 0 || event->gaxis.axis != axis) return false;
-        SDL_JoystickID device = event->gaxis.which;
-        int was_held = 0;
-        unsigned slot = 16;
-        for (unsigned i = 0; i < 16; ++i) {
-            if (host_screenshot_pads[i].id == device) {
-                was_held = host_screenshot_pads[i].held;
-                slot = i;
-                break;
-            }
-        }
-        int held = event->gaxis.value > (was_held ? 8000 : 16000);
-        if (slot == 16 && held) {
-            for (unsigned i = 0; i < 16; ++i) {
-                if (!host_screenshot_pads[i].id) {
-                    slot = i;
-                    break;
-                }
-            }
-        }
-        if (slot < 16) {
-            host_screenshot_pads[slot].id = held ? device : 0;
-            host_screenshot_pads[slot].held = held;
-        }
-        if (held && !was_held) {
-            Host_TakeScreenshot(game);
-        }
-    }
-    return false;
 }
 
 static bool Host_SettingsEvent(const SDL_Event *event) {
@@ -3568,7 +2781,7 @@ static bool Host_SettingsEvent(const SDL_Event *event) {
 #endif
     SDL_Window *game = Psyz_GetWindow_SDL3();
 #if PE_NATIVE_STATE_CPU_COMPONENTS
-    if(!s_overlayState.prompt&&!s_overlayState.capturing_binding && Host_StateChord(event))return true;
+    /* Checkpoint shortcut deferred: unified menu is the only PS5 settings entry. */
 #endif
     if (s_overlayState.open) {
         if (event->type == SDL_EVENT_WINDOW_RESIZED ||
@@ -3603,9 +2816,6 @@ static bool Host_SettingsEvent(const SDL_Event *event) {
         if (!event->key.repeat) {
             Host_Settings(game);
         }
-        return true;
-    }
-    if (Host_ScreenshotTriggerEvent(event, game)) {
         return true;
     }
     return Host_SpeedHoldEvent(event);
@@ -3679,6 +2889,18 @@ static const char *Host_CrashFileName(const char *path) {
     return *name ? name : "(not set)";
 }
 
+/* The room number, decoded as mods/host/pe_game.c does (-1: the token is not
+ * a room). Only reads values. */
+static int Host_CrashRoom(void) {
+    const unsigned token = (unsigned)g_SceneDispatchToken;
+    int room = 0;
+    for (int i = 2; i < 5 && room >= 0; ++i) {
+        const char c = (char)g_Base32CharTable[(token >> ((5 - i) * 5 + 2)) & 0x1Fu];
+        room = c >= '0' && c <= '9' ? room * 10 + (c - '0') : -1;
+    }
+    return room;
+}
+
 /* Crash report: what the game was doing and every desktop setting. Runs
  * inside the crash handler, so it only reads values. */
 static void Host_DescribeCrash(char *out, size_t size) {
@@ -3716,10 +2938,9 @@ static void Host_DescribeCrash(char *out, size_t size) {
 #else
                      "Graphics: render resolution %ux (renderer %ux), fullscreen %s, aspect ratio %s, "
 #endif
-                     "dithering %s, geometry correction %s, antialiasing %s, model textures %s, "
-                     "dynamic lighting %s, effect geometry %s\r\n"
+                     "dithering %s, geometry correction %s, antialiasing %s, model textures %s\r\n"
                      "Audio: master volume %u%%\r\n"
-                     "Controls: speed-up %ux while %s, field run threshold %u\r\n"
+                     "Controls: speed-up %ux while held, field run threshold %u\r\n"
                      "Discs: disc 1 %s, disc 2 %s\r\n",
                      host_options.enabled && *host_options.user_file ? Host_CrashFileName(host_options.user_file)
                                                                       : "none (defaults, not saved)",
@@ -3732,11 +2953,7 @@ static void Host_DescribeCrash(char *out, size_t size) {
                      kSwitchNames[host_options.fullscreen != 0],
                      kAspectNames[host_options.aspect != 0], kDitherNames[host_options.dither != 0],
                      kSwitchNames[host_options.geometry_correction != 0], kAntialiasNames[host_options.antialiasing != 0],
-                     kFilterNames[host_options.model_filtering != 0],
-                     kSwitchNames[host_options.dynamic_lighting != 0],
-                     kSwitchNames[host_options.effect_geometry_correction != 0],
-                     host_options.volume, host_options.speed_factor,
-                     host_options.speed_toggle ? "toggled on" : "held",
+                     kFilterNames[host_options.model_filtering != 0], host_options.volume, host_options.speed_factor,
                      host_options.analog_run_threshold, Host_CrashFileName(host_options.discs[0]),
                      Host_CrashFileName(host_options.discs[1]));
     Host_CrashAppend(out, size, &used, "Keyboard:");
@@ -3862,8 +3079,7 @@ static void Host_DescribeSaveData(char *out, size_t size) {
 static void Host_PrintHelp(const char *program_name) {
     printf(
         "Usage: %s [--disc <USA Disc 1 CUE/BIN>] [--disc2 <USA Disc 2 CUE/BIN>] [--choose-discs] "
-        "[--geometry-correction 0|1] [--antialiasing 0|1] [--model-filtering 0|1] [--widescreen 0|1] [--frame-interpolation 0|1] "
-        "[--dynamic-lighting 0|1] [--effect-geometry-correction 0|1] "
+        "[--geometry-correction 0|1] [--antialiasing 0|1] [--model-filtering 0|1] [--widescreen 0|1] "
         "[--headless | --headless-gpu] [--internal-resolution 1..8] [--frame-limit N] [--control-at N] "
         "[--dump-vram PATH] [--dump-frame PATH] [--dump-audio PATH] [--pad-at VBLANK:BUTTON_MASK ...] "
         "[--test-crash-after N | --test-abort-after N]\n",
@@ -3874,7 +3090,6 @@ static void Host_PrintHelp(const char *program_name) {
     printf("--headless uses native-resolution software rendering; --headless-gpu keeps the actual GPU window hidden and supports internal scaling.\n");
     printf("--dump-frame writes the rendered display as RGB888 PPM at each control/terminal boundary.\n");
     printf("--dump-audio writes stereo 44100 Hz signed-16-bit little-endian PCM; requires headless and PSYZ_AUDIO_CLOCK=video.\n");
-    printf("Headless editor capture: lighting-export PATH writes the original posed Aya mesh and PATH.vram (requires --dump-vram).\n");
     printf("Headless control: --control-at N pauses for stdin commands: advance FRAMES BUTTON_MASK, graphics PGXP AA FILTER (0/1; advances 8 blanks), or quit (requires --frame-limit).\n");
     printf("Headless fixtures only: --diagnostic-hp-at VBLANK:EXPECTED_HP:VALUE (requires --frame-limit; output is marked coverage-only)\n");
     printf("--test-crash-after N / --test-abort-after N crash on purpose at VBlank N to check the crash report (its path is printed).\n");
@@ -4035,16 +3250,10 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[arg], "--geometry-correction") ||
                    !strcmp(argv[arg], "--antialiasing") ||
                    !strcmp(argv[arg], "--model-filtering") ||
-                   !strcmp(argv[arg], "--widescreen") ||
-                   !strcmp(argv[arg], "--frame-interpolation") ||
-                   !strcmp(argv[arg], "--dynamic-lighting") ||
-                   !strcmp(argv[arg], "--effect-geometry-correction")) {
+                   !strcmp(argv[arg], "--widescreen")) {
             unsigned effect = !strcmp(argv[arg], "--geometry-correction") ? 1u :
                               !strcmp(argv[arg], "--antialiasing") ? 2u :
-                              !strcmp(argv[arg], "--model-filtering") ? 4u :
-                              !strcmp(argv[arg], "--widescreen") ? 8u :
-                              !strcmp(argv[arg], "--frame-interpolation") ? 16u :
-                              !strcmp(argv[arg], "--dynamic-lighting") ? 32u : 64u;
+                              !strcmp(argv[arg], "--model-filtering") ? 4u : 8u;
             if ((effect_arguments & effect) || arg + 1 >= argc ||
                 (strcmp(argv[arg+1], "0") && strcmp(argv[arg+1], "1"))) {
                 fprintf(stderr, "Missing, invalid or duplicate graphics effect (use 0 or 1)\n");
@@ -4055,10 +3264,7 @@ int main(int argc, char **argv) {
             if (effect == 1u) host_options.geometry_correction = enabled;
             else if (effect == 2u) host_options.antialiasing = enabled;
             else if (effect == 4u) host_options.model_filtering = enabled;
-            else if(effect==8u) host_options.widescreen = enabled;
-            else if (effect == 16u) host_options.frame_interpolation=enabled;
-            else if (effect == 32u) host_options.dynamic_lighting = enabled;
-            else host_options.effect_geometry_correction = enabled;
+            else host_options.widescreen = enabled;
         } else if (!strcmp(argv[arg], "--frame-limit")) {
             char *end = NULL;
             errno = 0;
@@ -4122,10 +3328,6 @@ int main(int argc, char **argv) {
             if (!Host_ParseHealthEventArg(argv[++arg], argc)) {
                 return EXIT_FAILURE;
             }
-        } else if (!strcmp(argv[arg], "--disc-env")) {
-            if (paths[0] || arg+1>=argc || !(paths[0]=SDL_GetEnvironmentVariable(SDL_GetEnvironment(),argv[++arg])) || !*paths[0]) {
-                fprintf(stderr,"Missing image environment variable\n");return EXIT_FAILURE;
-            }
         } else if (!strcmp(argv[arg], "--disc") || !strcmp(argv[arg], "--disc2")) {
             int slot = !strcmp(argv[arg], "--disc2");
             if (paths[slot] || arg + 1 >= argc) {
@@ -4147,7 +3349,13 @@ int main(int argc, char **argv) {
         *capture_targets[i] = capture_paths[i];
     }
 #endif
-#ifdef PE_PS5_GPU_NATIVE
+#if defined(PE_PS5_GPU_NATIVE) && defined(PE_NATIVE_INSTALLER_TEST)
+    /* Installer Test never mounts/runs the game. Existing configuration is
+     * detected by the bootstrap and retained without publication. */
+    if(!interactive) { result=EXIT_FAILURE; goto shutdown; }
+    { int installed=Host_NativeFirstRun(); result=installed<0?EXIT_FAILURE:EXIT_SUCCESS; goto shutdown; }
+#endif
+#if defined(PE_PS5_GPU_NATIVE) && !defined(PE_NATIVE_GAME_TEST) && !defined(PE_NATIVE_INSTALLER_TEST)
     if(interactive){int first_run=Host_NativeFirstRun();if(first_run<0)return EXIT_FAILURE;if(!first_run)return EXIT_SUCCESS;if(first_run==2){
         int geo=host_options.geometry_correction,aa=host_options.antialiasing,filter=host_options.model_filtering,wide=host_options.widescreen;
         Host_LoadOptions(host_options.user_file);if(effect_arguments&1)host_options.geometry_correction=geo;if(effect_arguments&2)host_options.antialiasing=aa;if(effect_arguments&4)host_options.model_filtering=filter;if(effect_arguments&8)host_options.widescreen=wide;
@@ -4173,6 +3381,9 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
+#ifdef PE_NATIVE_PORTABLE
+    if(Host_AmbiguousAssetsNeedExplicit(paths[0],paths[1])){SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,"Multiple parasite-eve asset folders match; use explicit saved disc/texture paths or retain one asset copy. Nothing mounted or migrated.");return EXIT_FAILURE;}
+#endif
     const char *headless_mode = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "PSYZ_HEADLESS");
     if ((host_options.antialiasing || host_options.model_filtering) &&
         headless_mode && !strcmp(headless_mode, "1")) {
@@ -4320,7 +3531,7 @@ images_ready:;
     g_BootHostActive = 1;
     PE_HOOK(PE_HOOK_INIT, (&(PeHookInit){interactive, host_options.user_file}));
 #if PE_NATIVE_STATE_CPU_COMPONENTS
-    Host_StateUiRegister();
+    /* Checkpoint UI registration deferred; normal memory-card saves unchanged. */
 #endif
     if (
 #if defined(PE_PS5) && !defined(PE_PS5_GPU_NATIVE)
@@ -4336,12 +3547,9 @@ images_ready:;
         if (internal_resolution > 1 || (effect_arguments & 1u) ||
             host_options.antialiasing || host_options.model_filtering)
             Psyz_VideoSetGeometryCorrection(host_options.geometry_correction != 0);
-        Psyz_GpuSetFrameInterpolation(host_options.frame_interpolation);
         Psyz_VideoSetAntialiasing(host_options.antialiasing);
         Psyz_VideoSetModelFiltering(host_options.model_filtering);
         Psyz_VideoSetWidescreen(host_options.widescreen);
-        Psyz_VideoSetDynamicLighting(host_options.dynamic_lighting != 0);
-        Psyz_VideoSetEffectGeometryCorrection(host_options.effect_geometry_correction != 0);
     }
     /* Widescreen reads background texels to find where a room's picture
      * ends (mesh_list.c); kept on so switching it on mid-game works. */
@@ -4357,11 +3565,8 @@ images_ready:;
     if (
 #if defined(PE_PS5) && !defined(PE_PS5_GPU_NATIVE)
         (internal_resolution>1 && !Psyz_CpuGeometryAvailable()) || Psyz_CpuGeometryRequested()!=internal_resolution
-#elif defined(PE_PS5_GPU_NATIVE)
-        Psyz_VideoGetInternalResolution()!=internal_resolution
 #else
-        (!interactive || resolution_argument) &&
-        Psyz_VideoGetInternalResolution() != internal_resolution
+        Psyz_VideoGetInternalResolution()!=internal_resolution
 #endif
     ) {
         fprintf(stderr, "Requested internal resolution unavailable\n");
@@ -4370,7 +3575,6 @@ images_ready:;
     if (interactive) {
         SDL_Window *window = Psyz_GetWindow_SDL3();
         Host_ApplyOptions(window);
-        Host_SaveOptions();
     }
     mode = 0;
 
@@ -4489,7 +3693,6 @@ shutdown:
     Psyz_VideoShutdown();
     return result; /* Existing CRT exit/constructors/loader teardown remain authoritative. */
 #else
-    Host_ScreenshotUploadWait();
     Host_HdStop();
     if (g_BootDisplayPlaybackActive) {
         BootDisplay_WaitForCdAndRestoreCallbacks();

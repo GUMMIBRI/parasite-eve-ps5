@@ -6,7 +6,7 @@ enum { HOST_REGISTRY_MAX=513, HOST_REGISTRY_MEMORIES=32 };
 enum { HR_ROOT,HR_PERSONAL,HR_COMMUNITY,HR_ACTIVATION,HR_ASSETS };
 static int Host_RegistryRouteScope(const char*page,int*tab){
  *tab=HOST_PAGE_MODS;if(!page||!*page)return HR_ROOT;
- if(!strncmp(page,"Playtest assists",16)&&(page[16]==0||page[16]=='/')){*tab=HOST_PAGE_CHEATS;return HR_PERSONAL;}
+ if(!strncmp(page,"Playtest assists",16)&&(page[16]==0||page[16]=='/')){*tab=HOST_PAGE_MODS;return HR_PERSONAL;}
  return !strcmp(page,PE_MENU_MANAGE)?HR_ACTIVATION:HR_COMMUNITY;
 }
 typedef struct {int row,order;char path[96];} HostRegistryEntry;
@@ -17,7 +17,7 @@ static const char *Host_RegistryTitle(int page){if(page!=HOST_PAGE_MODS&&page!=H
 static int Host_RegistryPrefix(int page){(void)page;return 0;}
 static void Host_RegistryBuild(int page){
     int slot=Host_RegistrySlot(page);HostRegistryModel*m=&host_registry[slot];m->count=m->overflow=0;
-    if(m->scope==HR_ROOT){if(page==HOST_PAGE_CHEATS){m->entries[m->count++]=(HostRegistryEntry){.row=-10};m->entries[m->count++]=(HostRegistryEntry){.row=-11};}else{m->entries[m->count++]=(HostRegistryEntry){.row=-12};m->entries[m->count++]=(HostRegistryEntry){.row=-11};m->entries[m->count++]=(HostRegistryEntry){.row=-13};}return;}
+    if(m->scope==HR_ROOT){if(page==HOST_PAGE_CHEATS){m->entries[m->count++]=(HostRegistryEntry){.row=-10};m->entries[m->count++]=(HostRegistryEntry){.row=-11};}else{m->entries[m->count++]=(HostRegistryEntry){.row=-10};m->entries[m->count++]=(HostRegistryEntry){.row=-12};m->entries[m->count++]=(HostRegistryEntry){.row=-11};m->entries[m->count++]=(HostRegistryEntry){.row=-13};}return;}
     if(m->scope==HR_ASSETS){m->entries[m->count++]=(HostRegistryEntry){.row=-2};m->entries[m->count++]=(HostRegistryEntry){.row=-20};m->entries[m->count++]=(HostRegistryEntry){.row=-21};m->entries[m->count++]=(HostRegistryEntry){.row=-22};m->entries[m->count++]=(HostRegistryEntry){.row=-23};return;}
     if(m->scope!=HR_ROOT){m->entries[m->count++]=(HostRegistryEntry){.row=-2,.order=-1};}
     int n=pe_menu_row_count();size_t length=strlen(m->path);int links_start=m->count;

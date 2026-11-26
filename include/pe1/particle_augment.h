@@ -33,6 +33,11 @@ static inline void FieldFx_BeginAuthoredFlareGlow(unsigned program,int x,int y,i
 }
 static inline void FieldFx_EndAuthoredFlareGlow(void){}
 #endif
+/* Resident P94/P95/P96 hooks supplied by the PS5 particle renderer. */
+#ifdef PE_PS5_GPU_NATIVE
+void FieldFx_BeginResidentSparkGlow(unsigned program,int x,int y,int z,unsigned age);
+void FieldFx_EndResidentSparkGlow(void);
+#endif
 /* Only wraps the authored BurstOrb state0 floor quad; Hybrid additive accent. */
 void FieldFx_BeginBurstGroundGlow(int x,int y,int z);
 void FieldFx_EndBurstGroundGlow(void);

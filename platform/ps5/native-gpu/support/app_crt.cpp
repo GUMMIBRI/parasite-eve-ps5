@@ -16,6 +16,8 @@ using Initializer = void (*)();
 extern "C"
 {
     void pe_application_stage(const char *message);
+    int sceSystemServiceLoadExec(const char *, const char **);
+    int sceKernelUsleep(unsigned);
     void _init_env(void *process_parameters);
     int atexit(Destructor callback);
     [[noreturn]] void exit(int status);
@@ -50,7 +52,12 @@ void run_reverse(Initializer *first, Initializer *last) noexcept
 
 extern "C" __attribute__((weak)) void catchReturnFromMain(int status)
 {
+    pe_application_stage("requesting platform exit\n");
     (void)status;
+    const int result=sceSystemServiceLoadExec("exit", nullptr);
+    (void)result;
+    pe_application_stage("platform exit returned unexpectedly\n");
+    for(;;)sceKernelUsleep(100000);
 }
 
 extern "C" void _init()
@@ -67,7 +74,7 @@ extern "C" void _fini()
 extern "C" [[noreturn]] __attribute__((visibility("default"))) void
 _start(void *process_parameters, Destructor loader_teardown)
 {
-    pe_application_stage("\n=== PE application: entered _start ===\n");
+    pe_application_stage("\n=== PE1 PC-menu candidate 20261125-r1: entered _start ===\n");
     const int argc = *static_cast<const int *>(process_parameters);
     auto *parameters = static_cast<std::uint8_t *>(process_parameters);
     auto **argv = reinterpret_cast<char **>(parameters + sizeof(std::uint64_t));

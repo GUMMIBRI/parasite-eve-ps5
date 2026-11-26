@@ -1,0 +1,58 @@
+{
+  "release": "v1.3.0b",
+  "eboot_sha256": "6e637a3f2e1240b822817ebdd9bc52c5af33e6d1a0381f40f1a1ad471f3dc4be",
+  "elf_sha256": "0a9d2365ffadc7123b278e63812574f2b33b4a92153551903d3967108150024f",
+  "baseline_commit": "a4bdbd6c9e6c0fe9442d7590ea9260fd11d57ca3",
+  "source_files": [
+    {
+      "repository_path": "src/main/boot/frame_loop.c",
+      "sha256": "8ba7361fc63308bfb824cc272790c519931ff7694f6e3abc437b35c0f4b2ae3b"
+    },
+    {
+      "repository_path": "src/main/boot/native_registry.h",
+      "sha256": "7ed63a725635192c29bdd62f75b1809f0c5ea4caed0bc9199cd404a7b94c7937"
+    },
+    {
+      "repository_path": "mods/host/pe_mod_panel.c",
+      "sha256": "ce60f93e5a6b6c2eb80d6b8b3a2d6622be23a160217d65a92369a460968f9f19"
+    },
+    {
+      "repository_path": "mods/pe_quicksave/pe_quicksave.c",
+      "sha256": "2a4c749f1523889b990fc70dc63ce585a76e991e67112e418ae3680e56f05a6b"
+    },
+    {
+      "repository_path": "src/main/boot/main.c",
+      "sha256": "dd7096686959bedb4ce68e04ae838293b1a8293306af2becf47cd7a5e70ed752"
+    },
+    {
+      "repository_path": "src/main/boot/settings_overlay.h",
+      "sha256": "32a9dcb8241654c952fcff98fdf0c3c076943877508fe3688a7d295a83eeb295"
+    },
+    {
+      "repository_path": "platform/ps5/native-gpu/support/app_crt.cpp",
+      "sha256": "c579087f62c0cc9ed4a32675d7418dc4ffcb03259e73bda13928f6ec5e360401"
+    },
+    {
+      "repository_path": "platform/ps5/native-gpu/support/pe-portable-root.c",
+      "sha256": "b71872cba967c8dfe9c7c8818d351e259b0f6b8ec3e726a63d35742629b3ad8d"
+    },
+    {
+      "repository_path": "platform/ps5/native-gpu/support/application-startup-log.c",
+      "sha256": "05f95b47e00a574662245f42172f61e83f5e7fba3db6a6b7bb4ba96011ba00a3"
+    },
+    {
+      "repository_path": "platform/ps5/native-gpu/support/pe-build-identity.h",
+      "sha256": "686a92471368c4b30b4d0e2f775aa03555977a2d5cf6be6afb92fe8446209fb4"
+    },
+    {
+      "repository_path": "platform/ps5/native-gpu/support/startup-log.c",
+      "sha256": "2009a4a6e5bb900cc75112b60e4d0dd0768c39041a24b88155bb99d1feade367"
+    },
+    {
+      "repository_path": "platform/ps5/native-gpu/releases/v1.3.0b/psyz/sdl3_common.h",
+      "compiled_path": "psyz-src/psyz/src/platform/sdl3_common.h",
+      "sha256": "bc33df834eabe37b11968ea220b0362401ca7c71b3ee6b7f7347fdf726c8e7da"
+    }
+  ],
+  "build_scope": "Incremental changed units plus retained baseline objects; not a clean full rebuild"
+}

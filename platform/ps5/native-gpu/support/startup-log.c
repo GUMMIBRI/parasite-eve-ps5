@@ -212,11 +212,24 @@ int __wrap_main(int argc, char **argv) {
     }
 INIT_WRAP(SDL_Init)
 INIT_WRAP(SDL_InitSubSystem)
+/* Launcher splash only: one main-thread grace period after the first successful
+ * native window. Never touches game textures, movies, or overlay surfaces. */
+static void pe_dismiss_launch_splash(void) {
+    static int attempted;
+    if(attempted)return;
+    attempted=1;
+    const Uint64 started=SDL_GetTicks();
+    SDL_Delay(2000);
+    const int result=__wrap_sceSystemServiceHideSplashScreen();
+    stage("launcher splash dismiss after=%llu ms result=0x%08x once=1\n",
+          (unsigned long long)(SDL_GetTicks()-started),(unsigned)result);
+}
 SDL_Window *__real_SDL_CreateWindow(const char *, int, int, SDL_WindowFlags);
 SDL_Window *__wrap_SDL_CreateWindow(const char *title, int w, int h, SDL_WindowFlags flags) {
     stage("before SDL_CreateWindow %dx%d\n", w, h);
     SDL_Window *p = __real_SDL_CreateWindow(title, w, h, flags);
     stage("after SDL_CreateWindow result=%p error=%s\n", (void *)p, p ? "" : SDL_GetError());
+    if(p)pe_dismiss_launch_splash();
     return p;
 }
 SDL_Surface *__real_SDL_GetWindowSurface(SDL_Window *);

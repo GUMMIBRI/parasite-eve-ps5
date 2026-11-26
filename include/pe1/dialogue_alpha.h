@@ -3,6 +3,9 @@
 #define PE_DIALOGUE_ALPHA_H
 #include "pe1/textbox.h"
 #include "pe1/render_prim.h"
+/* Native renderer retains independent dialogue and menu font styles. */
+void PeFont_SetStyle(unsigned context,int style);
+int PeFont_GetStyle(unsigned context);
 void PeDialogue_SetEnabled(int enabled);
 int PeDialogue_GetEnabled(void);
 int PeDialogue_GetEffective(void);

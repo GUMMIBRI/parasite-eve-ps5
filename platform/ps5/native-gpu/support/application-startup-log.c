@@ -6,6 +6,7 @@
 #ifdef PE_NATIVE_PORTABLE
 #include "pe-portable-root.h"
 extern int sceKernelClose(int);
+extern int sceKernelMkdir(const char *, unsigned);
 #endif
 extern int sceKernelOpen(const char *, int, unsigned);
 extern long sceKernelWrite(int, const void *, size_t);
@@ -49,13 +50,16 @@ int pe_session_fd(void) {
     int portable=PePortable_Mode();
     if(portable<0)return -1; /* Invalid selected role never chooses another output root. */
     if(portable>0){
-        for(run=0;run<256;run++){
+        /* Root is selected by exact executable identity. Only its log child is created. */
+        char log_dir[240];append(log_dir,append(log_dir,0,PePortable_UserRoot()),"/logs");
+        (void)sceKernelMkdir(log_dir,0777); /* Existing/unwritable directory: try bounded sinks below. */
+        for(unsigned layout=0;layout<2;layout++)for(run=0;run<256;run++){
             static const char hex[]="0123456789abcdef";
             size_t n=append(session_path,0,PePortable_UserRoot());
-            n=append(session_path,n,"/logs/startup-");n=append(session_path,n,PE_BUILD_ATTEMPT);
+            n=append(session_path,n,layout?"/startup-":"/logs/startup-");n=append(session_path,n,PE_BUILD_ATTEMPT);
             session_path[n++]='-';session_path[n++]=hex[run>>4];session_path[n++]=hex[run&15];append(session_path,n,".log");
             fd=sceKernelOpen(session_path,0xa09,0666);
-            if(fd>=0){if(!portable_header(fd,"PE application build " PE_BUILD_IDENTITY "\n")){(void)sceKernelClose(fd);fd=-1;session_path[0]=0;return -1;}char index_path[240];append(index_path,append(index_path,0,PePortable_UserRoot()),"/logs/latest-session.txt");int index=sceKernelOpen(index_path,0x209,0666);if(index>=0){char line[242];size_t z=append(line,0,session_path);line[z++]='\n';line[z]=0;raw_write(index,line);(void)sceKernelClose(index);}return fd;}
+            if(fd>=0){if(!portable_header(fd,"PE application build " PE_BUILD_IDENTITY "\n")){(void)sceKernelClose(fd);fd=-1;session_path[0]=0;return -1;}char index_path[240];append(index_path,append(index_path,0,PePortable_UserRoot()),layout?"/latest-session.txt":"/logs/latest-session.txt");int index=sceKernelOpen(index_path,0x209,0666);if(index>=0){char line[242];size_t z=append(line,0,session_path);line[z++]='\n';line[z]=0;raw_write(index,line);(void)sceKernelClose(index);}return fd;}
             if(fd!=-17&&(unsigned)fd!=0x80020011u)break;
         }
         fd=-1;session_path[0]=0;return -1;

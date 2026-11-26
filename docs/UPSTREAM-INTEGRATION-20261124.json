@@ -1,0 +1,60 @@
+{
+  "upstream": "628e1c1bcfddceb0487a6bc8bacd198996a8ef50",
+  "patchEditsApplied": [
+    [
+      33,
+      33,
+      33,
+      33
+    ],
+    [
+      5566,
+      5566,
+      5566,
+      5566
+    ],
+    [
+      5571,
+      5571,
+      5571,
+      5571
+    ],
+    [
+      5573,
+      5573,
+      5573,
+      5573
+    ],
+    [
+      5579,
+      5579,
+      5579,
+      5579
+    ],
+    [
+      5586,
+      5586,
+      5586,
+      5586
+    ],
+    [
+      5624,
+      5624,
+      5624,
+      5624
+    ]
+  ],
+  "patchEditsNotMatched": [
+    [
+      5611,
+      5611,
+      5611,
+      5611
+    ]
+  ],
+  "status": "target-linked-and-static-package-pass-not-installed",
+  "unmatchedPatchResolution": "Final state_ui.h is supplied by the separately hash-validated current compatibility source, superseding historical patch UI wording",
+  "compatibilityInputs": 565,
+  "elf": "5dde9605397880190b20f117d5f02db620712339334add9ad7eef9d151e8f79c",
+  "eboot": "c4dd6fa0361b2ac2a7c023e14867be30d01c206098e5dc77b6281fb268d05bef"
+}

@@ -7,7 +7,6 @@
 #include "pe1/planar_shadow.h"
 #endif
 #include "common.h"
-#include <psyz/gpu.h>
 #include "pe1/akao_send.h"
 #include "pe1/battle_runtime.h"
 #include "pe1/battle_status.h"
@@ -209,8 +208,14 @@ int Boot_RunFrame(void)
             VSync(2);
             }
 
+#ifdef PE_PS5_GPU_NATIVE
+            extern int CPE_HostTakeTitleRequest(void);
+            const int host_return_title=CPE_HostTakeTitleRequest();
+#else
+            const int host_return_title=0;
+#endif
             if (!(g_GameStateFlagsWord & 0x4200) &&
-                (g_FieldPadBits & 0x0F000006u) == 0x0F000006u) {
+                (host_return_title || (g_FieldPadBits & 0x0F000006u) == 0x0F000006u)) {
                 Boot_Shutdown();
             }
             if (!(state->flags & 0x100)) {

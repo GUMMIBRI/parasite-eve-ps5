@@ -29,9 +29,11 @@
 
 enum {
 #ifdef PE_PS5_GPU_NATIVE
-    OVERLAY_PAGE_GRAPHICS=0,OVERLAY_PAGE_MODS=1,OVERLAY_PAGE_CHEATS=2,OVERLAY_PAGE_STATES=3,
-    OVERLAY_PAGE_AUDIO=4,OVERLAY_PAGE_CONTROLS=5,OVERLAY_PAGE_DISCS=6,OVERLAY_PAGE_COUNT=7,
-    OVERLAY_ACTION_ROWS=3,
+    OVERLAY_PAGE_GRAPHICS=HOST_PAGE_GRAPHICS, OVERLAY_PAGE_ENHANCEMENTS=HOST_PAGE_ENHANCEMENTS,
+    OVERLAY_PAGE_MODS=HOST_PAGE_MODS, OVERLAY_PAGE_CHEATS=HOST_PAGE_CHEATS,
+    OVERLAY_PAGE_CONTROLS=HOST_PAGE_CONTROLS, OVERLAY_PAGE_DISCS=HOST_PAGE_IMAGES,
+    OVERLAY_PAGE_STATES=HOST_PAGE_STATES, OVERLAY_PAGE_AUDIO=HOST_PAGE_AUDIO, OVERLAY_PAGE_COUNT=HOST_PAGE_COUNT,
+    OVERLAY_ACTION_ROWS=4,
 #else
     OVERLAY_PAGE_GRAPHICS = 0,
     OVERLAY_PAGE_CONTROLS = 1,
@@ -73,21 +75,7 @@ enum {
     PROMPT_PANEL_W = 460,
     PROMPT_HEADER_H = 112,
     PROMPT_ROWS = 2, /* Yes, No */
-    PROMPT_FOOTER_H = 60,
-
-    SCREENSHOT_PANEL_W = 600,
-    SCREENSHOT_HEADER_H = 112,
-    SCREENSHOT_ROW_TAG = 0,
-    SCREENSHOT_ROW_NOTE = 1,
-    SCREENSHOT_ROW_UPLOAD = 2,
-    SCREENSHOT_ROW_SAVE = 3,
-    SCREENSHOT_ROW_CANCEL = 4,
-    SCREENSHOT_ROWS = 5,
-    SCREENSHOT_OSK_ROWS = 4,
-    SCREENSHOT_OSK_COLS = 10,
-    SCREENSHOT_OSK_ROW_H = 38,
-    SCREENSHOT_OSK_H = 164,
-    SCREENSHOT_FOOTER_H = 68
+    PROMPT_FOOTER_H = 60
 };
 
 typedef struct OverlaySurface {
@@ -112,6 +100,7 @@ typedef struct HostOverlayState {
     int open;
 #ifdef PE_PS5_GPU_NATIVE
     int installer;
+    int return_title_confirm;
 #endif
     int page;
     int row;
@@ -125,16 +114,8 @@ typedef struct HostOverlayState {
     int quit;
     int dirty;
     const char *status;
-    int prompt;     /* the skip-movie question instead of the settings panel */
-    int skip;       /* the question's answer */
-    int screenshot; /* the screenshot note & report modal */
-    int save_shot;  /* 1 when confirmed to save (and optionally upload) */
-    int tag_index;  /* preset issue tag index */
-    int osk_open;   /* 1 when on-screen controller keyboard is open */
-    int osk_row;    /* 0..3 */
-    int osk_col;    /* 0..9 */
-    char note[128]; /* user sentence saved alongside the screenshot */
-    char bg_summary[128];
+    int prompt; /* the skip-movie question instead of the settings panel */
+    int skip;   /* the question's answer */
 } HostOverlayState;
 
 #ifdef PE_PS5_GPU_NATIVE
@@ -193,18 +174,11 @@ static const unsigned kCpuScales[]={1,2,4,6,8};
 static int GetScale(void){for(int i=0;i<5;++i)if(host_options.scale==kCpuScales[i])return i;return 0;}
 static void SetScale(int i){if(i<0 || i>=5)return;host_options.scale=kCpuScales[i];}
 #else
-static const unsigned kScaleValues[] = {1, 2, 4, 6, 8};
 static const char *const kScaleNames[] = {
-    "1x", "2x", "4x", "6x", "8x"
+    "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x"
 };
-static int ScaleIndex(unsigned scale) {
-    for (int i = 0; i < COUNT_OF(kScaleValues); ++i) {
-        if (scale <= kScaleValues[i]) return i;
-    }
-    return COUNT_OF(kScaleValues) - 1;
-}
-ACCESSORS(Scale, ScaleIndex(host_options.scale),
-          host_options.scale = kScaleValues[ClampIndex(i, COUNT_OF(kScaleValues))])
+ACCESSORS(Scale, ClampIndex((int)host_options.scale - 1, COUNT_OF(kScaleNames)),
+          host_options.scale = (unsigned)(i + 1))
 
 #endif
 
@@ -252,6 +226,8 @@ ACCESSORS(MovieBlur,host_options.movie_blur!=0,host_options.movie_blur=i)
 ACCESSORS(FsrSharpness,ClampIndex(host_options.fsr1_sharpness,3),host_options.fsr1_sharpness=i)
 static const char *const kModelFillNames[]={"Original","Soft fill","World key fill"};
 ACCESSORS(ModelFill,ClampIndex(host_options.model_fill_lighting,3),host_options.model_fill_lighting=i)
+#endif
+#ifdef PE_PS5_GPU_NATIVE
 static const char *const kNativeOutputNames[]={"Always fullscreen"};
 ACCESSORS(NativeOutput,0,(void)i)
 ACCESSORS(GameplayFill,host_options.gameplay_fill!=0,host_options.gameplay_fill=i)
@@ -267,10 +243,10 @@ ACCESSORS(MovieFrame,host_options.movie_presentation==0,host_options.movie_prese
 ACCESSORS(HdBackgrounds,host_options.hd_backgrounds!=0,if(i!=!!host_options.hd_backgrounds)Host_HdAction(0))
 ACCESSORS(HdModels,host_options.hd_models!=0,host_options.hd_models=i)
 static const char *const kParticleModes[]={"Original","Hybrid","New geometry"};
-static const char *const kDialogueNames[]={"Original","Modern (Plex)"};
-ACCESSORS(DialogueText,host_options.dialogue_text!=0,host_options.dialogue_text=i)
-static const char *const kTriangleFontNames[]={"Original","Modern (Plex)"};
-ACCESSORS(TriangleFont,host_options.triangle_menu_font!=0,host_options.triangle_menu_font=i)
+static const char *const kDialogueNames[]={"Original","Modern (Plex)","Retro"};
+ACCESSORS(DialogueText,host_options.dialogue_text,host_options.dialogue_text=i)
+static const char *const kTriangleFontNames[]={"Original","Modern (Plex)","Retro"};
+ACCESSORS(TriangleFont,host_options.triangle_menu_font,host_options.triangle_menu_font=i)
 static const char *const kTriangleFontStatus[]={"Original","Prepared for menu","Original fallback / waiting"};
 ACCESSORS(TriangleFontStatus,!host_options.triangle_menu_font?0:PeMenuFont_GetEffective()?1:2,(void)i)
 static const char *const kDialogueStatus[]={"Original","Prepared for dialogue","Original fallback / waiting"};
@@ -291,18 +267,14 @@ static const OverlaySetting kSystem[]={
 };
 ACCESSORS(DynamicLighting,host_options.dynamic_lighting!=0,host_options.dynamic_lighting=i)
 ACCESSORS(EffectGeometryCorrection,host_options.effect_geometry_correction!=0,host_options.effect_geometry_correction=i)
-#else
-static const char *const kFrameRateNames[]={"30 Hz (original)","60 Hz (interpolated)"};
-ACCESSORS(FrameInterpolation,host_options.frame_interpolation!=0,
-          host_options.frame_interpolation=i)
-
-ACCESSORS(DynamicLighting, host_options.dynamic_lighting != 0,
-          host_options.dynamic_lighting = i)
-
-ACCESSORS(EffectGeometryCorrection, host_options.effect_geometry_correction != 0,
-          host_options.effect_geometry_correction = i)
+#endif
+#ifdef PE_PS5_GPU_NATIVE
+static const char *const kPresentationNames[]={"Classic","Modern"};
 #endif
 static const OverlaySetting kGraphics[] = {
+#ifdef PE_PS5_GPU_NATIVE
+    SETTING("Presentation","Modern remembers your custom visual choices. Classic uses original presentation with required rendering corrections. Gameplay mods, cheats, controls, audio and saves are unaffected.",kPresentationNames,Presentation),
+#endif
 #if defined(PE_PS5) && !defined(PE_PS5_GPU_NATIVE)
     SETTING("CPU SCALE TEST v2", "Experimental; rejected frames use original 1x. Ordered field HD at every scale. Unsupported frames use 1x; see logs.", kScaleNames, Scale),
 #else
@@ -319,9 +291,9 @@ static const OverlaySetting kGraphics[] = {
     SETTING("HD backgrounds","Native background replacements from your installed pack. Independent of character textures and filtering; original assets remain the fallback.",kNativeBackgroundNames,HdBackgrounds),
     SETTING("HD character textures","Matched player and supported nonplayer images on original geometry. Unregistered, unsupported or ambiguous matches remain original; independent of backgrounds and filtering.",kNativeModelNames,HdModels),
     SETTING("Movie framing","Original proportions with blurred sides is the default. Fill screen stretches movies for comparison; gameplay framing is separate.",kMovieFrameNames,MovieFrame),
-    SETTING("Dialogue font","Optional Modern Plex for supported Latin dialogue. Original spacing/layout retained; requires 2x or above. Other game menus and unsupported glyphs remain original.",kDialogueNames,DialogueText),
+    SETTING("Dialogue font","Choose Original, smooth Modern, or blocky Retro for supported Latin dialogue. Keeps spacing, layout and the dark outline. Requires 2x or above; unsupported letters stay original.",kDialogueNames,DialogueText),
     SETTING("Dialogue font status","Updates as dialogue is drawn. Unsupported letters keep the original font; if the new font is not ready, the original remains.",kDialogueStatus,DialogueStatus),
-    SETTING("Triangle menu font","Plex lettering for supported Latin text in the game's Triangle menu. Keeps spacing and controls; modern letters use a grayscale base with the game's tint colours. Settings appearance is separate.",kTriangleFontNames,TriangleFont),
+    SETTING("Triangle menu font","Choose Original, Modern or Retro lettering for supported Latin text in the Triangle menu. Keeps spacing, controls and the dark outline. Settings appearance is separate.",kTriangleFontNames,TriangleFont),
     SETTING("Triangle font status","Only supported letters are replaced. The original font is used if the new font is not ready. Change the Settings menu's look in System.",kTriangleFontStatus,TriangleFontStatus),
     SETTING("Show FPS","Temporary display frame counter. Counts submitted TV frames, not game logic updates.",kSwitchNames,ShowFps),
     SETTING("Player shadow","Experimental player-outline projection onto supported flat floors using a fixed light direction. Other actors, unsupported scenes and source/resource failures keep original shadows. No wall or stair occlusion.",kPlayerShadowNames,PlayerShadow),
@@ -346,24 +318,20 @@ static const OverlaySetting kGraphics[] = {
             kDitherNames, Dither),
 #if defined(PE_PS5) && !defined(PE_PS5_GPU_NATIVE)
     SETTING("Geometry correction", "This GPU option is unavailable on the CPU renderer.", kUnavailableNames, Unavailable),
-    SETTING("Antialiasing", "This GPU option is unavailable on the CPU renderer.", kUnavailableNames, Unavailable),
-    SETTING("Model textures", "This GPU option is unavailable on the CPU renderer.", kUnavailableNames, Unavailable),
-#elif defined(PE_PS5_GPU_NATIVE)
-    SETTING("Antialiasing", "Smoother edges: twice each axis, four samples per pixel. Uses more GPU time and memory.", kAntialiasNames, Antialiasing),
-    SETTING("Model filtering", "Bilinear filtering of the original 3D texture; separate from HD player replacements.", kFilterNames, ModelFiltering),
 #else
-    SETTING("Geometry correction", "Subpixel vertex precision and perspective-correct 3D textures.",
-            kSwitchNames, GeometryCorrection),
-    SETTING("Antialiasing", "Smoother edges: twice each axis, four samples per pixel. Uses more GPU time and memory.",
-            kAntialiasNames, Antialiasing),
-    SETTING("Model textures", "Bilinear filtering for 3D models; backgrounds and text keep original sampling.",
-            kFilterNames, ModelFiltering),
-    SETTING("Gameplay display", "Interpolate models and scrolling between original game frames. Game speed and input timing stay original.",
-            kFrameRateNames, FrameInterpolation),
-    SETTING("Dynamic lighting", "Smooth 3D directional lighting on characters and monsters.",
-            kSwitchNames, DynamicLighting),
-    SETTING("Effect geometry", "Subpixel vertex precision for spell and particle effects.",
-            kSwitchNames, EffectGeometryCorrection),
+#ifndef PE_PS5_GPU_NATIVE
+    SETTING("Geometry correction", "Subpixel vertex precision and perspective-correct 3D textures.", kSwitchNames, GeometryCorrection),
+#endif
+#endif
+#if defined(PE_PS5) && !defined(PE_PS5_GPU_NATIVE)
+    SETTING("Antialiasing", "This GPU option is unavailable on the CPU renderer.", kUnavailableNames, Unavailable),
+#else
+    SETTING("Antialiasing", "Smoother edges: twice each axis, four samples per pixel. Uses more GPU time and memory.", kAntialiasNames, Antialiasing),
+#endif
+#if defined(PE_PS5) && !defined(PE_PS5_GPU_NATIVE)
+    SETTING("Model textures", "This GPU option is unavailable on the CPU renderer.", kUnavailableNames, Unavailable),
+#else
+    SETTING("Model filtering", "Bilinear filtering of the original 3D texture; separate from HD player replacements.", kFilterNames, ModelFiltering),
 #endif
 };
 
@@ -382,27 +350,54 @@ static const OverlaySetting kAudio[] = {
 };
 
 
-#ifdef PE_PS5_GPU_NATIVE
-static const char *const kPresentationNames[]={"Classic","Modern"};
-static const OverlaySetting kExperience[]={SETTING("Presentation","Modern remembers your custom visual choices. Classic uses original presentation with required rendering corrections. Gameplay mods, cheats, controls, audio and saves are unaffected.",kPresentationNames,Presentation)};
-#endif
 
 static const char *const kPageNames[OVERLAY_PAGE_COUNT] = {
 #ifdef PE_PS5_GPU_NATIVE
-    "Experience", "Mods", "Cheats", "Save states", "Advanced", "Controls", "System"
+    "Graphics", "Controls", "Enhancements", "System", "Mods"
 #else
     "Graphics", "Controls", "Audio", "Discs", "Mods"
 #endif
 };
 
+#ifdef PE_PS5_GPU_NATIVE
+_Static_assert(OVERLAY_PAGE_COUNT==HOST_PAGE_COUNT,"overlay page ownership");
+#endif
 static const char *OverlayPageName(int page) {
     return page >= 0 && page < OVERLAY_PAGE_COUNT ? kPageNames[page] : "";
 }
 
+#ifdef PE_PS5_GPU_NATIVE
+/* The PC overlay owns rendering/input. Group the existing native controls instead
+ * of spawning secondary overlays; every visual declaration appears exactly once. */
+enum { VISUAL_GRAPHICS, VISUAL_MOVIES, VISUAL_EFFECTS, VISUAL_ADVANCED };
+static OverlaySetting native_visual_pages[4][9];
+static int native_visual_counts[4], native_visual_ready, native_enhancement_category;
+static const char *const kEnhancementCategories[]={"Movies","Effects","Advanced"};
+static int GetEnhancementCategory(void){return native_enhancement_category;}
+static void SetEnhancementCategory(int i){native_enhancement_category=ClampIndex(i,3);}
+static const OverlaySetting kEnhancementCategory=SETTING("Category","Choose a focused group. L1/R1 still changes the main PC-style menu tabs.",kEnhancementCategories,EnhancementCategory);
+static void Host_GroupVisualSettings(void) {
+    if(native_visual_ready)return;
+    for(int group=1;group<4;group++){native_visual_pages[group][0]=kEnhancementCategory;native_visual_counts[group]=1;}
+    for(int i=0;i<COUNT_OF(kGraphics);++i){
+        const OverlaySetting *s=&kGraphics[i]; int group=VISUAL_ADVANCED;
+        if(s->set==SetPresentation||s->set==SetScale||s->set==SetGameplayFill||
+           s->set==SetHdBackgrounds||s->set==SetHdModels||s->set==SetAspect||
+           s->set==SetFsr1||s->set==SetShowFps)group=VISUAL_GRAPHICS;
+        else if(s->set==SetMovieFrame||s->set==SetMovieCleanup)group=VISUAL_MOVIES;
+        else if(s->set==SetDialogueText||s->set==SetTriangleFont||s->set==SetPlayerShadow||
+                s->set==SetParticleLights||s->set==SetParticleMode||s->set==SetModelFill||
+                s->set==SetDynamicLighting||s->set==SetEffectGeometryCorrection)group=VISUAL_EFFECTS;
+        if(native_visual_counts[group]<COUNT_OF(native_visual_pages[group]))
+            native_visual_pages[group][native_visual_counts[group]++]=*s;
+    }
+    native_visual_ready=1;
+}
+#endif
+
 static const OverlaySetting *OverlayPageSettings(int page, int *count) {
 #ifdef PE_PS5_GPU_NATIVE
-    if(page==OVERLAY_PAGE_GRAPHICS){*count=COUNT_OF(kExperience);return kExperience;}
-    if(page==OVERLAY_PAGE_AUDIO){*count=COUNT_OF(kGraphics);return kGraphics;}
+    if(page==OVERLAY_PAGE_GRAPHICS||page==OVERLAY_PAGE_ENHANCEMENTS){Host_GroupVisualSettings();int group=page==OVERLAY_PAGE_GRAPHICS?0:1+native_enhancement_category;*count=native_visual_counts[group];return native_visual_pages[group];}
     if(page==OVERLAY_PAGE_DISCS){*count=COUNT_OF(kSystem);return kSystem;}
 #endif
     switch (page) {
@@ -420,12 +415,11 @@ static const OverlaySetting *OverlayPageSettings(int page, int *count) {
 
 static int Host_SettingsPureRowCount(int page) {
 #ifdef PE_PS5_GPU_NATIVE
-    if(page==OVERLAY_PAGE_GRAPHICS)return 2;
-    if(page==OVERLAY_PAGE_AUDIO)return COUNT_OF(kGraphics);
+    if(page==OVERLAY_PAGE_GRAPHICS||page==OVERLAY_PAGE_ENHANCEMENTS){Host_GroupVisualSettings();return native_visual_counts[page==OVERLAY_PAGE_GRAPHICS?0:1+native_enhancement_category];}
     if(page==OVERLAY_PAGE_MODS||page==OVERLAY_PAGE_CHEATS||page==OVERLAY_PAGE_STATES||page==OVERLAY_PAGE_DISCS)return Host_ModernRowCount(page);
 #endif
     if (page == OVERLAY_PAGE_GRAPHICS) return COUNT_OF(kGraphics);
-    if (page == OVERLAY_PAGE_CONTROLS) return 3 + HOST_BINDING_COUNT;
+    if (page == OVERLAY_PAGE_CONTROLS) return 2 + HOST_BINDING_COUNT;
     if (page == OVERLAY_PAGE_AUDIO) return COUNT_OF(kAudio);
     if (page == OVERLAY_PAGE_MODS) {
 #ifdef PE_PS5_GPU_NATIVE
@@ -446,14 +440,18 @@ static int Host_SettingsTotalRowCount(int page) {
 }
 
 enum {
-    OVERLAY_CONTROLS_ITEM_COUNT = HOST_BINDING_COUNT + 2,
+    OVERLAY_CONTROLS_ITEM_COUNT = HOST_BINDING_COUNT + 1,
     OVERLAY_CONTROLS_VISIBLE_BINDINGS = OVERLAY_VISIBLE_CONTROLS - 1,
     OVERLAY_CONTROLS_MAX_SCROLL = OVERLAY_CONTROLS_ITEM_COUNT - OVERLAY_CONTROLS_VISIBLE_BINDINGS
 };
 
 static int Host_SettingsVisibleSettingCount(int page) {
+#ifdef PE_PS5_GPU_NATIVE
+    if(page==OVERLAY_PAGE_GRAPHICS||page==OVERLAY_PAGE_ENHANCEMENTS){Host_GroupVisualSettings();return native_visual_counts[page==OVERLAY_PAGE_GRAPHICS?0:1+native_enhancement_category];}
+#endif
+    if(page==OVERLAY_PAGE_DISCS)return 9;
     (void)page;
-    return COUNT_OF(kGraphics)>OVERLAY_VISIBLE_CONTROLS ? COUNT_OF(kGraphics) : OVERLAY_VISIBLE_CONTROLS;
+    return OVERLAY_VISIBLE_CONTROLS;
 }
 
 static int Host_SettingsVisibleRowCount(int page) {
@@ -469,6 +467,9 @@ static int Host_ClampControlsScroll(int scroll) {
 /* Scrolls Controls by the minimum amount needed to keep a selected binding
  * or field-threshold row in view. Mouse hover never calls this. */
 static void Host_EnsureControlsRowVisible(HostOverlayState *state) {
+#ifdef PE_PS5_GPU_NATIVE
+    if(state->row!=Host_SettingsPureRowCount(state->page)+2)state->return_title_confirm=0;
+#endif
     if(state->page!=OVERLAY_PAGE_CONTROLS){
         int capacity=Host_SettingsVisibleSettingCount(state->page);
         int maximum=Host_SettingsPureRowCount(state->page)-capacity;if(maximum<0)maximum=0;
@@ -674,6 +675,9 @@ static void DrawText(OverlaySurface *s, float x, float baseline, float em,
 /* ---- geometry helpers ---- */
 
 static int OverlayDesignHeight(int rowCount) {
+#ifdef PE_PS5_GPU_NATIVE
+    rowCount=9+OVERLAY_ACTION_ROWS; /* Fixed outer frame for every tab/category. */
+#endif
     return OVERLAY_HEADER_H + rowCount * OVERLAY_ROW_H + OVERLAY_ACTION_GAP +
            OVERLAY_FOOTER_H;
 }
@@ -687,8 +691,10 @@ static void OverlayFitLayout(int designW, int designH, int windowW, int windowH,
     if (scale > widthLimit) scale = widthLimit;
     if (scale > heightLimit) scale = heightLimit;
     if (scale > 2.5f) scale = 2.5f;
+#ifndef PE_PS5_GPU_NATIVE
     if (scale < 0.5f) scale = 0.5f;
-    scale = floorf(scale * 8.0f) / 8.0f; /* no repaint on every resize pixel */
+#endif
+    if(scale>=0.125f)scale = floorf(scale * 8.0f) / 8.0f; /* no repaint on every resize pixel */
     layout->scale = scale;
     layout->w = (int)ceilf((float)designW * scale);
     layout->h = (int)ceilf((float)designH * scale);
@@ -713,35 +719,6 @@ static OverlayRect OverlayPromptRowRect(int row) {
                          (float)OVERLAY_ROW_H};
 }
 
-static int OverlayScreenshotDesignHeight(const HostOverlayState *state) {
-    return SCREENSHOT_HEADER_H + SCREENSHOT_ROWS * OVERLAY_ROW_H +
-           (state->osk_open ? SCREENSHOT_OSK_H : 0) + OVERLAY_ACTION_GAP +
-           SCREENSHOT_FOOTER_H;
-}
-
-static OverlayRect OverlayScreenshotRowRect(const HostOverlayState *state, int row) {
-    float top = (float)(SCREENSHOT_HEADER_H + row * OVERLAY_ROW_H);
-    if (state->osk_open && row > SCREENSHOT_ROW_NOTE) {
-        top += (float)SCREENSHOT_OSK_H;
-    }
-    if (row >= SCREENSHOT_ROW_SAVE) {
-        top += (float)OVERLAY_ACTION_GAP;
-    }
-    return (OverlayRect){(float)(OVERLAY_PAD / 2), top,
-                         (float)(SCREENSHOT_PANEL_W - OVERLAY_PAD),
-                         (float)OVERLAY_ROW_H};
-}
-
-static OverlayRect OverlayScreenshotOskKeyRect(int oskRow, int oskCol) {
-    float pad = (float)OVERLAY_PAD;
-    float gridW = (float)SCREENSHOT_PANEL_W - 2.0f * pad;
-    float cellW = gridW / (float)SCREENSHOT_OSK_COLS;
-    float top = (float)(SCREENSHOT_HEADER_H + 2 * OVERLAY_ROW_H + 6) +
-                (float)oskRow * (float)SCREENSHOT_OSK_ROW_H;
-    return (OverlayRect){pad + (float)oskCol * cellW + 2.0f, top,
-                         cellW - 4.0f, (float)(SCREENSHOT_OSK_ROW_H - 4)};
-}
-
 static void OverlayComputeStateLayout(const HostOverlayState *state, int windowW,
                                       int windowH, OverlayLayout *layout) {
 #ifdef PE_PS5_GPU_NATIVE
@@ -750,9 +727,6 @@ static void OverlayComputeStateLayout(const HostOverlayState *state, int windowW
     if (state->prompt) {
         OverlayFitLayout(PROMPT_PANEL_W, OverlayPromptDesignHeight(), windowW, windowH,
                          layout);
-    } else if (state->screenshot) {
-        OverlayFitLayout(SCREENSHOT_PANEL_W, OverlayScreenshotDesignHeight(state), windowW,
-                         windowH, layout);
     } else {
         OverlayComputeLayout(state->page, windowW, windowH, layout);
     }
@@ -1001,7 +975,6 @@ static void PaintRows(const Painter *p) {
             if (settings != NULL && row < declCount) {
                 PaintSettingRow(p, &settings[row], mid, baseline, selected, label);
 #ifdef PE_PS5_GPU_NATIVE
-            } else if(page==OVERLAY_PAGE_GRAPHICS&&row==1){PaintValueRow(p,"Advanced picture settings","Open",mid,baseline,selected,0,label);
             } else if(page==OVERLAY_PAGE_MODS||page==OVERLAY_PAGE_CHEATS||page==OVERLAY_PAGE_STATES||page==OVERLAY_PAGE_DISCS){
                 char value[160];Host_ModernRowValue(page,row,value,sizeof value);
                 if(Host_ModernRowKind(page,row)==2)PaintValueRow(p,Host_ModernRowLabel(page,row),value,mid,baseline,selected,0,label);
@@ -1018,9 +991,6 @@ static void PaintRows(const Painter *p) {
                     char value[32];
                     snprintf(value, sizeof(value), "%u%%", host_options.analog_run_threshold);
                     PaintValueRow(p, "Field run threshold", value, mid, baseline, selected, 0, label);
-                } else if (row == HOST_SPEED_MODE_ROW) {
-                    PaintValueRow(p, "Speed button", host_options.speed_toggle ? "Toggle" : "Hold",
-                                  mid, baseline, selected, 0, label);
                 } else {
                     int idx = row - 1;
                     int capturing = selected && p->state->capturing_binding;
@@ -1070,14 +1040,14 @@ static void PaintRows(const Painter *p) {
             }
         } else {
 #ifdef PE_PS5_GPU_NATIVE
-            int quit = row == pureCount + 2;
+            int quit = row == pureCount + 3;
 #else
             int quit = row == pureCount + 1;
 #endif
 
             DrawText(p->surface, (float)OVERLAY_PAD * s, baseline, 17.0f * s,
 #ifdef PE_PS5_GPU_NATIVE
-                     quit ? "Quit game" : row==pureCount+1 ? "Back" : "Resume game",quit?kDanger:label,
+                     quit ? "Exit game" : row==pureCount+2 ? "Return to title" : row==pureCount+1 ? "Back" : "Resume game",quit?kDanger:label,
 #else
                      quit ? "Quit game" : "Resume game", quit ? kDanger : label,
 #endif
@@ -1130,12 +1100,12 @@ static void PaintRows(const Painter *p) {
 
 static const char *OverlayRowHelp(const HostOverlayState *state) {
 #ifdef PE_PS5_GPU_NATIVE
-    if(state->page==OVERLAY_PAGE_GRAPHICS&&state->row==1)return "Adjust individual picture choices. Changes become part of your remembered Modern presentation; gameplay and audio preferences are unchanged.";
     int customCount=Host_SettingsPureRowCount(state->page);
     if(state->row<customCount&&(state->page==OVERLAY_PAGE_MODS||state->page==OVERLAY_PAGE_CHEATS||state->page==OVERLAY_PAGE_STATES||(state->page==OVERLAY_PAGE_DISCS&&state->row>=3)))return Host_ModernRowHelp(state->page,state->row);
     if(state->row==customCount)return "Resume the game with your current settings.";
-    if(state->row==customCount+1)return state->page==OVERLAY_PAGE_AUDIO?"Return to Experience; your picture choices are kept.":(state->page==OVERLAY_PAGE_MODS||state->page==OVERLAY_PAGE_CHEATS)?"Return to the parent page, or resume from a category root. Choices are kept.":"Back to the game; current choices are kept, like Circle.";
-    if(state->row==customCount+2)return "Quit the game. Save normal progress before leaving.";
+    if(state->row==customCount+1)return (state->page==OVERLAY_PAGE_MODS||state->page==OVERLAY_PAGE_CHEATS)?"Return to the parent page, or resume from a category root. Choices are kept.":"Back to the game; current choices are kept, like Circle.";
+    if(state->row==customCount+2)return state->status?state->status:"Return to title after confirmation. Unsaved progress is lost; normal save files are untouched.";
+    if(state->row==customCount+3)return "Exit to the PS5 launcher. Save normal progress before leaving.";
 #endif
 #ifdef PE_PS5_GPU_NATIVE
     if(state->page==OVERLAY_PAGE_MODS&&state->row==5)
@@ -1180,15 +1150,7 @@ static const char *OverlayRowHelp(const HostOverlayState *state) {
             return "Left-stick deflection needed to run in the field. Lower values start running sooner.";
         }
         if (state->row == HOST_SPEED_BINDING + 1) {
-            return host_options.speed_toggle
-                       ? "Press to speed up, again for normal. Left/Right: 2x-4x. Enter/South binds; Del/West unbinds."
-                       : "Hold to speed up. Left/Right: 2x-4x. Enter/South binds; Del/West unbinds.";
-        }
-        if (state->row == HOST_SPEED_MODE_ROW) {
-            return "Hold: fast while the speed button is held. Toggle: each press switches it on or off.";
-        }
-        if (state->row == HOST_SCREENSHOT_BINDING + 1) {
-            return "Capture a screenshot with note & background ID. Enter/South binds; Del/West unbinds.";
+            return "Hold to speed up. Left/Right: 2x-4x. Enter/South binds; Del/West unbinds.";
         }
         return "Press Enter or South button to rebind. Duplicate bindings swap automatically.";
     }
@@ -1304,134 +1266,6 @@ static void OverlayPaintPrompt(OverlaySurface *surface, const HostOverlayState *
                   WithAlpha(kText, 0.10f));
     DrawText(surface, (float)OVERLAY_PAD * s, footerTop + 36.0f * s, 13.0f * s,
              "Up/Down select   Enter confirm   Esc keep watching",
-             WithAlpha(kMuted, 0.7f), ALIGN_LEFT);
-    solid = surface->pixels + (size_t)(surface->h - 1) * (size_t)surface->w * 4u;
-    solid[3] = 255;
-}
-
-static const char *const kScreenshotTagNames[] = {
-    "None",
-    "Background hallucination",
-    "Lighting / tint issue",
-    "Widescreen seam / edge",
-    "Depth / mask layering",
-    "Missing / wrong tile",
-    "Geometry / alignment"
-};
-
-static const char *const kScreenshotOskKeys[SCREENSHOT_OSK_ROWS][SCREENSHOT_OSK_COLS] = {
-    {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"},
-    {"k", "l", "m", "n", "o", "p", "q", "r", "s", "t"},
-    {"u", "v", "w", "x", "y", "z", "0", "1", "2", "3"},
-    {"4", "5", "6", "7", "8", "9", "Space", "Bksp", "Clear", "Done"}
-};
-
-static const char *Host_ScreenshotUploadUrl(void) {
-    const char *env = SDL_getenv("PE_SCREENSHOT_UPLOAD_URL");
-    if (env && *env) return env;
-    if (*host_options.screenshot_upload_url) return host_options.screenshot_upload_url;
-    return NULL;
-}
-
-static void OverlayPaintScreenshot(OverlaySurface *surface, const HostOverlayState *state,
-                                   const OverlayLayout *layout) {
-    Painter painter = {surface, state, layout->scale};
-    const float s = layout->scale;
-    int designH = OverlayScreenshotDesignHeight(state);
-    float footerTop = (float)(designH - SCREENSHOT_FOOTER_H) * s;
-    const char *uploadUrl = Host_ScreenshotUploadUrl();
-    int tagIdx = ClampIndex(state->tag_index, COUNT_OF(kScreenshotTagNames));
-    uint8_t *solid;
-    int row;
-
-    memset(surface->pixels, 0, (size_t)surface->w * (size_t)surface->h * 4u);
-    PaintFrame(&painter, (float)SCREENSHOT_PANEL_W * s, (float)designH * s);
-    DrawText(surface, (float)OVERLAY_PAD * s, 40.0f * s, 26.0f * s, "Save screenshot",
-             kText, ALIGN_LEFT);
-    DrawText(surface, (float)(SCREENSHOT_PANEL_W - OVERLAY_PAD) * s, 38.0f * s, 14.0f * s,
-             "GAME PAUSED", kMuted, ALIGN_RIGHT);
-    DrawText(surface, (float)OVERLAY_PAD * s, 78.0f * s, 15.0f * s,
-             state->bg_summary[0] ? state->bg_summary : "Background ID: none",
-             WithAlpha(kAccent, 0.92f), ALIGN_LEFT);
-    FillRoundRect(surface, (float)OVERLAY_PAD * s, (float)(SCREENSHOT_HEADER_H - 12) * s,
-                  (float)(SCREENSHOT_PANEL_W - 2 * OVERLAY_PAD) * s, 1.0f, 0.0f,
-                  WithAlpha(kText, 0.10f));
-
-    for (row = 0; row < SCREENSHOT_ROWS; row++) {
-        OverlayRect rect = OverlayScreenshotRowRect(state, row);
-        float top = rect.y * s;
-        float mid = top + (float)OVERLAY_ROW_H * 0.5f * s;
-        float baseline = mid + 6.0f * s;
-        int selected = !state->osk_open && row == state->row;
-        Color label = selected ? kText : WithAlpha(kText, 0.82f);
-
-        if (selected || (state->osk_open && row == SCREENSHOT_ROW_NOTE)) {
-            FillRoundRect(surface, rect.x * s, top + 3.0f * s, rect.w * s,
-                          (float)(OVERLAY_ROW_H - 6) * s, 9.0f * s,
-                          WithAlpha(kAccent, 0.16f));
-            FillRoundRect(surface, rect.x * s + 4.0f * s, mid - 10.0f * s, 3.0f * s,
-                          20.0f * s, 1.5f * s, kAccent);
-        }
-
-        if (row == SCREENSHOT_ROW_TAG) {
-            PaintValueRow(&painter, "Issue tag", kScreenshotTagNames[tagIdx], mid, baseline,
-                          selected, 0, label);
-        } else if (row == SCREENSHOT_ROW_NOTE) {
-            char displayNote[140];
-            DrawText(surface, (float)OVERLAY_PAD * s, baseline, 17.0f * s, "Note", label,
-                     ALIGN_LEFT);
-            if (state->note[0] != '\0' || state->osk_open || selected) {
-                snprintf(displayNote, sizeof(displayNote), "%s%s", state->note,
-                         (selected || state->osk_open) ? "|" : "");
-                DrawText(surface, (float)(OVERLAY_PAD + 90) * s, baseline, 16.0f * s,
-                         displayNote, kText, ALIGN_LEFT);
-            } else {
-                DrawText(surface, (float)(OVERLAY_PAD + 90) * s, baseline, 15.0f * s,
-                         "Type or press Enter / South for keyboard...", kMuted, ALIGN_LEFT);
-            }
-        } else if (row == SCREENSHOT_ROW_UPLOAD) {
-            const char *val = !uploadUrl ? "Not configured"
-                              : (host_options.screenshot_auto_upload ? "On" : "Off");
-            PaintValueRow(&painter, "Auto-upload", val, mid, baseline, selected, 0, label);
-        } else if (row == SCREENSHOT_ROW_SAVE) {
-            const char *saveLabel = (uploadUrl && host_options.screenshot_auto_upload)
-                                        ? "Save & upload screenshot"
-                                        : "Save screenshot";
-            DrawText(surface, (float)OVERLAY_PAD * s, baseline, 17.0f * s, saveLabel,
-                     selected ? kAccent : label, ALIGN_LEFT);
-        } else if (row == SCREENSHOT_ROW_CANCEL) {
-            DrawText(surface, (float)OVERLAY_PAD * s, baseline, 17.0f * s, "Cancel",
-                     selected ? kDanger : label, ALIGN_LEFT);
-        }
-    }
-
-    if (state->osk_open) {
-        for (int r = 0; r < SCREENSHOT_OSK_ROWS; r++) {
-            for (int c = 0; c < SCREENSHOT_OSK_COLS; c++) {
-                OverlayRect cell = OverlayScreenshotOskKeyRect(r, c);
-                int active = (r == state->osk_row && c == state->osk_col);
-                FillRoundRect(surface, cell.x * s, cell.y * s, cell.w * s, cell.h * s,
-                              6.0f * s,
-                              active ? WithAlpha(kAccent, 0.35f) : WithAlpha(kText, 0.08f));
-                DrawText(surface, (cell.x + cell.w * 0.5f) * s,
-                         (cell.y + cell.h * 0.5f + 5.0f) * s, 14.0f * s,
-                         kScreenshotOskKeys[r][c], active ? kText : kMuted, ALIGN_CENTRE);
-            }
-        }
-    }
-
-    FillRoundRect(surface, (float)OVERLAY_PAD * s, footerTop,
-                  (float)(SCREENSHOT_PANEL_W - 2 * OVERLAY_PAD) * s, 1.0f, 0.0f,
-                  WithAlpha(kText, 0.10f));
-    const char *help = (state->status && state->status[0])
-                           ? state->status
-                       : state->osk_open
-                           ? "D-pad select key   South/Enter type   West Bksp   North Space   Start Done"
-                           : "Type note or press South/Enter on Note for controller keyboard. Start saves.";
-    DrawText(surface, (float)OVERLAY_PAD * s, footerTop + 26.0f * s, 14.0f * s, help, kMuted,
-             ALIGN_LEFT);
-    DrawText(surface, (float)OVERLAY_PAD * s, footerTop + 50.0f * s, 13.0f * s,
-             "Up/Down select   Left/Right change   Start/Enter save   Esc/East cancel",
              WithAlpha(kMuted, 0.7f), ALIGN_LEFT);
     solid = surface->pixels + (size_t)(surface->h - 1) * (size_t)surface->w * 4u;
     solid[3] = 255;
@@ -1682,7 +1516,7 @@ static void Host_WriteOverlayQuad(
 static int s_overlayIsFps;
 static int Host_UploadOverlaySurfaceAndVertices(SDL_GPUDevice *device) {
     if (s_overlaySurface.w <= 0 || s_overlaySurface.h <= 0 || s_overlayWindowW <= 0 ||
-        s_overlayWindowH <= 0 || s_overlayVertexBuffer == NULL) {
+        s_overlayWindowH <= 0) {
         return 0;
     }
     if (s_overlayTexture == NULL || s_overlayTextureW != s_overlaySurface.w ||
@@ -1700,13 +1534,11 @@ static int Host_UploadOverlaySurfaceAndVertices(SDL_GPUDevice *device) {
         info.layer_count_or_depth = 1;
         info.num_levels = 1;
         s_overlayTexture = SDL_CreateGPUTexture(device, &info);
-        if (s_overlayTexture == NULL) {
-            s_overlayTextureW = 0;
-            s_overlayTextureH = 0;
-            return 0;
-        }
         s_overlayTextureW = s_overlaySurface.w;
         s_overlayTextureH = s_overlaySurface.h;
+        if (s_overlayTexture == NULL) {
+            return 0;
+        }
     }
 
     OverlayGpuVertex verts[12];
@@ -1835,15 +1667,13 @@ static void Host_OverlayRefreshGPU(
 #endif
     if (state->prompt) {
         OverlayPaintPrompt(&s_overlaySurface, state, &raster);
-    } else if (state->screenshot) {
-        OverlayPaintScreenshot(&s_overlaySurface, state, &raster);
     } else {
         OverlayPaint(&s_overlaySurface, state, &raster);
     }
-    if (Host_EnsureOverlayPipeline(device, SDL_GetGPUSwapchainTextureFormat(device, window)) &&
-        Host_UploadOverlaySurfaceAndVertices(device)) {
-        state->dirty = 0;
+    if (Host_EnsureOverlayPipeline(device, SDL_GetGPUSwapchainTextureFormat(device, window))) {
+        Host_UploadOverlaySurfaceAndVertices(device);
     }
+    state->dirty = 0;
 }
 
 /* Reuses the existing Plex raster, overlay pipeline/context and transfer
@@ -1873,18 +1703,13 @@ static void Host_OverlayRenderGPU(SDL_GPUCommandBuffer *command, SDL_GPURenderPa
     if (s_prevOverlayRender != NULL) {
         s_prevOverlayRender(command, pass);
     }
-#ifdef PE_PS5_GPU_NATIVE
+    #ifdef PE_PS5_GPU_NATIVE
     if(!s_overlayState.open&&host_options.show_fps)Host_FpsRefreshGPU();
+    #endif
     if ((!s_overlayState.open&&(!host_options.show_fps||!s_overlayIsFps)) || s_overlayPipeline == NULL || s_overlayTexture == NULL ||
         s_overlayVertexBuffer == NULL || s_overlayWindowW <= 0 || s_overlayWindowH <= 0) {
         return;
     }
-#else
-    if (!s_overlayState.open || s_overlayPipeline == NULL || s_overlayTexture == NULL ||
-        s_overlayVertexBuffer == NULL || s_overlayWindowW <= 0 || s_overlayWindowH <= 0) {
-        return;
-    }
-#endif
 
     static const float kIdentityMvp[16] = {
         1.0f, 0.0f, 0.0f, 0.0f,
@@ -1920,3 +1745,4 @@ static void Host_OverlayRenderGPU(SDL_GPUCommandBuffer *command, SDL_GPURenderPa
 }
 
 #endif
+

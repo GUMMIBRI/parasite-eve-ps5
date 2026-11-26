@@ -1,11 +1,9 @@
-# HD backgrounds — work in progress
+# HD backgrounds
 
-This branch prototypes optional replacement backgrounds in the original room
-renderer. Enable a locally generated pack with `PE_HD_BACKGROUNDS=/path/to/pack`.
-Missing assets retain original rendering. The experimental atlas path currently
-requires SDL_GPU; this is not a release feature.
+Optional replacement backgrounds use the original room renderer. Enable a locally generated pack with `PE_HD_BACKGROUNDS=/path/to/pack`.
+Missing assets retain original rendering. The scaled atlas path requires SDL_GPU.
 
-The Day 1 study covers M001–M037: 33 maps with 2D layers, 43 views and 62 original
+The initial Day 1 study covers M001–M037: 33 maps with 2D layers, 43 views and 62 original
 animation controllers. Original tile coverage, transparency, depth, timing,
 scripts, native VRAM and audio remain authoritative. Atlas storage is recycled
 at room transitions.
@@ -71,6 +69,20 @@ scene, and inherits its original fade/tint packet colors. Their explicit GPU mar
 presentation. They currently require SDL_GPU at an internal resolution above 1x,
 like the existing HD mesh path. At 1x they are not displayed.
 
+A single backdrop sits behind every actor, so side continuations of a room's
+foreground layers (M001's ambulance and police car, M002's canopy) were drawn
+under the characters walking past them. `PEW2` sidecars fix this with
+depth-sorted layers. Each record gains a `u32` kind after its bounds: kind 0 is
+the `PEW1` backdrop; kind 1 is followed, after its positions, by one `u16`
+native depth per cell (the foreground entry's depth plus its tile offset,
+1..4095). The renderer links such a cell exactly where `Render_DrawSpriteEntry`
+links a native tile of that depth, and skips it when the native tile would be
+skipped, so it covers and is covered by actors like the native part of the same
+object. A view may have several kind-1 layers next to its backdrop; their art
+must be transparent outside the object (alpha below 0.5 draws nothing, in both
+the GPU and CPU paths). Depths come from the foreground entry's tiles nearest
+the seam, extrapolated across the side. `PEW1` sidecars load unchanged.
+
 Artwork coverage is **not complete**. The first installed static candidates are
 M001 and M002. The working catalog has 490 background views, with 488 still
 pending. Wider native rooms continue using their original stored picture; other
@@ -97,8 +109,9 @@ stationary-camera dialogue. The latter requires `PE_TEST_DISC` and
 
 `compress_webp.py SOURCE DESTINATION --quality 95` creates a separate pack.
 Each `<key>.webp` stores only the 4x HD material. Its `<key>.ref.png` retains the
-native reference plane losslessly, so palette fallback, coverage, STP and native
-VRAM are unchanged. The title uses lossless WebP. Original PNG packs remain
+native reference plane losslessly, so palette fallback, STP and native VRAM
+remain unchanged. Legacy materials use native coverage; reviewed RGBA materials
+can refine opaque HD presentation coverage as described below. The title uses lossless WebP. Original PNG packs remain
 intact. The runtime prefers WebP, then PNG/BMP; a missing or invalid reference
 plane rejects that WebP and allows the existing fallback path.
 
@@ -132,10 +145,21 @@ version/directory is in `mods/upscale/active.json` beside those preferences.
 `--download-backgrounds` and `--verify-backgrounds` use the same installer without
 a window. `PE_CONFIG_HOME` selects an isolated profile for headless checks;
 `PE_HD_SERVER=http://127.0.0.1:PORT` is a localhost-only test override.
+For scripted-view replay, `PE_TEST_CAMERA_STATE=1` adds the original camera
+group, position, script origin, flags, mesh tint and digital/analog base angles
+to each headless diagnostic record. It only reads host-owned camera state;
+the default replay JSON is unchanged. Keep these observations separate from
+optional HD material identifiers when checking native state equality.
+
+The game advertises `X-PE-HD-Features: underlay-v1,static-matte-v1,selective-matte-v1` when requesting
+the catalog and archive. The server keeps versioned catalogs so older games
+without these capabilities continue receiving a compatible pack. The client
+rejects unknown or malformed `required_features` before downloading the ZIP,
+retaining its active pack. Feature compatibility is independent of development
+build version strings. ZIP delivery remains a static nginx transfer.
 
 Downloads report `User-Agent: ParasiteEve/VERSION`, `X-PE-Version`, `X-PE-Build`,
-`X-PE-Platform` and an ephemeral per-download ID. The server counts started and
-completed transfers; update checks and HEAD requests do not count. It stores
+`X-PE-Platform` and an ephemeral per-download ID. The server counts download starts before nginx sends the ZIP; update checks and HEAD requests do not count. It stores
 coarse client metadata and keyed daily visitor hashes, not raw IP addresses.
 Server source/deployment lives separately in `~/Projects/pe-mod-server`.
 
@@ -143,3 +167,310 @@ Headless GPU control: `backgrounds 0|1 /absolute/pack/path` applies the same ref
 and advances eight blanks. `tests/hd_hot_apply.py` compares late activation and
 off/on against a startup-loaded pack on the title and a live field scene, including
 exact native state, VRAM and PCM checks.
+
+
+### Reviewed foreground coverage (issue #56)
+
+Matched opaque HD room sprites in legacy packs keep exact native coverage.
+Room layers are complementary cutouts: a foreground's opaque texels are exactly
+the transparent hole in the layer beneath it, and nothing is drawn under that
+hole. An earlier inward edge feather faded coverage on both sides of that shared
+edge, so the clear colour showed through as a dark staircase around foreground
+objects (issue #208). Coordinated artwork, authored mattes and underlays refine
+edges instead. `ctest -R '^original-gpu-hd-layer-edges$'` draws complementary
+layers over black at 2x and 4x and requires full material colour everywhere.
+SPIR-V, Metal and DXIL are generated from the same shader.
+
+Regular RGB packs keep the original native cutout rules. An RGBA material with
+non-opaque alpha explicitly opts into a refined coverage matte for opaque HD
+presentation at internal resolutions above 1x. Its native reference plane still
+owns palette matching, PS1 STP, native VRAM/readback and gameplay. Semitransparent
+primitives keep native coverage and ABR blending. Existing packs remain compatible.
+The default matte can only refine pixels inside live native coverage: RGB palette
+matching cannot distinguish transparent zero from opaque black, so an HD alpha
+value must not resurrect a native-transparent pixel or a packet's rectangle.
+
+`ctest -R '^original-gpu-hd-(coverage|reference)$' runs hidden GPU tests
+with synthetic atlases. They check native-transparent holes, palette fallback,
+authored partial alpha, PNG/WebP equivalence, native VRAM and semitransparent
+draws. Windows CI runs both tests with D3D12.
+
+Experimental `<geometry-key>-under.bin` sidecars reuse the PEW1 tile layout
+for optional reconstructed backdrop artwork. Unlike `-wide.bin`, these tiles
+also draw in 4:3. They are linked behind the original room ordering table and
+use the room's original tint/fade. Their atlas command uses cell bit 22 instead
+of the widescreen extension's bit 23. They render only with HD enabled above
+1x, never into native VRAM; the software path ignores them. The installer accepts
+these files as checksummed manifest extras. Existing packs without them retain
+their current appearance. This is a mechanism for a reviewed coherent underlay,
+not an automatic reconstruction of the missing floor. M097/M239 artwork and
+native scene review remain unfinished; no new production pack has been published.
+
+The extension GPU regression covers both aspects, 1x/2x, HD off/on, absent
+atlases and original draws in front. The real-disc widescreen test additionally
+loads a synthetic diagnostic underlay through the actual room-sidecar path and
+compares original game state, VRAM and PCM at both checkpoints. The underlay
+must stay hidden behind the original room's opaque coverage in both aspects,
+and show through a synthetic half-transparent authored base material.
+
+A reviewed **static** atlas with non-opaque alpha may opt into an HD silhouette
+using a same-key `-matte.bin` sidecar containing exactly four bytes, `PEM1`.
+This mode can extend beyond native-transparent pixels in the scaled opaque
+presentation, so the atlas must have a coherent background or an appropriate
+underlay beneath its edges. The pack author must verify that the layer has no
+animation or palette-controlled visibility. Never mark animated or script-hidden
+layers this way. Missing, invalid or overlong metadata keeps strict native
+coverage; existing unmarked packs keep their current appearance.
+
+For a local correction, `PEM2` followed by a cell-selection bitmap opts in only
+the reviewed static cells. The bitmap has exactly `ceil(columns * rows / 8)`
+bytes; bit 0 selects material cell 0, with row-order numbering. Reference-plane
+cells are not counted. Empty, truncated, extended or out-of-range masks fall
+back as a whole. Unselected cells keep their own alpha policy; fully opaque
+material keeps exact native coverage. Packs using this format must require
+`selective-matte-v1`; older games then continue receiving a compatible catalog.
+Both formats require review of the backdrop in every relevant animation pose.
+Fractional-alpha pixels retain their authored straight RGB; colour extrusion
+for filtering touches only fully transparent material pixels.
+
+Static mattes do not affect native VRAM, 1x output or PS1 semitransparent draws.
+Palette mismatch still falls back to native color. PNG and WebP use the same
+metadata contract. The installer treats matte markers as checksummed extras;
+corrupt markers invalidate verification and cannot replace a working pack.
+GPU tests cover valid/invalid markers, PNG/WebP parity, native VRAM, palette
+fallback, semitransparency and the legacy transparent-pixel guard.
+
+`hd-poc/pack.py --coverage-aa` traces each complete native entry before cutting
+16px tiles, simplifies long stair-step contours within half a native pixel,
+and rasterizes an antialiased 4x mask. Small holes remain unsimplified. Newly
+covered edge texels inherit foreground colour; matching gutters avoid tile seams.
+The packer writes RGBA PNG; WebP compression preserves the alpha losslessly.
+This is conservative contour reconstruction, not a hand-authored HD segmentation.
+
+Material discontinuities need coherent artwork in every intersecting depth layer.
+Do not remove a source-authored seam merely because an upscale emphasizes it.
+For M103 the intact lobby is M046 (M041 is a different office); its wide and
+close views must share one source-faithful bridge painting and NYPD plaque.
+The fallen board in M099 must reuse the intact M042 board. Preserve foreground
+objects crossing a corrected plane, including the globe lamp over the painting.
+
+The offline compositor accepts WebP and RGBA coverage and `--capture-json` to
+reconstruct exactly the active entries recorded in a screenshot report. These
+previews omit actors, live scripts, mirrors and camera movement; they complement
+hidden-GPU tests rather than proving those gameplay paths.
+
+### Encoding corrected materials
+
+The issue-56 `encode_webp.py` accepts `--source`, `--out` and `--lossless`.
+It encodes PNG materials in a mixed candidate while preserving native references
+and other assets, including title images. Lossless mode verifies every decoded
+RGBA byte; both modes require exact alpha and reference hashes. The output must
+be a fresh directory and an encoding audit is written beside it. For example:
+
+```sh
+python encode_webp.py --source CANDIDATE --out NEW_WEBP_DIRECTORY --lossless
+```
+
+Pass `--version 0.2` when staging a separately versioned candidate. Use a dotted
+numeric version (up to 20 characters), matching the game's downloader. Without
+this option the source version is retained. Encoding recomputes payload and
+total directory bytes, including the final manifest; it never edits the source
+manifest or overwrites an existing output directory.
+
+### Reproducing the M097/M239 edge candidate
+
+`docs/assets/hd-animated/corrections/issue-56/build_underlays.py` builds a fresh
+review directory from a baseline pack and the locally archived artwork:
+
+```sh
+python build_underlays.py --assets PATH --baseline PACK --out NEW_DIRECTORY
+```
+
+It requires OpenCV, NumPy and Pillow. It rejects existing output paths and
+foreground entries with animation controls. The baseline is never overwritten;
+changed files are detached before writing. Source/reference planes and existing
+covered foreground RGB stay intact. Long-edge masks, narrow reconstructed floor
+strips and explicit static-matte metadata form the candidate.
+
+`underlay-generation.json` records source/output hashes and generation prompts;
+`underlay-review.json` records native captures, rejected methods and remaining
+review. The generated masters are archived separately from Git. This recipe
+requires the renderer support in PRs #79 and #80 and does not publish a pack.
+
+Development atlas overrides must account for format priority: the runtime tries
+WebP, then PNG, then BMP for each key. A corrected PNG does not override a
+same-key WebP. The issue-56 candidate builder removes only the old candidate
+link when replacing an atlas, preserving the baseline. It accepts
+`--assets-root`, `--baseline` and `--out` for separate checkouts, refuses existing
+outputs and writes its audit beside the new output directory.
+
+### Completing 16:9 coverage
+
+Audit the actual artwork queue before generating more sides:
+
+```
+python docs/assets/hd-widescreen/prepare.py --audit SCOPE.json --assets-root PATH_TO_ASSETS --pack PACK
+```
+
+The normal 320x224 field viewport needs 398 native source pixels for 16:9.
+A tall scrolling canvas does not increase that requirement. Native-wide views
+enter camera/coverage review instead of the outpainting queue; short banners
+receive an intentional-framing review. Serialized animation footprints remain
+separate from live animation qualification.
+
+Identical geometry/group bindings can share one extension only when every
+serialized source context, native reference, entry flag, crop and origin agrees.
+A changed animation phase prevents that reuse. Existing art is a review candidate,
+not proof of completed integration. Geometry-only views without an HD background
+are tracked separately rather than being silently dropped from the game scope.
+
+The audit records all aliases and requirements, including original 4:3 materials,
+coherent foregrounds and underlays, controller timing, camera extremes, actor
+occlusion and verified versioned distribution. It never marks a view runtime
+verified from its dimensions. Regression: `python tests/hd_widescreen_catalog.py`
+(Pillow, NumPy and OpenCV required).
+
+
+The original renderer can export camera coverage samples without opening a game
+window. Build `test-original-actor-animation` with `BUILD_TESTING=ON`, then run:
+
+```sh
+PSYZ_HEADLESS=1 SDL_AUDIODRIVER=dummy PE_TEST_DISC="DISC.cue" \
+PE_WS_CAMERA_GRID=1 PE_WS_ANIMATIONS=1 PE_WS_REPORT=coverage.jsonl \
+./build/test-original-actor-animation --widescreen-rooms
+```
+
+Consume the report only after the process exits successfully. Each JSON line
+identifies a numeric room-table map, mesh group, controller pose, camera X/Y,
+reported picture span and whether that sample supports the full 16:9 view.
+Maps 410 onward use the asset catalog's `E00` onward labels. The camera grid
+checks vertical start/middle/end; animation mode checks each authored controller
+phase individually with other controllers at their default state. It also
+asserts that original 4:3 tile packets retain their screen positions.
+This checks the original tile-linking path and coverage bands; GPU pixels,
+script-switched layers, palette changes and combined animation timing still
+need separate review. Use a current executable with PEW2 support for foreground
+side-layer GPU checks; an older executable can silently fall back to 4:3.
+
+
+For an already wide source whose clear-black cutaway causes conservative native
+coverage bounds (M235/g0), export its existing canvas extent explicitly:
+
+```sh
+python docs/assets/hd-widescreen/prepare.py --native-extent --room M235 --group 0 \
+  --assets-root PATH_TO_ASSETS --pack WORKING_PACK
+```
+
+The exporter requires enough source width for the 320x224 field's 16:9 view and
+at least 224 source lines. It checks the original black corner in every
+serialized entry, including inactive/controller phases, and verifies the native
+reference pixel checksums. PEW1's required material cell is a transparent
+marker at that verified black corner; the declared bounds describe the existing
+picture canvas. The marker leaves the original clear colour and flashes visible.
+Original atlases and animation phases remain unchanged. Existing outpainted
+bindings are protected, and other groups and PEW2 foreground depths survive
+export. The resulting metadata still requires runtime review. This is an
+alternative authoring operation for eligible wide sources; narrow maps require
+new side artwork. Runtime testing needs the PsyZ native-readback correction
+when a shifted widescreen view uses high-resolution presentation.
+
+
+For a foreground surface with discontinuous neighbouring tile depths, authoring
+can supply `MASKDIR/ROOM-left-depth.json` (or `right`) alongside its mask.
+It contains an `entry` number and `anchors` as `[native_x, native_y, depth]`
+triples. Select at least three non-collinear tiles on the same physical surface;
+every triple is checked against the original entry, and the anchors must share
+its tile-grid phase. The exporter fits that local
+depth plane and rejects inconsistent anchors or extrapolation outside the native
+foreground range. Other views retain the existing nearest-row depth method.
+All foreground cells follow the original entry's tile-grid phase, independently
+of the backdrop grid, including entries with irregular per-row depths and no
+plane guide. Partial cells outside the authored canvas stay transparent.
+
+Presentation-only margin materials interpolate cell-local UVs and carry their
+integer atlas origin without interpolation. Their bilinear RGBA filtering uses
+the same subtexel phase independently of atlas placement, so coherent foreground
+RGB does not introduce one-level color seams over the backdrop. Native sprites
+retain their existing sampling path. PsyZ's headless GPU test
+`gpu::widescreen_margin_color_is_independent_of_atlas_slot` checks identical
+patterned materials near opposite atlas edges at 2x, 4x, 7x and 8x in both aspect
+modes; the test fails on the previous sampler and passes on the local-UV path.
+The mask and depth-guide hashes are recorded in the pack metadata. A successful
+export still needs actor probes behind and in front of the extended surface.
+
+Foreground extension atlases preserve the coherent backdrop RGB underneath the
+mask, including samples outside the silhouette. The exporter stores masked-out
+samples with alpha 1/255 instead of zero. Extension draws use a binary 0.5 alpha
+cutoff, so these samples remain fully invisible, while bypassing the loader's
+alpha-zero RGB extrusion. This convention is only for extension commands; it is
+not an alpha-blended native room matte. Verify hidden-actor background equality
+as well as actor occlusion and unchanged 4:3 output after authoring a new layer.
+
+Filter gutters must sample neighbouring pixels from the complete registered
+image, rather than repeating each tile's edge. This applies to both backdrop
+and foreground margins: their grids can differ, and repeated edges produce
+color seams at fractional scales such as 7x even when 4x looks correct.
+Foreground authoring requires `MASKDIR/ROOM-gGG-wide-rgb.png`, copied from the
+backdrop export's `ROOM-gGG-wide-registered.png`. Its dimensions and visible
+side RGB are checked before export. RGB underneath transparent parts of the
+original center is retained for filtering, while their alpha stays below the
+binary cutoff. Gutter alpha follows the same full-view mask and remains
+invisible outside the authored bounds. Keep these overlapping margin atlases
+lossless so independent compression cannot break their shared RGB.
+
+When rebuilding atlases from a reviewed registered composite, use
+`prepare.py --registered` with its original `--center` and matching `--margin`.
+This repacks without another registration or resampling pass. Export refuses
+incorrect dimensions or any changed center pixel before writing pack files;
+new generated artwork must still go through normal registration and review.
+
+Room picture bounds must clip presentation after the complete widescreen view
+has been scaled. Cropping first and rounding a narrower destination changes
+the original picture's sample grid when side artwork is added. PsyZ tests this
+independently of HD assets at 2x, 4x, 7x and 8x; actual 4:3 presentation keeps
+its separate path. Include native-picture interior equality when comparing an
+unextended room with its widescreen export, as well as native state/VRAM checks.
+
+### Black cutout contours and static layer gaps
+
+`--preserve-source-black` keeps black interiors and voids without stamping a
+one-native-pixel black contour over the HD material. Contours are traced across
+complete entries and shared across a view, so packet cuts cannot become edges
+and an opaque underlay cannot reintroduce another layer's original outline.
+Semitransparent packets retain source black and all native references/coverage
+remain unchanged.
+
+The underlay builder also reconstructs missing strips around other opaque static
+layers, rather than only its originally reported foreground. It copies adjacent
+HD background colours within eight HD texels (two native pixels), excluding
+transparent and opaque-black samples. Opaque-black base texels in that same narrow
+strip can inherit the adjacent background colour; black interiors remain intact.
+Moving and semitransparent layers do not define these gutters. Native masks,
+reference planes, actor occlusion and original animation remain authoritative.
+
+`tests/hd_pack_png.py` covers the cross-entry contour, packet boundaries, retained
+black details/semitransparency, and a second foreground's missing gutter, with
+baseline preservation and exact native-reference checks. Assets must be rebuilt
+and visually reviewed before publishing a new pack; updating the game alone does
+not replace downloaded artwork.
+
+M097's source-restored colour bands can still contain a baked PS1 staircase even
+when a gap is filled. Its reviewed follow-up uses one registered HD image for
+all eight opaque static layers, the base and their underlay:
+
+```sh
+python build_underlays.py --assets PATH --baseline PACK --out NEW_DIRECTORY --rooms M097 --coherent-static
+```
+
+This mode requires the existing M097 underlay and registered anchor metadata.
+It keeps every native room reference and all animated atlas files. Controller
+coverage plus a three-native-pixel margin retains its existing material in all
+static planes, and is excluded from new underlay coverage. Static foregrounds
+explicitly use their authored HD mattes with palette witnesses instead of being
+clipped to the PS1 staircase. This is a reviewed M097 artwork recipe, not an
+unreviewed global change to every room. The output audit records input hashes.
+
+Background catalogs containing the reviewed PEW2 widescreen layers require
+`widescreen-layers-v2`. The downloader advertises and accepts this capability;
+older clients keep receiving their compatible catalog. This gates the newer
+margin sampling and foreground authoring together without replacing older ZIPs.
