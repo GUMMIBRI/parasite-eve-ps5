@@ -1021,7 +1021,9 @@ static int pe_ps5_chord(const SDL_Event *ev) {
 #endif
 static bool pe_filter(const SDL_Event *ev) {
 #ifdef PE_PS5_PLUGINS
+#ifndef PE_PS5_GPU_NATIVE
     if (pe_ps5_chord(ev)) return true;
+#endif /* Native PS5 uses L3+R3 and tabs, not a second touchpad chord. */
     /* Device lifecycle must still reach PsyZ while the panel is modal. */
     if (ev->type == SDL_EVENT_GAMEPAD_REMOVED || ev->type == SDL_EVENT_GAMEPAD_ADDED) return false;
 #endif

@@ -220,6 +220,11 @@ static void pe_slot_info(char *out, unsigned size) {
 }
 
 static int quicksave_init(void) {
+#ifdef PE_PS5_GPU_NATIVE
+    /* Temporarily deferred for the console menu/boot qualification cycle.
+     * Existing slot files and ordinary memory-card saves are not changed. */
+    return 0;
+#endif
     pe_hook_add(PE_HOOK_FRAME, pe_on_frame, NULL, PE_PRIORITY_LATE, MOD_ID);
     pe_hook_add(PE_HOOK_TITLE_FRAME, pe_on_title, NULL, PE_PRIORITY_NORMAL, MOD_ID);
     pe_hook_add(PE_HOOK_NEW_GAME, pe_on_new_game, NULL, PE_PRIORITY_NORMAL, MOD_ID);

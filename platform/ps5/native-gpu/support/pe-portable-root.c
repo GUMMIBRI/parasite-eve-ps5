@@ -7,7 +7,7 @@ extern int sceKernelOpen(const char *,int,unsigned);
 extern long sceKernelRead(int,void *,size_t);
 extern int sceKernelClose(int);
 static int initialized,mode,error,asset_state;
-static char root[32],app[160],user[180],storage[16];
+static char root[180],app[160],user[180],storage[16];
 static unsigned io_budget;
 static unsigned char compare_a[4096],compare_b[4096];
 static size_t len(const char*s){size_t n=0;while(s[n])n++;return n;}
@@ -32,14 +32,18 @@ int PePortable_Mode(void){
 #ifndef PE_NATIVE_SHARE_LAYOUT
  error=5;mode=-1;return mode;
 #else
- io_budget=256u*1024u*1024u;unsigned matches=0;char candidate[160],binary[180];
- append(candidate,sizeof candidate,"/data/homebrew/PS5GameTest","");append(binary,sizeof binary,candidate,"/eboot.bin");int found=same_app(binary);if(found<0){error=5;mode=-1;return mode;}if(found){matches++;append(app,sizeof app,candidate,"");append(storage,sizeof storage,"/data","");}
- for(unsigned i=0;i<8;i++){char mount[]="/mnt/usb0";mount[8]=(char)('0'+i);
-  if(!append(candidate,sizeof candidate,mount,"/homebrew/PS5GameTest")||!append(binary,sizeof binary,candidate,"/eboot.bin")){error=4;mode=-1;return mode;}
-  found=same_app(binary);if(found<0){error=5;mode=-1;return mode;}if(found){if(++matches>1){error=3;mode=-1;return mode;}append(app,sizeof app,candidate,"");append(storage,sizeof storage,mount,"");}
+ io_budget=256u*1024u*1024u;unsigned matches=0;int legacy=0;char candidate[160],binary[180];
+ const char *layouts[]={"/homebrew/PS5GameTest","/homebrew/PPSA77022"};
+ for(unsigned mount_index=0;mount_index<9;mount_index++){
+  char mount[16]="/data";if(mount_index){append(mount,sizeof mount,"/mnt/usb0","");mount[8]=(char)('0'+mount_index-1);}
+  for(unsigned layout=0;layout<2;layout++){
+   if(!append(candidate,sizeof candidate,mount,layouts[layout])||!append(binary,sizeof binary,candidate,"/eboot.bin")){error=4;mode=-1;return mode;}
+   int found=same_app(binary);if(found<0){error=5;mode=-1;return mode;}
+   if(found){if(++matches>1){error=3;mode=-1;return mode;}append(app,sizeof app,candidate,"");append(storage,sizeof storage,mount,"");legacy=(int)layout;}
+  }
  }
  if(matches!=1){error=2;mode=-1;return mode;}
- if(!append(root,sizeof root,storage,"/parasite-eve")||!append(user,sizeof user,app,"/user")){error=4;mode=-1;return mode;}
+ if(!append(root,sizeof root,legacy?app:storage,legacy?"/parasite-eve-data":"/parasite-eve")||!append(user,sizeof user,app,"/user")){error=4;mode=-1;return mode;}
  /* A same-USB complete disc root is authoritative. An internal app may
   * use a unique USB disc root, even when legacy internal data also exists.
   * Only required disc files are probed: optional HD packs stay unprobed. */

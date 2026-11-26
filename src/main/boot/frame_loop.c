@@ -7,7 +7,6 @@
 #include "pe1/planar_shadow.h"
 #endif
 #include "common.h"
-#include <psyz/gpu.h>
 #include "pe1/akao_send.h"
 #include "pe1/battle_runtime.h"
 #include "pe1/battle_status.h"
@@ -92,7 +91,6 @@ void Boot_FlushSceneFast(void) {
 
 int (*g_BootMovieSkipConfirm)(void);
 void (*g_BootSceneStarted)(void);
-int (*g_BootTestSave)(void);
 
 /* The original story movie player has no skip button (the title movies stop
  * on Start in MenuCard_PlayVideo). A new Start press while one
@@ -153,9 +151,6 @@ int Boot_RunFrame(void)
             *scene_flags = 0;
             Field_HandleStateTransition();
             PE_HOOK(PE_HOOK_FRAME, NULL);
-            if (g_BootHostSaveAt && g_BootHostVBlankCount >= g_BootHostSaveAt && g_BootTestSave &&
-                g_BootTestSave())
-                g_BootHostSaveAt = 0;
             flags = g_GameStateFlags;
             g_GameStateFlags = flags & ~0x30u;
             skip_movie = Boot_MovieSkipChosen(state);
@@ -213,8 +208,14 @@ int Boot_RunFrame(void)
             VSync(2);
             }
 
+#ifdef PE_PS5_GPU_NATIVE
+            extern int CPE_HostTakeTitleRequest(void);
+            const int host_return_title=CPE_HostTakeTitleRequest();
+#else
+            const int host_return_title=0;
+#endif
             if (!(g_GameStateFlagsWord & 0x4200) &&
-                (g_FieldPadBits & 0x0F000006u) == 0x0F000006u) {
+                (host_return_title || (g_FieldPadBits & 0x0F000006u) == 0x0F000006u)) {
                 Boot_Shutdown();
             }
             if (!(state->flags & 0x100)) {
